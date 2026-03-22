@@ -1,0 +1,15 @@
+DIV.induction-block { margin-left: 20px; margin-top: 10px; }
+DIV.induction-title { font-family: Helvetica, sans-serif; font-weight: bold; margin-bottom: 10px; }
+
+DIV.induction-case { margin-bottom: 20px; margin-left: 10px; padding-left: 10px; border-left: 3px solid #d0d0d0; }
+DIV.induction-case-header { margin-bottom: 8px; }
+SPAN.induction-case-title { font-family: Helvetica, sans-serif; font-weight: bold; }
+
+DIV.induction-ih { margin-bottom: 8px; margin-left: 20px; }
+DIV.induction-ih-title { font-family: Helvetica, sans-serif; font-size: 0.9em; color: #606060; margin-bottom: 4px; }
+TABLE.induction-ih-table { font-family: Lucida Grande, sans-serif; }
+TD.induction-ih-index { padding-right: 10px; color: #909090; text-align: right; }
+TD.induction-ih-formula { }
+
+DIV.induction-case-goal { margin-left: 20px; margin-bottom: 8px; font-family: Lucida Grande, sans-serif; }
+SPAN.induction-case-goal-title { font-family: Helvetica, sans-serif; font-weight: bold; }

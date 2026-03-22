@@ -190,8 +190,8 @@ describe('FreshenVars', function() {
     const [result, _] = FreshenVars(Call.add(x, y));
     // Should still be an addition of two variables
     assert.equal(result.variety, 3); // EXPR_FUNCTION
-    assert.equal((result as any).name, '_add_');
-    assert.equal((result as any).args.length, 2);
+    assert.equal((result as Call).name, '_add_');
+    assert.equal((result as Call).args.length, 2);
   });
 
   it('handles expression with no variables', function() {

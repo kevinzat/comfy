@@ -28,21 +28,20 @@ describe('getType', function() {
     const env = new TopLevelEnv([], [], []);
     const t = getType(env, 'Int');
     assert.equal(t.kind, 'named');
-    assert.equal((t as NamedType).name, 'Int');
+    assert.equal(t.name, 'Int');
   });
 
   it('resolves user-defined type name to NamedType', function() {
     const env = new TopLevelEnv([listType], [], []);
     const t = getType(env, 'List');
     assert.equal(t.kind, 'named');
-    assert.equal((t as NamedType).name, 'List');
+    assert.equal(t.name, 'List');
   });
 
   it('resolves TypeAst to FunctionType', function() {
     const env = new TopLevelEnv([listType], [], []);
-    const t = getType(env, new TypeAst(['List'], 'Int'));
-    assert.equal(t.kind, 'function');
-    const ft = t as FunctionType;
+    const ft = getType(env, new TypeAst(['List'], 'Int'));
+    assert.equal(ft.kind, 'function');
     assert.equal(ft.paramTypes.length, 1);
     assert.equal(ft.paramTypes[0].name, 'List');
     assert.equal(ft.returnType.name, 'Int');
@@ -50,9 +49,8 @@ describe('getType', function() {
 
   it('resolves multi-param TypeAst', function() {
     const env = new TopLevelEnv([listType], [], []);
-    const t = getType(env, new TypeAst(['Int', 'List'], 'List'));
-    assert.equal(t.kind, 'function');
-    const ft = t as FunctionType;
+    const ft = getType(env, new TypeAst(['Int', 'List'], 'List'));
+    assert.equal(ft.kind, 'function');
     assert.equal(ft.paramTypes.length, 2);
     assert.equal(ft.paramTypes[0].name, 'Int');
     assert.equal(ft.paramTypes[1].name, 'List');

@@ -60,7 +60,7 @@ export interface Environment {
    * Returns the resolved type for the variable.
    * @throws Error if the variable is not defined. Use hasVariable to check first.
    */
-  getVariable(name: string): Type;
+  getVariable(name: string): NamedType;
 
   /** Returns the number of known facts. */
   numFacts(): number;
@@ -82,7 +82,7 @@ export class TopLevelEnv implements Environment {
   private types: Map<string, TypeDeclAst | null>;
   private constructors: Map<string, [Type, ConstructorAst]>;
   private functions: Map<string, [Type, FuncAst]>;
-  private variables: Map<string, Type>;
+  private variables: Map<string, NamedType>;
   private facts: Formula[];
 
   /**
@@ -192,7 +192,7 @@ export class TopLevelEnv implements Environment {
     return this.variables.has(name);
   }
 
-  getVariable(name: string): Type {
+  getVariable(name: string): NamedType {
     if (!this.variables.has(name))
       throw new Error(`unknown variable: "${name}"`);
     return this.variables.get(name)!;
@@ -231,7 +231,7 @@ export class NestedEnv implements Environment {
     this.parent = parent;
     this.locals = new Map();
     for (const [name, typeName] of variables) {
-      this.locals.set(name, getType(parent, typeName) as NamedType);
+      this.locals.set(name, getType(parent, typeName));
     }
     this.localFacts = facts.slice(0);
   }
@@ -255,7 +255,7 @@ export class NestedEnv implements Environment {
     return this.locals.has(name) || this.parent.hasVariable(name);
   }
 
-  getVariable(name: string): Type {
+  getVariable(name: string): NamedType {
     if (this.locals.has(name))
       return this.locals.get(name)!;
     return this.parent.getVariable(name);

@@ -39,6 +39,7 @@ export interface CalcBlockProps {
   env: Environment;
   givens: string[];
   goal: string;
+  defNames?: string[];
   showHtml: boolean;
   onComplete?: (complete: boolean) => void;
 }
@@ -74,6 +75,7 @@ export default class CalcBlock
     const givens = props.givens.map(ParseFormula);
     const goal = ParseFormula(props.goal);
 
+    const defNames = props.defNames ?? [];
     this.state = {
       givens,
       goal,
@@ -81,13 +83,13 @@ export default class CalcBlock
       endExpr: goal.right,
       topLines: [],
       topText: '',
-      topMatches: FindForwardMatches(''),
+      topMatches: FindForwardMatches('', defNames),
       topError: undefined,
       topFocus: false,
       topDelayTimer: undefined,
       bottomLines: [],
       botText: '',
-      botMatches: FindBackwardMatches(''),
+      botMatches: FindBackwardMatches('', defNames),
       botError: undefined,
       botFocus: false,
       botDelayTimer: undefined,
@@ -132,12 +134,12 @@ export default class CalcBlock
     const chain: Formula[] = [];
     let prev = startExpr;
     for (const line of topLines) {
-      chain.push(new Formula(prev, line.op as FormulaOp, line.expr));
+      chain.push(new Formula(prev, line.op, line.expr));
       prev = line.expr;
     }
     for (let i = bottomLines.length - 1; i >= 0; i--) {
       const goalExpr = i > 0 ? bottomLines[i - 1].expr : endExpr;
-      chain.push(new Formula(prev, bottomLines[i].op as FormulaOp, goalExpr));
+      chain.push(new Formula(prev, bottomLines[i].op, goalExpr));
       prev = goalExpr;
     }
 
@@ -183,18 +185,19 @@ export default class CalcBlock
   // --- Text input handling ---
 
   setText(which: 'top' | 'bottom', text: string) {
+    const defNames = this.props.defNames ?? [];
     if (which === 'top') {
       if (this.state.topDelayTimer !== undefined) {
         clearTimeout(this.state.topDelayTimer);
       }
-      const matches = FindForwardMatches(text);
+      const matches = FindForwardMatches(text, defNames);
       const timer = setTimeout(() => this.handleParse('top'), 300);
       this.setState({ topText: text, topMatches: matches, topDelayTimer: timer });
     } else {
       if (this.state.botDelayTimer !== undefined) {
         clearTimeout(this.state.botDelayTimer);
       }
-      const matches = FindBackwardMatches(text);
+      const matches = FindBackwardMatches(text, defNames);
       const timer = setTimeout(() => this.handleParse('bottom'), 300);
       this.setState({ botText: text, botMatches: matches, botDelayTimer: timer });
     }
@@ -272,7 +275,7 @@ export default class CalcBlock
         this.setState({
           topLines,
           topText: '',
-          topMatches: FindForwardMatches(''),
+          topMatches: FindForwardMatches('', this.props.defNames ?? []),
           topError: undefined,
           topDelayTimer: undefined,
         });
@@ -290,7 +293,7 @@ export default class CalcBlock
         this.setState({
           bottomLines,
           botText: '',
-          botMatches: FindBackwardMatches(''),
+          botMatches: FindBackwardMatches('', this.props.defNames ?? []),
           botError: undefined,
           botDelayTimer: undefined,
         }, () => {
@@ -328,6 +331,7 @@ export default class CalcBlock
   }
 
   handleDelete(which: 'top' | 'bottom') {
+    const defNames = this.props.defNames ?? [];
     if (which === 'top') {
       const topLines = this.state.topLines.slice(0);
       if (topLines.length === 0) return;
@@ -335,7 +339,7 @@ export default class CalcBlock
       this.setState({
         topLines,
         topText: removed.ruleText,
-        topMatches: FindForwardMatches(removed.ruleText),
+        topMatches: FindForwardMatches(removed.ruleText, defNames),
         topError: undefined,
         collapsed: false,
       });
@@ -346,7 +350,7 @@ export default class CalcBlock
       this.setState({
         bottomLines,
         botText: removed.ruleText,
-        botMatches: FindBackwardMatches(removed.ruleText),
+        botMatches: FindBackwardMatches(removed.ruleText, defNames),
         botError: undefined,
         collapsed: false,
       });

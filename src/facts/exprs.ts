@@ -651,7 +651,7 @@ export class Call extends Expression {
         return Call.multiply(Constant.of(value), factors[0]);
       } else {  // value != 1 and factors.length > 1
         return new Call(FUNC_MULTIPLY,
-            [Constant.of(value) as Expression].concat(factors));
+            [Constant.of(value), ...factors]);
       }
     } else {
       return new Call(this.name, args);
@@ -710,7 +710,7 @@ export class Call extends Expression {
       } else if (expr.variety === EXPR_FUNCTION &&
           (expr as Call).name === FUNC_MULTIPLY) {
         newArgs.push(new Call(FUNC_MULTIPLY,
-            [new Constant(val) as Expression].concat((expr as Call).args)));
+            [new Constant(val), ...(expr as Call).args]));
       } else {
         newArgs.push(new Call(FUNC_MULTIPLY, [new Constant(val), expr]));
       }

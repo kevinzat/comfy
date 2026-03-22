@@ -9,7 +9,7 @@ const lexer = moo.compile({
   WS: /[ \t\r]+/,
   NL: { match: /\n/, lineBreaks: true },
   constant: /[0-9]+/,
-  variable: { match: /[a-z][_a-zA-Z0-9]*/, type: moo.keywords({ subst: 'subst', unsub: 'unsub', defof: 'defof', undef: 'undef' }) },
+  variable: { match: /[a-zA-Z][_a-zA-Z0-9]*/, type: moo.keywords({ subst: 'subst', unsub: 'unsub', defof: 'defof', undef: 'undef' }) },
   lessequal: '<=',
   lessthan: '<',
   equal: '=',

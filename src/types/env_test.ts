@@ -176,7 +176,7 @@ describe('NestedEnv', function() {
   it('local variables shadow parent variables', function() {
     const nested = new NestedEnv(top, [['x', 'List']]);
     assert.ok(nested.hasVariable('x'));
-    assert.equal((nested.getVariable('x') as any).name, 'List');
+    assert.equal(nested.getVariable('x').name, 'List');
   });
 
   it('delegates types to parent', function() {

@@ -2,8 +2,8 @@
  * Pattern-based autocomplete for forward rules and backward tactics.
  */
 
-import { RULE_ALGEBRA, RULE_SUBSTITUTE } from './rules_ast';
-import { TACTIC_ALGEBRA, TACTIC_SUBSTITUTE } from './tactics_ast';
+import { RULE_ALGEBRA, RULE_SUBSTITUTE, RULE_DEFINITION } from './rules_ast';
+import { TACTIC_ALGEBRA, TACTIC_SUBSTITUTE, TACTIC_DEFINITION } from './tactics_ast';
 
 
 interface PatternElement {
@@ -17,16 +17,13 @@ const TYPE_PREDICATE = 4;
 const TYPE_EXPR = 7;
 const TYPE_NUMBER = 8;
 
-const RE_PREDICATE = /[A-Z][_a-zA-Z0-9]*/;
+const RE_PREDICATE = /[a-zA-Z][_a-zA-Z0-9]*/;
 const RE_EXPR = /\(.*/;
 const RE_NUMBER = /[0-9]+/;
 
 
-/** Names available for forward rule completion. */
-const RULE_NAMES: string[] = [];
-
-/** Patterns for forward rules. */
-const FWD_PATTERNS: Array<[number, Array<PatternElement>]> = [
+/** Patterns for forward rules (without defof/undef, which need definition names). */
+const FWD_BASE_PATTERNS: Array<[number, Array<PatternElement>]> = [
   [RULE_ALGEBRA,
    [{type: TYPE_LITERAL, text: "="}, {type: TYPE_EXPR}]],
   [RULE_ALGEBRA,
@@ -39,8 +36,8 @@ const FWD_PATTERNS: Array<[number, Array<PatternElement>]> = [
    [{type: TYPE_LITERAL, text: "unsub"}, {type: TYPE_NUMBER}]],
 ];
 
-/** Patterns for backward rules. */
-const BWD_PATTERNS: Array<[number, Array<PatternElement>]> = [
+/** Patterns for backward rules (without defof/undef, which need definition names). */
+const BWD_BASE_PATTERNS: Array<[number, Array<PatternElement>]> = [
   [TACTIC_ALGEBRA,
    [{type: TYPE_EXPR}, {type: TYPE_LITERAL, text: "="}]],
   [TACTIC_ALGEBRA,
@@ -52,6 +49,26 @@ const BWD_PATTERNS: Array<[number, Array<PatternElement>]> = [
   [TACTIC_SUBSTITUTE,
    [{type: TYPE_LITERAL, text: "unsub"}, {type: TYPE_NUMBER}]],
 ];
+
+function fwdPatterns(defNames: string[]): Array<[number, Array<PatternElement>]> {
+  return [
+    ...FWD_BASE_PATTERNS,
+    [RULE_DEFINITION,
+     [{type: TYPE_LITERAL, text: "defof"}, {type: TYPE_PREDICATE, names: defNames}]],
+    [RULE_DEFINITION,
+     [{type: TYPE_LITERAL, text: "undef"}, {type: TYPE_PREDICATE, names: defNames}]],
+  ];
+}
+
+function bwdPatterns(defNames: string[]): Array<[number, Array<PatternElement>]> {
+  return [
+    ...BWD_BASE_PATTERNS,
+    [TACTIC_DEFINITION,
+     [{type: TYPE_LITERAL, text: "defof"}, {type: TYPE_PREDICATE, names: defNames}]],
+    [TACTIC_DEFINITION,
+     [{type: TYPE_LITERAL, text: "undef"}, {type: TYPE_PREDICATE, names: defNames}]],
+  ];
+}
 
 
 /** A piece of text that is optionally bold. */
@@ -68,13 +85,13 @@ export interface Match {
 
 
 /** Returns forward pattern matches for the given text. */
-export function FindForwardMatches(text: string): Array<Match> {
-  return FindMatches(text, FWD_PATTERNS);
+export function FindForwardMatches(text: string, defNames: string[] = []): Array<Match> {
+  return FindMatches(text, fwdPatterns(defNames));
 }
 
 /** Returns backward pattern matches for the given text. */
-export function FindBackwardMatches(text: string): Array<Match> {
-  return FindMatches(text, BWD_PATTERNS);
+export function FindBackwardMatches(text: string, defNames: string[] = []): Array<Match> {
+  return FindMatches(text, bwdPatterns(defNames));
 }
 
 
@@ -135,7 +152,7 @@ export function PatternMatch(
       case TYPE_PREDICATE: {
         if (!RE_PREDICATE.test(parts[i]))
           return [];
-        const names = pattern[i].names ?? RULE_NAMES;
+        const names = pattern[i].names ?? [];
         const partialMatches = names.filter(name => name.startsWith(parts[i]));
         if (partialMatches.length === 0) {
           return [];
@@ -198,7 +215,7 @@ export function PatternMatch(
   for (let i = parts.length; i < pattern.length; i++) {
     if (pattern[i].type === TYPE_PREDICATE) {
       const results: Match[] = [];
-      const names = pattern[i].names ?? RULE_NAMES;
+      const names = pattern[i].names ?? [];
       for (const name of names) {
         const entryDesc = [...desc];
         const entryComp = [...comp];

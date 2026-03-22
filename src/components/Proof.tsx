@@ -1,12 +1,11 @@
 import React from 'react';
-import { Formula } from '../facts/formula';
 import { ParseFormula } from '../facts/formula_parser';
 import { DeclsAst } from '../lang/decls_ast';
 import { TypeDeclAst } from '../lang/type_ast';
 import { FuncAst, Param, ParamConstructor, funcToDefinitions } from '../lang/func_ast';
 import { TopLevelEnv } from '../types/env';
 import { ExprToHtml } from './ProofElements';
-import CalcBlock from './CalcBlock';
+import ProofBlock from './ProofBlock';
 import './Proof.css';
 
 
@@ -104,14 +103,6 @@ export default class Proof extends React.Component<ProofProps, ProofState> {
     this.state = { showHtml: true, complete: false };
   }
 
-  formatFormula(f: Formula): JSX.Element | string {
-    if (this.state.showHtml) {
-      return <span>{ExprToHtml(f.left)} {f.op} {ExprToHtml(f.right)}</span>;
-    } else {
-      return f.to_string();
-    }
-  }
-
   render() {
     const decls = this.props.decls;
     const givens = this.props.givens.map(ParseFormula);
@@ -141,18 +132,19 @@ export default class Proof extends React.Component<ProofProps, ProofState> {
                 {givens.map((f, i) => (
                   <tr key={i}>
                     <td className="proof-given-index">{i + 1}.</td>
-                    <td className="proof-given-formula">{this.formatFormula(f)}</td>
+                    <td className="proof-given-formula">
+                      {this.state.showHtml
+                        ? <span>{ExprToHtml(f.left)} {f.op} {ExprToHtml(f.right)}</span>
+                        : f.to_string()}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         }
-        <div className="proof-goal">
-          <span className="proof-goal-title">Prove: </span>
-          {this.formatFormula(goal)}
-        </div>
-        <CalcBlock env={env} givens={this.props.givens} goal={this.props.goal}
+        <ProofBlock formula={goal} env={env}
+            defNames={decls.functions.flatMap(f => funcToDefinitions(f).map(d => d.name))}
             showHtml={this.state.showHtml}
             onComplete={(c) => this.setState({ complete: c })} />
         <div className="proof-toggle">

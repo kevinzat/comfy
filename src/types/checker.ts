@@ -41,6 +41,9 @@ export class TypeMismatchError extends UserError {
  * and a TypeAst resolves to a FunctionType.
  * @throws UnknownTypeError if any referenced type name is not defined in the environment.
  */
+export function getType(env: Environment, ref: string): NamedType;
+export function getType(env: Environment, ref: TypeAst): FunctionType;
+export function getType(env: Environment, ref: string | TypeAst): Type;
 export function getType(env: Environment, ref: string | TypeAst): Type {
   if (typeof ref === 'string') {
     if (!env.hasType(ref))
@@ -71,7 +74,7 @@ export function checkExpr(env: Environment, expr: Expression): NamedType {
   } else if (expr.variety === EXPR_VARIABLE) {
     const name = (expr as Variable).name;
     if (env.hasVariable(name))
-      return env.getVariable(name) as NamedType;
+      return env.getVariable(name);
     // Zero-arg constructors parse as variables.
     if (env.hasConstructor(name)) {
       const ctorType = env.getConstructorType(name);

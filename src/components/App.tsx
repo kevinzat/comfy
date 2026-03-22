@@ -17,7 +17,8 @@ export default class App extends React.Component<{}, AppState> {
   render() {
     if (this.state.problem === null) {
       return <ProofSetup
-          onStart={(decls, givens, goal) => this.setState({ problem: { decls, givens, goal } })} />;
+          onStart={(decls, givens, goal) =>
+            this.setState({ problem: { decls, givens, goal } })} />;
     } else {
       return <Proof decls={this.state.problem.decls}
           givens={this.state.problem.givens}

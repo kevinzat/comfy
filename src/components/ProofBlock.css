@@ -1,0 +1,5 @@
+DIV.proof-block { margin-top: 10px; }
+DIV.proof-block-goal { margin-left: 20px; margin-bottom: 8px; font-family: Lucida Grande, sans-serif; }
+SPAN.proof-block-goal-title { font-family: Helvetica, sans-serif; font-weight: bold; }
+DIV.proof-block-method { margin-left: 15px; }
+SPAN.proof-block-method-label { margin-left: 15px; color: #606060; font-family: Helvetica, sans-serif; font-size: 0.9em; }
