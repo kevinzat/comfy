@@ -1,0 +1,29 @@
+DIV.proof { padding-top: 20px; }
+
+DIV.proof-decls { margin-bottom: 15px; margin-left: 20px; }
+DIV.proof-decls-title { font-family: Helvetica, sans-serif; font-weight: bold; margin-bottom: 5px; }
+DIV.proof-decls-body { margin-left: 20px; font-family: Lucida Grande, sans-serif; font-size: 14px; }
+DIV.decl-type { margin-bottom: 4px; }
+DIV.decl-var { margin-bottom: 4px; }
+DIV.decl-func { margin-bottom: 8px; }
+DIV.decl-func-sig { }
+SPAN.decl-func-name { font-weight: bold; }
+DIV.decl-func-case { margin-left: 20px; }
+SPAN.decl-keyword { color: #808080; }
+SPAN.decl-type-name { font-weight: bold; }
+SPAN.decl-separator { color: #808080; }
+SPAN.decl-ctor-name { }
+SPAN.decl-var-name { font-weight: bold; }
+SPAN.decl-func-case-name { color: #606060; }
+DIV.decl-text { font-family: monospace; white-space: pre; }
+
+DIV.proof-givens { margin-bottom: 15px; }
+DIV.proof-givens-title { margin-left: 20px; font-family: Helvetica, sans-serif; font-weight: bold; margin-bottom: 5px; }
+TABLE.proof-givens-table { margin-left: 40px; font-family: Lucida Grande, sans-serif; }
+TD.proof-given-index { padding-right: 10px; color: #909090; text-align: right; }
+TD.proof-given-formula { }
+
+DIV.proof-goal { margin-left: 20px; margin-bottom: 15px; font-family: Lucida Grande, sans-serif; }
+SPAN.proof-goal-title { font-family: Helvetica, sans-serif; font-weight: bold; }
+
+DIV.proof-toggle { margin-left: 20px; margin-top: 10px; }

@@ -1,0 +1,169 @@
+import React from 'react';
+import { Formula } from '../facts/formula';
+import { ParseFormula } from '../facts/formula_parser';
+import { DeclsAst } from '../lang/decls_ast';
+import { TypeDeclAst } from '../lang/type_ast';
+import { FuncAst, Param, ParamConstructor, funcToDefinitions } from '../lang/func_ast';
+import { TopLevelEnv } from '../types/env';
+import { ExprToHtml } from './ProofElements';
+import CalcBlock from './CalcBlock';
+import './Proof.css';
+
+
+export interface ProofProps {
+  decls: DeclsAst;
+  givens: string[];
+  goal: string;
+}
+
+interface ProofState {
+  showHtml: boolean;
+  complete: boolean;
+}
+
+function paramToString(param: Param): string {
+  if (param instanceof ParamConstructor) {
+    if (param.args.length === 0) return param.name;
+    return `${param.name}(${param.args.map(paramToString).join(', ')})`;
+  }
+  return param.name;
+}
+
+function renderTypeDecl(decl: TypeDeclAst, showHtml: boolean): JSX.Element {
+  if (showHtml) {
+    const ctors = decl.constructors.map((ctor, i) => {
+      const args = ctor.paramTypes.length > 0
+          ? `(${ctor.paramTypes.join(', ')})` : '';
+      return <span key={i}>
+        {i > 0 && <span className="decl-separator"> | </span>}
+        <span className="decl-ctor-name">{ctor.name}{args}</span>
+      </span>;
+    });
+    return <div className="decl-type" key={`type-${decl.name}`}>
+      <span className="decl-keyword">type </span>
+      <span className="decl-type-name">{decl.name}</span>
+      <span className="decl-assign"> := </span>
+      {ctors}
+    </div>;
+  } else {
+    const lines = [`type ${decl.name}`];
+    for (const ctor of decl.constructors) {
+      const sig = ctor.paramTypes.length > 0
+          ? `(${ctor.paramTypes.join(', ')}) -> ${ctor.returnType}` : ctor.returnType;
+      lines.push(`| ${ctor.name} : ${sig}`);
+    }
+    return <div className="decl-type decl-text" key={`type-${decl.name}`}>
+      {lines.map((l, i) => <div key={i}>{l}</div>)}
+    </div>;
+  }
+}
+
+function renderVarDecl(name: string, typeName: string, showHtml: boolean): JSX.Element {
+  if (showHtml) {
+    return <div className="decl-var" key={`var-${name}`}>
+      <span className="decl-keyword">var </span>
+      <span className="decl-var-name">{name}</span>
+      <span className="decl-var-type"> : {typeName}</span>
+    </div>;
+  } else {
+    return <div className="decl-var decl-text" key={`var-${name}`}>
+      {`var ${name} : ${typeName}`}
+    </div>;
+  }
+}
+
+function renderFuncDecl(func: FuncAst, showHtml: boolean): JSX.Element {
+  if (showHtml) {
+    const sigType = `(${func.type.paramTypes.join(', ')}) → ${func.type.returnType}`;
+    const defs = funcToDefinitions(func);
+    return <div className="decl-func" key={`func-${func.name}`}>
+      <div className="decl-func-sig"><span className="decl-keyword">def </span><span className="decl-func-name">{func.name}</span> : {sigType}</div>
+      {defs.map((def) => (
+        <div className="decl-func-case" key={def.name}>
+          <span className="decl-func-case-name">{def.name}: </span>
+          <span>{ExprToHtml(def.formula.left)} = {ExprToHtml(def.formula.right)}</span>
+        </div>
+      ))}
+    </div>;
+  } else {
+    const sigType = `(${func.type.paramTypes.join(', ')}) -> ${func.type.returnType}`;
+    const lines = [`def ${func.name} : ${sigType}`];
+    for (const c of func.cases) {
+      const params = c.params.map(paramToString).join(', ');
+      lines.push(`| ${func.name}(${params}) => ${c.body.to_string()}`);
+    }
+    return <div className="decl-func decl-text" key={`func-${func.name}`}>
+      {lines.map((l, i) => <div key={i}>{l}</div>)}
+    </div>;
+  }
+}
+
+export default class Proof extends React.Component<ProofProps, ProofState> {
+  constructor(props: ProofProps) {
+    super(props);
+    this.state = { showHtml: true, complete: false };
+  }
+
+  formatFormula(f: Formula): JSX.Element | string {
+    if (this.state.showHtml) {
+      return <span>{ExprToHtml(f.left)} {f.op} {ExprToHtml(f.right)}</span>;
+    } else {
+      return f.to_string();
+    }
+  }
+
+  render() {
+    const decls = this.props.decls;
+    const givens = this.props.givens.map(ParseFormula);
+    const goal = ParseFormula(this.props.goal);
+    const env = new TopLevelEnv(decls.types, decls.functions, decls.variables, givens);
+
+    const hasDecls = decls.types.length > 0 || decls.functions.length > 0 ||
+        decls.variables.length > 0;
+
+    return (
+      <div className="proof">
+        {hasDecls &&
+          <div className="proof-decls">
+            <div className="proof-decls-title">Declarations:</div>
+            <div className="proof-decls-body">
+              {decls.types.map(t => renderTypeDecl(t, this.state.showHtml))}
+              {decls.functions.map(f => renderFuncDecl(f, this.state.showHtml))}
+              {decls.variables.map(([name, typeName]) => renderVarDecl(name, typeName, this.state.showHtml))}
+            </div>
+          </div>
+        }
+        {givens.length > 0 &&
+          <div className="proof-givens">
+            <div className="proof-givens-title">Given:</div>
+            <table className="proof-givens-table">
+              <tbody>
+                {givens.map((f, i) => (
+                  <tr key={i}>
+                    <td className="proof-given-index">{i + 1}.</td>
+                    <td className="proof-given-formula">{this.formatFormula(f)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        }
+        <div className="proof-goal">
+          <span className="proof-goal-title">Prove: </span>
+          {this.formatFormula(goal)}
+        </div>
+        <CalcBlock env={env} givens={this.props.givens} goal={this.props.goal}
+            showHtml={this.state.showHtml}
+            onComplete={(c) => this.setState({ complete: c })} />
+        <div className="proof-toggle">
+          <span className="btn-edit-chain"
+              onClick={() => this.setState({ showHtml: !this.state.showHtml })}>
+            {this.state.showHtml ? 'Show Text' : 'Show HTML'}
+          </span>
+          {this.state.complete ?
+            <span className="complete-msg">Complete!</span> : ''}
+        </div>
+      </div>
+    );
+  }
+}

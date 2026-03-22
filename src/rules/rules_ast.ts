@@ -1,0 +1,84 @@
+/** AST nodes for forward rules (rules of inference). */
+
+import { Expression } from '../facts/exprs';
+import { FormulaOp } from '../facts/formula';
+
+export const RULE_ALGEBRA = 2;
+export const RULE_SUBSTITUTE = 3;
+export const RULE_DEFINITION = 4;
+
+export abstract class RuleAst {
+  variety: number;
+
+  constructor(variety: number) {
+    this.variety = variety;
+  }
+
+  abstract to_string(): string;
+}
+
+/** op Expr [N ...]: asserts a relationship, optionally citing known facts by index. */
+export class AlgebraAst extends RuleAst {
+  readonly op: FormulaOp;
+  readonly expr: Expression;
+  readonly refs: number[];
+
+  constructor(op: FormulaOp, expr: Expression, refs: number[]) {
+    super(RULE_ALGEBRA);
+    this.op = op;
+    this.expr = expr;
+    this.refs = refs;
+  }
+
+  to_string(): string {
+    if (this.refs.length === 0) {
+      return `${this.op} ${this.expr.to_string()}`;
+    } else {
+      return `${this.op} ${this.expr.to_string()} ${this.refs.join(' ')}`;
+    }
+  }
+}
+
+/**
+ * subst N / unsub N: substitute using the Nth given.
+ * right = true for subst (replace left with right), false for unsub (replace right with left).
+ */
+export class SubstituteAst extends RuleAst {
+  readonly index: number;
+  readonly right: boolean;
+  readonly expr: Expression | undefined;
+
+  constructor(index: number, right: boolean, expr?: Expression) {
+    super(RULE_SUBSTITUTE);
+    this.index = index;
+    this.right = right;
+    this.expr = expr;
+  }
+
+  to_string(): string {
+    const base = `${this.right ? 'subst' : 'unsub'} ${this.index}`;
+    return this.expr !== undefined ? `${base} ${this.expr.to_string()}` : base;
+  }
+}
+
+/**
+ * defof name / undef name: apply a function definition by unification.
+ * right = true for defof (replace pattern with body), false for undef (replace body with pattern).
+ */
+export class DefinitionAst extends RuleAst {
+  readonly name: string;
+  readonly right: boolean;
+  readonly expr: Expression | undefined;
+
+  constructor(name: string, right: boolean, expr?: Expression) {
+    super(RULE_DEFINITION);
+    this.name = name;
+    this.right = right;
+    this.expr = expr;
+  }
+
+  to_string(): string {
+    const base = `${this.right ? 'defof' : 'undef'} ${this.name}`;
+    return this.expr !== undefined ? `${base} ${this.expr.to_string()}` : base;
+  }
+}

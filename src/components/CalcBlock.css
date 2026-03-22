@@ -1,0 +1,31 @@
+TD.expr-elem { padding: 0 15px 0 10px; font-family: Lucida Grande, sans-serif; }
+TD.rule { padding: 0 15px 0 10px; font-family: Helvetica, sans-serif; }
+
+SPAN.options { margin-left: 5px; }
+BUTTON.btn-close { margin-left: 3px; border: none; color: #e0e0e0; cursor: pointer; }
+BUTTON.btn-close:hover { color: #303030; }
+
+TD.chain-gap { color: #909090; padding: 0 15px 0 10px; font-family: Lucida Grande, sans-serif; }
+
+SPAN.btn-edit-chain { display: inline-block; margin-top: 8px; color: #909090; cursor: pointer; text-decoration: underline; margin-left: 10px; font-family: Helvetica, sans-serif; font-size: 0.9em; }
+SPAN.btn-edit-chain:first-child { margin-left: 0; }
+SPAN.btn-edit-chain:hover { color: #606060; }
+
+SPAN.complete-msg { display: inline-block; margin-top: 8px; margin-left: 10px; font-family: Helvetica, sans-serif; color: #2a9d8f; font-weight: bold; }
+
+SPAN.line-error { margin-left: 10px; margin-right: 10px; color: white; }
+SPAN.validity-error { display: inline-block; margin-top: 8px; margin-left: 10px; font-family: Helvetica, sans-serif; color: #e63946; font-weight: bold; font-size: 0.9em; }
+
+DIV.line-suggest {
+  position: absolute;
+  border: 1px solid black;
+  box-shadow: 5px 5px 5px #c0c0c0;
+  background-color: #dfefff;
+  padding: 5px;
+  z-index: 99;
+}
+
+DIV.rule-input { display: inline-block; position: relative; }
+DIV.calc-block { padding-top: 20px; }
+DIV.proof-chain { margin-left: 40px; }
+DIV.proof-buttons { margin-left: 40px; margin-top: 10px; }

@@ -1,0 +1,86 @@
+/** AST nodes for backward rules (tactics). */
+
+import { Expression } from '../facts/exprs';
+import { FormulaOp } from '../facts/formula';
+
+export const TACTIC_ALGEBRA = 2;
+export const TACTIC_SUBSTITUTE = 3;
+export const TACTIC_DEFINITION = 4;
+
+export abstract class TacticAst {
+  variety: number;
+
+  constructor(variety: number) {
+    this.variety = variety;
+  }
+
+  abstract to_string(): string;
+}
+
+/** Backward algebra: asserts Expr op Goal from cited facts; premise is Expr. */
+export class AlgebraTacticAst extends TacticAst {
+  readonly op: FormulaOp;
+  readonly expr: Expression;
+  readonly refs: number[];
+
+  constructor(op: FormulaOp, expr: Expression, refs: number[]) {
+    super(TACTIC_ALGEBRA);
+    this.op = op;
+    this.expr = expr;
+    this.refs = refs;
+  }
+
+  to_string(): string {
+    if (this.refs.length === 0) {
+      return `${this.op} ${this.expr.to_string()}`;
+    } else {
+      return `${this.op} ${this.expr.to_string()} ${this.refs.join(' ')}`;
+    }
+  }
+}
+
+/**
+ * Backward substitution: the opposite of forward substitution.
+ * subst N: undoes a forward subst (replaces right with left in goal).
+ * unsub N: undoes a forward unsub (replaces left with right in goal).
+ */
+export class SubstituteTacticAst extends TacticAst {
+  readonly index: number;
+  readonly right: boolean;
+  readonly expr: Expression | undefined;
+
+  constructor(index: number, right: boolean, expr?: Expression) {
+    super(TACTIC_SUBSTITUTE);
+    this.index = index;
+    this.right = right;
+    this.expr = expr;
+  }
+
+  to_string(): string {
+    const base = `${this.right ? 'subst' : 'unsub'} ${this.index}`;
+    return this.expr !== undefined ? `${base} ${this.expr.to_string()}` : base;
+  }
+}
+
+/**
+ * Backward definition: the opposite of forward defof/undef.
+ * defof name: undoes a forward defof (replaces body with pattern in goal).
+ * undef name: undoes a forward undef (replaces pattern with body in goal).
+ */
+export class DefinitionTacticAst extends TacticAst {
+  readonly name: string;
+  readonly right: boolean;
+  readonly expr: Expression | undefined;
+
+  constructor(name: string, right: boolean, expr?: Expression) {
+    super(TACTIC_DEFINITION);
+    this.name = name;
+    this.right = right;
+    this.expr = expr;
+  }
+
+  to_string(): string {
+    const base = `${this.right ? 'defof' : 'undef'} ${this.name}`;
+    return this.expr !== undefined ? `${base} ${this.expr.to_string()}` : base;
+  }
+}

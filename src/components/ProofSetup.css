@@ -1,0 +1,23 @@
+TD.setup-label { font-family: Helvetica, sans-serif; font-weight: bold; vertical-align: top; padding-top: 10px; }
+
+INPUT.setup-input { padding: 5px; width: 320px; }
+
+TEXTAREA.setup-decls-input { padding: 5px; width: 480px; height: 200px; font-family: monospace; font-size: 13px; resize: vertical; border: 1px solid #c0c0c0; }
+TEXTAREA.setup-decls-input.func-error { border: 2px solid #FF3333; }
+
+DIV.func-error-msg { color: #CC0000; font-size: 12px; font-family: monospace; margin-top: 3px; max-width: 480px; }
+
+SPAN.FormulaValid { padding: 10px 5px; margin-left: -5px; }
+SPAN.FormulaError { padding: 10px 5px; margin-left: -5px; background-color: #FF7373; }
+
+BUTTON.btn-add { border: 1px solid #c0c0c0; background: #f0f0f0; cursor: pointer; border-radius: 3px; padding: 2px 10px; color: #606060; font-size: 14px; }
+BUTTON.btn-add:hover { background: #e0e0e0; }
+
+BUTTON.btn-remove { border: none; background: none; cursor: pointer; color: #c0c0c0; font-size: 16px; margin-left: 8px; }
+BUTTON.btn-remove:hover { color: #303030; }
+
+BUTTON.btn-start { padding: 6px 20px; border: 1px solid #c0c0c0; border-radius: 15px; background: #f0f0f0; cursor: pointer; font-size: 14px; }
+BUTTON.btn-start:hover { background: #e0e0e0; }
+BUTTON.btn-start:disabled { cursor: default; color: #c0c0c0; }
+
+DIV.check-error-msg { color: #CC0000; font-size: 13px; font-family: monospace; margin-top: 8px; }
