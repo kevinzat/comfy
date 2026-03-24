@@ -2,11 +2,11 @@ import * as assert from 'assert';
 import { ParseBackwardRule, CreateTactic } from './infer_backward';
 import { AlgebraTacticAst, SubstituteTacticAst, DefinitionTacticAst, TACTIC_ALGEBRA, TACTIC_SUBSTITUTE, TACTIC_DEFINITION } from './tactics_ast';
 import { TopLevelEnv } from '../types/env';
-import { OP_EQUAL } from '../facts/formula';
+import { Formula, OP_EQUAL, OP_LESS_THAN } from '../facts/formula';
 import { ParseExpr } from '../facts/exprs_parser';
 import { ParseFormula } from '../facts/formula_parser';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
-import { FuncAst, TypeAst, CaseAst, ParamVar, ParamConstructor } from '../lang/func_ast';
+import { FuncAst, TypeAst, CaseAst, ExprBody, IfElseBody, ParamVar, ParamConstructor } from '../lang/func_ast';
 import { Constant, Variable, Call } from '../facts/exprs';
 
 
@@ -196,11 +196,80 @@ describe('CreateTactic', function() {
     assert.throws(() => CreateTactic(ast, goal, env), /cannot be produced/);
   });
 
-  it('subst rejects non-equation given', function() {
+  it('backward subst with inequality in positive position', function() {
     const ast = ParseBackwardRule('subst 1');
     const goal = ParseExpr('x + 1');
     const env = new TopLevelEnv([], [], [], [ParseFormula('x < 3')]);
-    assert.throws(() => CreateTactic(ast, goal, env), /equation/);
+    const tactic = CreateTactic(ast, goal, env);
+    const result = tactic.apply();
+    assert.strictEqual(result.op, '<');
+    assert.ok(result.left.equals(ParseExpr('3 + 1')));
+    assert.ok(result.right.equals(ParseExpr('x + 1')));
+  });
+
+  it('backward subst with inequality in negative position', function() {
+    const ast = ParseBackwardRule('subst 1');
+    const goal = ParseExpr('5 - x');
+    const env = new TopLevelEnv([], [], [], [ParseFormula('x < 3')]);
+    const tactic = CreateTactic(ast, goal, env);
+    const result = tactic.apply();
+    assert.strictEqual(result.op, '<=');
+    assert.ok(result.left.equals(ParseExpr('5 - x')));
+    assert.ok(result.right.equals(ParseExpr('5 - 3')));
+  });
+
+  it('backward subst with inequality in negate', function() {
+    const ast = ParseBackwardRule('subst 1');
+    const goal = ParseExpr('-x');
+    const env = new TopLevelEnv([], [], [], [ParseFormula('x <= 3')]);
+    const tactic = CreateTactic(ast, goal, env);
+    const result = tactic.apply();
+    assert.strictEqual(result.op, '<');
+    assert.ok(result.left.equals(ParseExpr('-x')));
+    assert.ok(result.right.equals(ParseExpr('-3')));
+  });
+
+  it('backward subst with inequality multiply by positive constant', function() {
+    const ast = ParseBackwardRule('subst 1');
+    const goal = ParseExpr('2*x');
+    const env = new TopLevelEnv([], [], [], [ParseFormula('x <= 3')]);
+    const tactic = CreateTactic(ast, goal, env);
+    const result = tactic.apply();
+    assert.strictEqual(result.op, '<=');
+    assert.ok(result.left.equals(ParseExpr('2*3')));
+    assert.ok(result.right.equals(ParseExpr('2*x')));
+  });
+
+  it('backward subst with inequality multiply by negative constant flips', function() {
+    const ast = ParseBackwardRule('subst 1');
+    const goal = ParseExpr('-2*x');
+    const env = new TopLevelEnv([], [], [], [ParseFormula('x <= 3')]);
+    const tactic = CreateTactic(ast, goal, env);
+    const result = tactic.apply();
+    assert.strictEqual(result.op, '<');
+    assert.ok(result.left.equals(ParseExpr('-2*x')));
+    assert.ok(result.right.equals(ParseExpr('-2*3')));
+  });
+
+  it('backward subst with inequality rejects mixed positions', function() {
+    const ast = ParseBackwardRule('subst 1');
+    const goal = ParseExpr('x - x');
+    const env = new TopLevelEnv([], [], [], [ParseFormula('x < 3')]);
+    assert.throws(() => CreateTactic(ast, goal, env), /positive and negative/);
+  });
+
+  it('backward subst with inequality not found', function() {
+    const ast = ParseBackwardRule('subst 1');
+    const goal = ParseExpr('y + 1');
+    const env = new TopLevelEnv([], [], [], [ParseFormula('x < 3')]);
+    assert.throws(() => CreateTactic(ast, goal, env), /not found/);
+  });
+
+  it('backward subst with inequality does not recurse into user functions', function() {
+    const ast = ParseBackwardRule('subst 1');
+    const goal = ParseExpr('f(x)');
+    const env = new TopLevelEnv([], [], [], [ParseFormula('x < 3')]);
+    assert.throws(() => CreateTactic(ast, goal, env), /not found/);
   });
 
   it('subst rejects when nothing to substitute', function() {
@@ -246,10 +315,10 @@ describe('CreateTactic - definition', function() {
   ]);
 
   const lenFunc = new FuncAst('len', new TypeAst(['List'], 'Int'), [
-    new CaseAst([new ParamVar('nil')], Constant.of(0n)),
+    new CaseAst([new ParamVar('nil')], new ExprBody(Constant.of(0n))),
     new CaseAst(
         [new ParamConstructor('cons', [new ParamVar('a'), new ParamVar('L')])],
-        Call.add(Constant.of(1n), Call.of('len', Variable.of('L')))),
+        new ExprBody(Call.add(Constant.of(1n), Call.of('len', Variable.of('L'))))),
   ]);
 
   const env = new TopLevelEnv([listType], [lenFunc], [], []);
@@ -299,6 +368,52 @@ describe('CreateTactic - definition', function() {
     const tactic = CreateTactic(ast, goal, env);
     const rev = tactic.reverse();
     assert.strictEqual(rev.to_string(), 'defof len_1');
+  });
+
+});
+
+
+describe('CreateTactic - conditional definition', function() {
+
+  const listType = new TypeDeclAst('List', [
+    new ConstructorAst('nil', [], 'List'),
+    new ConstructorAst('cons', ['Int', 'List'], 'List'),
+  ]);
+
+  const positivesFunc = new FuncAst('positives', new TypeAst(['List'], 'List'), [
+    new CaseAst([new ParamVar('nil')], new ExprBody(Variable.of('nil'))),
+    new CaseAst(
+        [new ParamConstructor('cons', [new ParamVar('a'), new ParamVar('L')])],
+        new IfElseBody(
+            new Formula(Variable.of('a'), OP_LESS_THAN, Constant.of(0n)),
+            Call.of('positives', Variable.of('L')),
+            Call.of('cons', Variable.of('a'), Call.of('positives', Variable.of('L'))))),
+  ]);
+
+  it('backward defof positives_2a with satisfied condition', function() {
+    const env = new TopLevelEnv([listType], [positivesFunc], [],
+        [ParseFormula('a < 0')]);
+    const ast = ParseBackwardRule('defof positives_2a 1');
+    const goal = Call.of('positives', Variable.of('L'));
+    const tactic = CreateTactic(ast, goal, env);
+    const formula = tactic.apply();
+    // Backward defof replaces body→pattern: positives(L) → positives(cons(a', L'))
+    assert.ok(formula.left.to_string().includes('positives(cons('));
+  });
+
+  it('backward defof conditional fails when condition not implied', function() {
+    const env = new TopLevelEnv([listType], [positivesFunc], [],
+        [ParseFormula('a <= 0')]);
+    const ast = ParseBackwardRule('defof positives_2a 1');
+    const goal = Call.of('positives', Variable.of('L'));
+    assert.throws(() => CreateTactic(ast, goal, env), /condition/);
+  });
+
+  it('backward defof conditional fails when no knowns provided', function() {
+    const env = new TopLevelEnv([listType], [positivesFunc], [], []);
+    const ast = ParseBackwardRule('defof positives_2a');
+    const goal = Call.of('positives', Variable.of('L'));
+    assert.throws(() => CreateTactic(ast, goal, env), /known facts must be provided/);
   });
 
 });

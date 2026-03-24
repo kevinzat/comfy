@@ -10,11 +10,6 @@ export const FUNC_ADD = "_add_";
 export const FUNC_SUBTRACT = "_sub_";
 export const FUNC_NEGATE = "_neg_";
 
-// Functions related to sets
-export const FUNC_SET_UNION = "_union_"
-export const FUNC_SET_INTERSECTION = "_intersect_"
-export const FUNC_SET_COMPLEMENT = "_set_comp_"
-export const FUNC_SET_DIFFERENCE = "_set_diff_"
 
 
 /** Base class for all types of expressions. */
@@ -260,26 +255,6 @@ export class Call extends Expression {
     return new Call(FUNC_EXPONENTIATE, [base, exponent]);
   }
 
-  /** Returns a function call representing set complement. */
-  static setComplement(arg: Expression): Call {
-    return new Call(FUNC_SET_COMPLEMENT, [arg]);
-  }
-
-  /** Returns a function call representing union. */
-  static setUnion(left: Expression, right: Expression): Call {
-    return new Call(FUNC_SET_UNION, [left, right]);
-  }
-
-  /** Returns a function call representing intersection. */
-  static setIntersection(left: Expression, right: Expression): Call {
-    return new Call(FUNC_SET_INTERSECTION, [left, right]);
-  }
-
-  /** Returns a function call representing set difference. */
-  static setDifference(left: Expression, right: Expression): Call {
-    return new Call(FUNC_SET_DIFFERENCE, [left, right]);
-  }
-
   /** Returns a call to the given function with the given arguments. */
   static of(name: string, ...args: Expression[]): Call {
     return new Call(name, args);
@@ -307,85 +282,27 @@ export class Call extends Expression {
            (expr as Call).args[1].variety === EXPR_CONSTANT;
   }
 
-  /** Determines whether the given expression is set complement. */
-  static isSetComplement(expr: Expression): boolean {
-    return expr.variety == EXPR_FUNCTION &&
-           (expr as Call).name === FUNC_SET_COMPLEMENT &&
-           (expr as Call).args.length === 1;
-  }
-
-  /** Determines whether the given expression is set union. */
-  static isSetUnion(expr: Expression): boolean {
-    return expr.variety == EXPR_FUNCTION &&
-           (expr as Call).name === FUNC_SET_UNION &&
-           (expr as Call).args.length === 2;
-  }
-
-  /** Determines whether the given expression is set intersection. */
-  static isSetIntersection(expr: Expression): boolean {
-    return expr.variety == EXPR_FUNCTION &&
-           (expr as Call).name === FUNC_SET_INTERSECTION &&
-           (expr as Call).args.length === 2;
-  }
-
-  /** Determines whether the given expression is set difference. */
-  static isSetDifference(expr: Expression): boolean {
-    return expr.variety == EXPR_FUNCTION &&
-           (expr as Call).name === FUNC_SET_DIFFERENCE &&
-           (expr as Call).args.length === 2;
-  }
-
   precedence(): number {
-    if (this.args.length === 1) {
-      if (this.name === FUNC_NEGATE) {
-        return 2;
-      } else if (this.name === FUNC_SET_COMPLEMENT) {
-        return 4;
-      }
-    } else if (this.args.length === 2) {
-      if (this.name === FUNC_EXPONENTIATE) {
-        return 4;
-      } else if (this.name === FUNC_SET_INTERSECTION ||
-                 this.name === FUNC_SET_DIFFERENCE) {
-        return 3;
-      } else if (this.name === FUNC_SET_UNION) {
-        return 1;
-      }
-    }
-
-    if (this.name === FUNC_MULTIPLY) {
+    if (this.name === FUNC_NEGATE) {
+      return 2;
+    } else if (this.name === FUNC_EXPONENTIATE) {
+      return 4;
+    } else if (this.name === FUNC_MULTIPLY) {
       return 3;
     } else if (this.name === FUNC_ADD || this.name === FUNC_SUBTRACT) {
       return 1;
     }
-
     return 5;
   }
 
   to_string(): string {
-    if (this.args.length === 1) {
+    if (this.name === FUNC_NEGATE && this.args.length === 1) {
       const arg = this.args[0].wrap(this.precedence());
-      if (this.name === FUNC_NEGATE) {
-        return `-${arg}`
-      } else if (this.name === FUNC_SET_COMPLEMENT) {
-        return `~${arg}`
-      }
-    } else if (this.args.length === 2) {
-      if (this.name === FUNC_EXPONENTIATE) {
-        const arg1 = this.args[0].wrap(this.precedence(), true);
-        const arg2 = this.args[1].wrap(this.precedence());
-        return `${arg1}^${arg2}`;
-      } else {
-        const arg1 = this.args[0].wrap(this.precedence());
-        const arg2 = this.args[1].wrap(this.precedence(), true);  // assoc left
-        if (this.name === FUNC_SET_INTERSECTION) {
-          return `${arg1} cap ${arg2}`;
-        } else if (this.name === FUNC_SET_DIFFERENCE) {
-          return `${arg1} \\ ${arg2}`;
-        } else if (this.name === FUNC_SET_UNION) {
-          return `${arg1} cup ${arg2}`;
-        }
-      }
+      return `-${arg}`;
+    } else if (this.name === FUNC_EXPONENTIATE && this.args.length === 2) {
+      const arg1 = this.args[0].wrap(this.precedence(), true);
+      const arg2 = this.args[1].wrap(this.precedence());
+      return `${arg1}^${arg2}`;
     }
 
     if (this.name === FUNC_MULTIPLY) {

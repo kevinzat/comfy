@@ -15,6 +15,27 @@ export function makeLexer(moo, tokens) {
   };
 }
 
+export function makeLangLexer(moo) {
+  return makeLexer(moo, {
+    WS: /[ \t\r]+/,
+    NL: { match: /\n/, lineBreaks: true },
+    arrow: '->',
+    fatArrow: '=>',
+    constant: /[0-9]+/,
+    typeName: /[A-Z][_a-zA-Z0-9]*/,
+    variable: { match: /[a-z][_a-zA-Z0-9]*/, type: moo.keywords({
+      def: 'def', type: 'type', kw_var: 'var',
+      kw_if: 'if', kw_then: 'then', kw_else: 'else'
+    }) },
+    pipe: '|',
+    colon: ':',
+    lessequal: '<=',
+    lessthan: '<',
+    lparen: '(', rparen: ')', comma: ',',
+    exp: '^', times: '*', plus: '+', minus: '-'
+  });
+}
+
 export function list_to_array(a, rev) {
   const res = [];
   while (a instanceof Array && a.length == 2) {

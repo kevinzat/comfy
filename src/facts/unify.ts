@@ -1,10 +1,15 @@
 import {
   Call,
+  Constant,
   Expression,
   Variable,
   EXPR_CONSTANT,
   EXPR_FUNCTION,
   EXPR_VARIABLE,
+  FUNC_ADD,
+  FUNC_SUBTRACT,
+  FUNC_MULTIPLY,
+  FUNC_NEGATE,
 } from './exprs';
 
 
@@ -32,25 +37,23 @@ export function FreshenVars(expr: Expression): [Expression, Set<string>] {
 }
 
 /**
- * Freshens variables in both expressions simultaneously (same variable gets
- * the same fresh name in both). Returns the pair of renamed expressions and
+ * Freshens variables in all given expressions simultaneously (same variable gets
+ * the same fresh name in each). Returns the renamed expressions and
  * the set of fresh variable names.
  */
-export function FreshenVarsPair(
-    expr1: Expression, expr2: Expression, vars: Set<string>,
-): [Expression, Expression, Set<string>] {
+export function FreshenVarsMany(
+    exprs: Expression[], vars: Set<string>,
+): [Expression[], Set<string>] {
   const freshNames = new Set<string>();
-  let r1 = expr1;
-  let r2 = expr2;
+  let results = exprs.slice();
   for (const v of vars) {
     const fresh = FreshVarName();
     freshNames.add(fresh);
     const vExpr = Variable.of(v);
     const freshExpr = Variable.of(fresh);
-    r1 = r1.subst(vExpr, freshExpr);
-    r2 = r2.subst(vExpr, freshExpr);
+    results = results.map(r => r.subst(vExpr, freshExpr));
   }
-  return [r1, r2, freshNames];
+  return [results, freshNames];
 }
 
 /**
@@ -223,4 +226,104 @@ export function SubstAll(
     if (changed) return new Call(call.name, newArgs);
   }
   return expr;
+}
+
+/**
+ * Like SubstAll, but calls onMatch at each match site with the unification.
+ * If onMatch throws, the substitution is aborted.
+ */
+export function SubstAllWithCheck(
+    expr: Expression, matchSide: Expression, replSide: Expression,
+    freeVars: Set<string>,
+    onMatch: (subst: Map<string, Expression>) => void): Expression {
+  const subst = UnifyExprs(expr, matchSide, freeVars);
+  if (subst !== undefined) {
+    onMatch(subst);
+    return ApplySubst(replSide, subst);
+  }
+  if (expr.variety === EXPR_FUNCTION) {
+    const call = expr as Call;
+    let changed = false;
+    const newArgs: Expression[] = [];
+    for (const arg of call.args) {
+      const newArg = SubstAllWithCheck(arg, matchSide, replSide, freeVars, onMatch);
+      if (newArg !== arg) changed = true;
+      newArgs.push(newArg);
+    }
+    if (changed) return new Call(call.name, newArgs);
+  }
+  return expr;
+}
+
+/**
+ * Polarity-aware substitution. Replaces `from` with `to` only at positions
+ * with the given polarity (true = positive, false = negative).
+ *
+ * Polarity rules:
+ * - +: both args positive
+ * - -: first arg keeps polarity, second arg flips
+ * - negate: flips polarity
+ * - * with one constant arg: keeps polarity if constant >= 0, flips if < 0
+ * - exponentiation, user-defined functions: don't recurse
+ */
+function substWithPolarity(
+    expr: Expression, from: Expression, to: Expression,
+    positive: boolean): Expression {
+  if (expr.equals(from)) {
+    return positive ? to : expr;
+  }
+  if (expr.variety !== EXPR_FUNCTION) return expr;
+  const call = expr as Call;
+
+  if (call.name === FUNC_ADD) {
+    let changed = false;
+    const newArgs: Expression[] = [];
+    for (const arg of call.args) {
+      const newArg = substWithPolarity(arg, from, to, positive);
+      if (newArg !== arg) changed = true;
+      newArgs.push(newArg);
+    }
+    return changed ? new Call(call.name, newArgs) : expr;
+  }
+
+  if (call.name === FUNC_SUBTRACT && call.args.length === 2) {
+    const newLeft = substWithPolarity(call.args[0], from, to, positive);
+    const newRight = substWithPolarity(call.args[1], from, to, !positive);
+    if (newLeft !== call.args[0] || newRight !== call.args[1])
+      return new Call(call.name, [newLeft, newRight]);
+    return expr;
+  }
+
+  if (call.name === FUNC_NEGATE && call.args.length === 1) {
+    const newArg = substWithPolarity(call.args[0], from, to, !positive);
+    return newArg !== call.args[0] ? new Call(call.name, [newArg]) : expr;
+  }
+
+  if (call.name === FUNC_MULTIPLY && call.args.length === 2) {
+    const [a, b] = call.args;
+    if (a.variety === EXPR_CONSTANT) {
+      const childPositive = (a as Constant).value >= 0n ? positive : !positive;
+      const newB = substWithPolarity(b, from, to, childPositive);
+      return newB !== b ? new Call(call.name, [a, newB]) : expr;
+    }
+    if (b.variety === EXPR_CONSTANT) {
+      const childPositive = (b as Constant).value >= 0n ? positive : !positive;
+      const newA = substWithPolarity(a, from, to, childPositive);
+      return newA !== a ? new Call(call.name, [newA, b]) : expr;
+    }
+  }
+
+  return expr;
+}
+
+/** Substitutes `from` with `to` only at positive positions. */
+export function SubstPositive(
+    expr: Expression, from: Expression, to: Expression): Expression {
+  return substWithPolarity(expr, from, to, true);
+}
+
+/** Substitutes `from` with `to` only at negative positions. */
+export function SubstNegative(
+    expr: Expression, from: Expression, to: Expression): Expression {
+  return substWithPolarity(expr, from, to, false);
 }

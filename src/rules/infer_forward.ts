@@ -41,7 +41,7 @@ export function CreateRule(ast: RuleAst, current: Expression, env: Environment):
     }
     case RULE_DEFINITION: {
       const d = ast as DefinitionAst;
-      return new DefinitionRule(env, current, d.name, d.right, d.expr);
+      return new DefinitionRule(env, current, d.name, d.right, d.refs, d.expr);
     }
     default:
       throw new UserError(`unknown rule variety: ${ast.variety}`);

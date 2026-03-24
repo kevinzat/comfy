@@ -3,26 +3,13 @@
 
 
 import * as exprs from '../facts/exprs.ts';
+import * as formula from '../facts/formula.ts';
 import * as funcAst from './func_ast.ts';
 import * as typeAst from './type_ast.ts';
 import * as declsAst from './decls_ast.ts';
 import moo from 'moo';
 import * as util from './grammar_util.js';
-const lexer2 = util.makeLexer(moo, {
-  WS: /[ \t\r]+/,
-  NL: { match: /\n/, lineBreaks: true },
-  arrow: '->',
-  fatArrow: '=>',
-  constant: /[0-9]+/,
-  typeName: /[A-Z][_a-zA-Z0-9]*/,
-  variable: { match: /[a-z][_a-zA-Z0-9]*/, type: moo.keywords({
-    def: 'def', type: 'type', kw_var: 'var'
-  }) },
-  pipe: '|',
-  colon: ':',
-  lparen: '(', rparen: ')', comma: ',',
-  exp: '^', times: '*', plus: '+', minus: '-'
-});
+const lexer2 = util.makeLangLexer(moo);
 const list_to_array = util.list_to_array;
 const checkCaseNames = util.checkCaseNames;
 const checkCtorReturnTypes = util.checkCtorReturnTypes;
@@ -49,7 +36,11 @@ var grammar = {
     {"name": "TypeSig", "symbols": [(lexer2.has("lparen") ? {type: "lparen"} : lparen), "Types", (lexer2.has("rparen") ? {type: "rparen"} : rparen), (lexer2.has("arrow") ? {type: "arrow"} : arrow), (lexer2.has("typeName") ? {type: "typeName"} : typeName)], "postprocess": ([_lp, types, _rp, _arrow, ret]) => new funcAst.TypeAst(list_to_array(types, true), ret.text)},
     {"name": "Cases", "symbols": ["Case"], "postprocess": ([c]) => [c]},
     {"name": "Cases", "symbols": ["Cases", "Case"], "postprocess": ([cs, c]) => cs.concat([c])},
-    {"name": "Case", "symbols": [(lexer2.has("pipe") ? {type: "pipe"} : pipe), (lexer2.has("variable") ? {type: "variable"} : variable), (lexer2.has("lparen") ? {type: "lparen"} : lparen), "Params", (lexer2.has("rparen") ? {type: "rparen"} : rparen), (lexer2.has("fatArrow") ? {type: "fatArrow"} : fatArrow), "Expr"], "postprocess": ([_pipe, name, _lp, params, _rp, _arrow, body]) => ({name: name.text, token: name, ast: new funcAst.CaseAst(list_to_array(params, true), body)})},
+    {"name": "Case", "symbols": [(lexer2.has("pipe") ? {type: "pipe"} : pipe), (lexer2.has("variable") ? {type: "variable"} : variable), (lexer2.has("lparen") ? {type: "lparen"} : lparen), "Params", (lexer2.has("rparen") ? {type: "rparen"} : rparen), (lexer2.has("fatArrow") ? {type: "fatArrow"} : fatArrow), "Body"], "postprocess": ([_pipe, name, _lp, params, _rp, _arrow, body]) => ({name: name.text, token: name, ast: new funcAst.CaseAst(list_to_array(params, true), body)})},
+    {"name": "Body", "symbols": ["Expr"], "postprocess": ([e]) => new funcAst.ExprBody(e)},
+    {"name": "Body", "symbols": [(lexer2.has("kw_if") ? {type: "kw_if"} : kw_if), "Condition", (lexer2.has("kw_then") ? {type: "kw_then"} : kw_then), "Expr", (lexer2.has("kw_else") ? {type: "kw_else"} : kw_else), "Expr"], "postprocess": ([_if, cond, _then, thenBody, _else, elseBody]) => new funcAst.IfElseBody(cond, thenBody, elseBody)},
+    {"name": "Condition", "symbols": ["Expr", (lexer2.has("lessthan") ? {type: "lessthan"} : lessthan), "Expr"], "postprocess": ([left, _op, right]) => new formula.Formula(left, '<', right)},
+    {"name": "Condition", "symbols": ["Expr", (lexer2.has("lessequal") ? {type: "lessequal"} : lessequal), "Expr"], "postprocess": ([left, _op, right]) => new formula.Formula(left, '<=', right)},
     {"name": "Params", "symbols": ["Param"], "postprocess": ([a]) => a},
     {"name": "Params", "symbols": ["Params", (lexer2.has("comma") ? {type: "comma"} : comma), "Param"], "postprocess": ([a, _comma, b]) => [b, a]},
     {"name": "Param", "symbols": [(lexer2.has("variable") ? {type: "variable"} : variable)], "postprocess": ([a]) => new funcAst.ParamVar(a.text)},

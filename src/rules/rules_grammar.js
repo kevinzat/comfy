@@ -5,41 +5,9 @@
 import * as exprs from '../facts/exprs.ts';
 import * as ast from './rules_ast.ts';
 import moo from 'moo';
-const lexer = moo.compile({
-  WS: /[ \t\r]+/,
-  NL: { match: /\n/, lineBreaks: true },
-  constant: /[0-9]+/,
-  variable: { match: /[a-zA-Z][_a-zA-Z0-9]*/, type: moo.keywords({ subst: 'subst', unsub: 'unsub', defof: 'defof', undef: 'undef' }) },
-  lessequal: '<=',
-  lessthan: '<',
-  equal: '=',
-  lparen: '(', rparen: ')', comma: ',',
-  exp: '^', times: '*', plus: '+', minus: '-'
-});
-const lexer2 = {
-  save: () => lexer.save(),
-  reset: (chunk, info) => lexer.reset(chunk, info),
-  formatError: (tok) => lexer.formatError(tok),
-  has: (name) => lexer.has(name),
-  next: () => {
-    let tok;
-    do {
-      tok = lexer.next();
-    } while (tok !== undefined && (tok.type === 'WS' || tok.type === 'NL'));
-    return tok;
-  }
-};
-function list_to_array(a, rev) {
-  const res = [];
-  while (a instanceof Array && a.length == 2) {
-    res.push(a[0]);
-    a = a[1];
-  }
-  res.push(a);
-  if (rev)
-    res.reverse();
-  return res;
-}
+import * as util from './grammar_util.js';
+const lexer2 = util.makeRuleLexer(moo);
+const list_to_array = util.list_to_array;
 var grammar = {
     Lexer: lexer2,
     ParserRules: [
@@ -54,9 +22,13 @@ var grammar = {
     {"name": "Rule", "symbols": [(lexer2.has("unsub") ? {type: "unsub"} : unsub), (lexer2.has("constant") ? {type: "constant"} : constant)], "postprocess": ([a, b]) => new ast.SubstituteAst(parseInt(b.text), false)},
     {"name": "Rule", "symbols": [(lexer2.has("unsub") ? {type: "unsub"} : unsub), (lexer2.has("constant") ? {type: "constant"} : constant), "Expr"], "postprocess": ([a, b, e]) => new ast.SubstituteAst(parseInt(b.text), false, e)},
     {"name": "Rule", "symbols": [(lexer2.has("defof") ? {type: "defof"} : defof), (lexer2.has("variable") ? {type: "variable"} : variable)], "postprocess": ([a, name]) => new ast.DefinitionAst(name.text, true)},
-    {"name": "Rule", "symbols": [(lexer2.has("defof") ? {type: "defof"} : defof), (lexer2.has("variable") ? {type: "variable"} : variable), "Expr"], "postprocess": ([a, name, e]) => new ast.DefinitionAst(name.text, true, e)},
+    {"name": "Rule", "symbols": [(lexer2.has("defof") ? {type: "defof"} : defof), (lexer2.has("variable") ? {type: "variable"} : variable), "Refs"], "postprocess": ([a, name, refs]) => new ast.DefinitionAst(name.text, true, refs)},
+    {"name": "Rule", "symbols": [(lexer2.has("defof") ? {type: "defof"} : defof), (lexer2.has("variable") ? {type: "variable"} : variable), (lexer2.has("lparen") ? {type: "lparen"} : lparen), "Expr", (lexer2.has("rparen") ? {type: "rparen"} : rparen)], "postprocess": ([a, name, _lp, e, _rp]) => new ast.DefinitionAst(name.text, true, [], e)},
+    {"name": "Rule", "symbols": [(lexer2.has("defof") ? {type: "defof"} : defof), (lexer2.has("variable") ? {type: "variable"} : variable), "Refs", (lexer2.has("lparen") ? {type: "lparen"} : lparen), "Expr", (lexer2.has("rparen") ? {type: "rparen"} : rparen)], "postprocess": ([a, name, refs, _lp, e, _rp]) => new ast.DefinitionAst(name.text, true, refs, e)},
     {"name": "Rule", "symbols": [(lexer2.has("undef") ? {type: "undef"} : undef), (lexer2.has("variable") ? {type: "variable"} : variable)], "postprocess": ([a, name]) => new ast.DefinitionAst(name.text, false)},
-    {"name": "Rule", "symbols": [(lexer2.has("undef") ? {type: "undef"} : undef), (lexer2.has("variable") ? {type: "variable"} : variable), "Expr"], "postprocess": ([a, name, e]) => new ast.DefinitionAst(name.text, false, e)},
+    {"name": "Rule", "symbols": [(lexer2.has("undef") ? {type: "undef"} : undef), (lexer2.has("variable") ? {type: "variable"} : variable), "Refs"], "postprocess": ([a, name, refs]) => new ast.DefinitionAst(name.text, false, refs)},
+    {"name": "Rule", "symbols": [(lexer2.has("undef") ? {type: "undef"} : undef), (lexer2.has("variable") ? {type: "variable"} : variable), (lexer2.has("lparen") ? {type: "lparen"} : lparen), "Expr", (lexer2.has("rparen") ? {type: "rparen"} : rparen)], "postprocess": ([a, name, _lp, e, _rp]) => new ast.DefinitionAst(name.text, false, [], e)},
+    {"name": "Rule", "symbols": [(lexer2.has("undef") ? {type: "undef"} : undef), (lexer2.has("variable") ? {type: "variable"} : variable), "Refs", (lexer2.has("lparen") ? {type: "lparen"} : lparen), "Expr", (lexer2.has("rparen") ? {type: "rparen"} : rparen)], "postprocess": ([a, name, refs, _lp, e, _rp]) => new ast.DefinitionAst(name.text, false, refs, e)},
     {"name": "Refs", "symbols": [(lexer2.has("constant") ? {type: "constant"} : constant)], "postprocess": ([c]) => [parseInt(c.text)]},
     {"name": "Refs", "symbols": ["Refs", (lexer2.has("constant") ? {type: "constant"} : constant)], "postprocess": ([refs, c]) => refs.concat([parseInt(c.text)])},
     {"name": "Expr", "symbols": ["Expr", (lexer2.has("plus") ? {type: "plus"} : plus), "NegTerm"], "postprocess": ([a, b, c]) => new exprs.Call(exprs.FUNC_ADD, [a, c])},

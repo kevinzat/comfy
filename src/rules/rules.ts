@@ -1,10 +1,10 @@
 /** Forward rules (rules of inference) that transform expressions. */
 
 import { Expression } from '../facts/exprs';
-import { Formula, OP_EQUAL } from '../facts/formula';
-import { funcToDefinitions } from '../lang/func_ast';
+import { Formula, FormulaOp, OP_EQUAL, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
+import { Definition, funcToDefinitions } from '../lang/func_ast';
 import { Environment } from '../types/env';
-import { UnifyExprs, EnumerateReplacements, ApplySubst, SubstAll, FreshenVarsPair } from '../facts/unify';
+import { UnifyExprs, EnumerateReplacements, ApplySubst, SubstAll, SubstAllWithCheck, FreshenVarsMany, SubstPositive, SubstNegative } from '../facts/unify';
 import { IsEquationImplied } from '../decision/equation';
 import { IsInequalityImplied } from '../decision/inequality';
 import { UserError } from '../facts/user_error';
@@ -14,27 +14,25 @@ export const RULE_SUBSTITUTE = 3;
 export const RULE_DEFINITION = 4;
 
 /**
- * Parses a definition name like "len_2" into function name "len" and
- * 1-based case index 2. Returns the definition's formula.
+ * Looks up a definition by name (e.g. "len_2" or "abs_1a").
  */
-export function lookupDefinition(env: Environment, name: string): Formula {
-  const match = name.match(/^(.+)_(\d+)$/);
+export function lookupDefinition(env: Environment, name: string): Definition {
+  const match = name.match(/^(.+)_(\d+[a-z]?)$/);
   if (!match)
     throw new UserError(`defof/undef: invalid definition name "${name}"`);
   const funcName = match[1];
-  const caseIndex = parseInt(match[2]);
 
   if (!env.hasFunction(funcName))
     throw new UserError(`defof/undef: unknown function "${funcName}"`);
 
   const funcAst = env.getFunctionDecl(funcName);
   const defs = funcToDefinitions(funcAst);
-
-  if (caseIndex < 1 || caseIndex > defs.length)
+  const def = defs.find(d => d.name === name);
+  if (!def)
     throw new UserError(
-        `defof/undef: "${funcName}" has ${defs.length} cases, not ${caseIndex}`);
+        `defof/undef: unknown definition "${name}" (available: ${defs.map(d => d.name).join(', ')})`);
 
-  return defs[caseIndex - 1].formula;
+  return def;
 }
 
 
@@ -93,8 +91,14 @@ export class AlgebraRule extends Rule {
 }
 
 /**
- * Substitution rule: replaces occurrences of one side of a given equation
- * with the other in the current expression, producing an equality.
+ * Substitution rule: replaces occurrences of one side of a given fact
+ * with the other in the current expression.
+ *
+ * For equations (=): replaces anywhere, producing an equality.
+ * For inequalities (< or <=): replaces only at positive or negative positions.
+ *   Positive: ex op result (same direction as the fact).
+ *   Negative: result flippedOp ex (sides and op both flip).
+ *   Mixed: user must provide an explicit result.
  *
  * right = true (subst): replace left side with right side.
  * right = false (unsub): replace right side with left side.
@@ -104,6 +108,7 @@ export class SubstituteRule extends Rule {
   eq: Formula;
   right: boolean;
   _result?: Expression;
+  _resultFormula?: Formula;
 
   constructor(env: Environment, ex: Expression, known: number, right: boolean, result?: Expression) {
     super(RULE_SUBSTITUTE);
@@ -112,36 +117,70 @@ export class SubstituteRule extends Rule {
     this.ex = ex;
     this.right = right;
 
-    if (this.eq.op !== OP_EQUAL) {
-      throw new UserError(
-        `subst: given ${known} must be an equation, not ${this.eq.to_string()}`);
-    }
-
     const from = right ? this.eq.left : this.eq.right;
     const to = right ? this.eq.right : this.eq.left;
 
-    if (result !== undefined) {
-      // Validate the provided result: fully substituting in result should
-      // give the same thing as fully substituting in ex.
-      const fullEx = ex.subst(from, to);
-      const fullResult = result.subst(from, to);
-      if (!fullEx.equals(fullResult)) {
-        throw new UserError(
-          `subst: provided result ${result.to_string()} cannot be produced by substitution`);
+    if (this.eq.op === OP_EQUAL) {
+      if (result !== undefined) {
+        const fullEx = ex.subst(from, to);
+        const fullResult = result.subst(from, to);
+        if (!fullEx.equals(fullResult)) {
+          throw new UserError(
+            `subst: provided result ${result.to_string()} cannot be produced by substitution`);
+        }
+        this._result = result;
+      } else {
+        const substituted = ex.subst(from, to);
+        if (substituted.equals(ex)) {
+          throw new UserError(
+            `subst: ${from.to_string()} not found in ${ex.to_string()}`);
+        }
+        this._result = substituted;
       }
-      this._result = result;
+      this._resultFormula = new Formula(this.ex, OP_EQUAL, this._result!);
     } else {
-      const substituted = ex.subst(from, to);
-      if (substituted.equals(ex)) {
-        throw new UserError(
-          `subst: ${from.to_string()} not found in ${ex.to_string()}`);
+      const posResult = SubstPositive(ex, from, to);
+      const negResult = SubstNegative(ex, from, to);
+      const posChanged = !posResult.equals(ex);
+      const negChanged = !negResult.equals(ex);
+      const flippedOp: FormulaOp = this.eq.op === OP_LESS_THAN ? OP_LESS_EQUAL : OP_LESS_THAN;
+
+      if (result !== undefined) {
+        const fullEx = ex.subst(from, to);
+        const fullResult = result.subst(from, to);
+        if (!fullEx.equals(fullResult)) {
+          throw new UserError(
+            `subst: provided result ${result.to_string()} cannot be produced by substitution`);
+        }
+        this._result = result;
+        if (posChanged && result.equals(posResult)) {
+          this._resultFormula = new Formula(ex, this.eq.op, result);
+        } else if (negChanged && result.equals(negResult)) {
+          this._resultFormula = new Formula(result, flippedOp, ex);
+        } else {
+          throw new UserError(
+            `subst: cannot determine polarity for inequality substitution`);
+        }
+      } else {
+        if (posChanged && negChanged) {
+          throw new UserError(
+            `subst: ${from.to_string()} appears in both positive and negative positions; provide an explicit result`);
+        } else if (posChanged) {
+          this._result = posResult;
+          this._resultFormula = new Formula(ex, this.eq.op, posResult);
+        } else if (negChanged) {
+          this._result = negResult;
+          this._resultFormula = new Formula(negResult, flippedOp, ex);
+        } else {
+          throw new UserError(
+            `subst: ${from.to_string()} not found in ${ex.to_string()}`);
+        }
       }
-      this._result = substituted;
     }
   }
 
   doApply(): Formula {
-    return new Formula(this.ex, OP_EQUAL, this._result!);
+    return this._resultFormula!;
   }
 }
 
@@ -159,22 +198,45 @@ export class DefinitionRule extends Rule {
   right: boolean;
   _result: Expression;
 
-  constructor(env: Environment, ex: Expression, name: string, right: boolean, result?: Expression) {
+  constructor(env: Environment, ex: Expression, name: string, right: boolean,
+      knowns: number[] = [], result?: Expression) {
     super(RULE_DEFINITION);
     this.ex = ex;
     this.right = right;
-    this.defFormula = lookupDefinition(env, name);
+    const def = lookupDefinition(env, name);
+    this.defFormula = def.formula;
+    const knownFacts = knowns.map(i => env.getFact(i));
+
+    if (def.condition && knowns.length === 0)
+      throw new UserError(
+          `defof/undef: "${name}" has a condition; known facts must be provided`);
+    if (!def.condition && knowns.length > 0)
+      throw new UserError(
+          `defof/undef: "${name}" has no condition; known facts must not be provided`);
 
     const origMatch = right ? this.defFormula.left : this.defFormula.right;
     const origRepl = right ? this.defFormula.right : this.defFormula.left;
     const origVars = new Set(origMatch.var_refs().filter(v => !env.hasConstructor(v)));
-    const [matchSide, replSide, freeVars] =
-        FreshenVarsPair(origMatch, origRepl, origVars);
+
+    const toFreshen = [origMatch, origRepl];
+    if (def.condition) {
+      toFreshen.push(def.condition.left, def.condition.right);
+    }
+    const [freshened, freeVars] = FreshenVarsMany(toFreshen, origVars);
+    const matchSide = freshened[0];
+    const replSide = freshened[1];
 
     if (result !== undefined) {
       const possibilities = EnumerateReplacements(ex, (node) => {
         const subst = UnifyExprs(node, matchSide, freeVars);
         if (subst === undefined) return undefined;
+        if (def.condition) {
+          const condLeft = ApplySubst(freshened[2], subst);
+          const condRight = ApplySubst(freshened[3], subst);
+          const concrete = new Formula(condLeft, def.condition.op, condRight);
+          if (!IsInequalityImplied(knownFacts, concrete))
+            return undefined;
+        }
         return ApplySubst(replSide, subst);
       });
       if (!possibilities.some(p => p.equals(result))) {
@@ -183,7 +245,19 @@ export class DefinitionRule extends Rule {
       }
       this._result = result;
     } else {
-      this._result = SubstAll(ex, matchSide, replSide, freeVars);
+      if (def.condition) {
+        this._result = SubstAllWithCheck(ex, matchSide, replSide, freeVars, (subst) => {
+          const condLeft = ApplySubst(freshened[2], subst);
+          const condRight = ApplySubst(freshened[3], subst);
+          const concrete = new Formula(condLeft, def.condition!.op, condRight);
+          if (!IsInequalityImplied(knownFacts, concrete)) {
+            throw new UserError(
+                `defof/undef: condition ${concrete.to_string()} is not implied by the cited facts: ${knownFacts.map(f => f.to_string()).join(' | ')}`);
+          }
+        });
+      } else {
+        this._result = SubstAll(ex, matchSide, replSide, freeVars);
+      }
       if (this._result.equals(ex)) {
         throw new UserError(
             `defof/undef: no matches found in ${ex.to_string()}`);

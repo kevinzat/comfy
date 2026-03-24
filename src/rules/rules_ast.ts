@@ -68,17 +68,20 @@ export class SubstituteAst extends RuleAst {
 export class DefinitionAst extends RuleAst {
   readonly name: string;
   readonly right: boolean;
+  readonly refs: number[];
   readonly expr: Expression | undefined;
 
-  constructor(name: string, right: boolean, expr?: Expression) {
+  constructor(name: string, right: boolean, refs: number[] = [], expr?: Expression) {
     super(RULE_DEFINITION);
     this.name = name;
     this.right = right;
+    this.refs = refs;
     this.expr = expr;
   }
 
   to_string(): string {
     const base = `${this.right ? 'defof' : 'undef'} ${this.name}`;
-    return this.expr !== undefined ? `${base} ${this.expr.to_string()}` : base;
+    const refsStr = this.refs.length > 0 ? ` ${this.refs.join(' ')}` : '';
+    return this.expr !== undefined ? `${base}${refsStr} ${this.expr.to_string()}` : `${base}${refsStr}`;
   }
 }

@@ -2,7 +2,7 @@ import { UserError } from '../facts/user_error';
 import { Expression, EXPR_CONSTANT, EXPR_VARIABLE, EXPR_FUNCTION,
     Constant, Variable, Call } from '../facts/exprs';
 import { Formula, OP_EQUAL } from '../facts/formula';
-import { FuncAst, TypeAst, Param, ParamConstructor } from '../lang/func_ast';
+import { FuncAst, TypeAst, CaseBody, Param, ParamConstructor } from '../lang/func_ast';
 import { Environment, NestedEnv } from './env';
 import { Type, NamedType, FunctionType } from './type';
 
@@ -164,6 +164,19 @@ function collectPatternVars(
   }
 }
 
+function checkBody(env: Environment, body: CaseBody): NamedType {
+  if (body.tag === 'expr') {
+    return checkExpr(env, body.expr);
+  }
+  checkFormula(env, body.condition);
+  const thenType = checkExpr(env, body.thenBody);
+  const elseType = checkExpr(env, body.elseBody);
+  if (thenType.name !== elseType.name)
+    throw new TypeMismatchError(thenType.name, elseType.name,
+        'else branch of if/else');
+  return thenType;
+}
+
 /**
  * Type-checks a function definition: verifies each case has the correct
  * number of parameters and that each case body is well-typed.
@@ -183,7 +196,7 @@ export function checkFuncDecl(env: Environment, func: FuncAst): void {
       collectPatternVars(env, c.params[j], func.type.paramTypes[j], vars);
     }
     const caseEnv = new NestedEnv(env, vars);
-    const bodyType = checkExpr(caseEnv, c.body);
+    const bodyType = checkBody(caseEnv, c.body);
 
     if (bodyType.name !== func.type.returnType)
       throw new TypeMismatchError(func.type.returnType, bodyType.name,

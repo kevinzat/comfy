@@ -1,7 +1,9 @@
 import * as assert from 'assert';
 import { Constant, Variable, Call } from './exprs';
+import { Formula, OP_LESS_THAN } from './formula';
 import { UnifyExprs, EnumerateReplacements, ApplySubst, SubstAll,
-    FreshenVars, FreshenVarsPair } from './unify';
+    SubstAllWithCheck, SubstPositive, SubstNegative,
+    FreshenVars, FreshenVarsMany } from './unify';
 
 const x = Variable.of("x");
 const y = Variable.of("y");
@@ -203,16 +205,16 @@ describe('FreshenVars', function() {
 });
 
 
-describe('FreshenVarsPair', function() {
+describe('FreshenVarsMany', function() {
 
-  it('renames consistently across both expressions', function() {
+  it('renames consistently across all expressions', function() {
     const e1 = Call.add(Variable.of('a'), Variable.of('b'));
     const e2 = Call.multiply(Variable.of('a'), Variable.of('b'));
-    const [r1, r2, freshNames] = FreshenVarsPair(e1, e2, new Set(['a', 'b']));
+    const [results, freshNames] = FreshenVarsMany([e1, e2], new Set(['a', 'b']));
     assert.equal(freshNames.size, 2);
     // Both should use the same fresh names
-    const vars1 = r1.var_refs();
-    const vars2 = r2.var_refs();
+    const vars1 = results[0].var_refs();
+    const vars2 = results[1].var_refs();
     assert.deepEqual(new Set(vars1), new Set(vars2));
     // No original names remain
     assert.ok(!vars1.includes('a'));
@@ -222,13 +224,127 @@ describe('FreshenVarsPair', function() {
   it('only renames specified vars', function() {
     const e1 = Call.add(Variable.of('a'), Variable.of('b'));
     const e2 = Variable.of('a');
-    const [r1, r2, freshNames] = FreshenVarsPair(e1, e2, new Set(['a']));
+    const [results, freshNames] = FreshenVarsMany([e1, e2], new Set(['a']));
     assert.equal(freshNames.size, 1);
     // b should remain
-    assert.ok(r1.var_refs().includes('b'));
+    assert.ok(results[0].var_refs().includes('b'));
     // a should be gone
-    assert.ok(!r1.var_refs().includes('a'));
-    assert.ok(!r2.var_refs().includes('a'));
+    assert.ok(!results[0].var_refs().includes('a'));
+    assert.ok(!results[1].var_refs().includes('a'));
+  });
+
+});
+
+
+describe('SubstPositive', function() {
+
+  it('replaces in both args of add', function() {
+    const expr = Call.add(Variable.of('x'), Variable.of('x'));
+    const result = SubstPositive(expr, Variable.of('x'), Constant.of(3n));
+    assert.ok(result.equals(Call.add(Constant.of(3n), Constant.of(3n))));
+  });
+
+  it('replaces in first arg of subtract but not second', function() {
+    const expr = Call.subtract(Variable.of('x'), Variable.of('x'));
+    const result = SubstPositive(expr, Variable.of('x'), Constant.of(3n));
+    assert.ok(result.equals(Call.subtract(Constant.of(3n), Variable.of('x'))));
+  });
+
+  it('does not replace inside negate', function() {
+    const expr = Call.negate(Variable.of('x'));
+    const result = SubstPositive(expr, Variable.of('x'), Constant.of(3n));
+    assert.ok(result.equals(expr));
+  });
+
+  it('replaces inside multiply by positive constant', function() {
+    const expr = Call.multiply(Constant.of(2n), Variable.of('x'));
+    const result = SubstPositive(expr, Variable.of('x'), Constant.of(3n));
+    assert.ok(result.equals(Call.multiply(Constant.of(2n), Constant.of(3n))));
+  });
+
+  it('does not replace inside multiply by negative constant', function() {
+    const expr = Call.multiply(Constant.of(-2n), Variable.of('x'));
+    const result = SubstPositive(expr, Variable.of('x'), Constant.of(3n));
+    assert.ok(result.equals(expr));
+  });
+
+  it('does not recurse into user functions', function() {
+    const expr = Call.of('f', Variable.of('x'));
+    const result = SubstPositive(expr, Variable.of('x'), Constant.of(3n));
+    assert.ok(result.equals(expr));
+  });
+
+  it('replaces at top level', function() {
+    const result = SubstPositive(Variable.of('x'), Variable.of('x'), Constant.of(3n));
+    assert.ok(result.equals(Constant.of(3n)));
+  });
+
+});
+
+
+describe('SubstNegative', function() {
+
+  it('does not replace in add args', function() {
+    const expr = Call.add(Variable.of('x'), Variable.of('x'));
+    const result = SubstNegative(expr, Variable.of('x'), Constant.of(3n));
+    assert.ok(result.equals(expr));
+  });
+
+  it('replaces in second arg of subtract but not first', function() {
+    const expr = Call.subtract(Variable.of('x'), Variable.of('x'));
+    const result = SubstNegative(expr, Variable.of('x'), Constant.of(3n));
+    assert.ok(result.equals(Call.subtract(Variable.of('x'), Constant.of(3n))));
+  });
+
+  it('replaces inside negate', function() {
+    const expr = Call.negate(Variable.of('x'));
+    const result = SubstNegative(expr, Variable.of('x'), Constant.of(3n));
+    assert.ok(result.equals(Call.negate(Constant.of(3n))));
+  });
+
+  it('replaces inside multiply by negative constant', function() {
+    const expr = Call.multiply(Constant.of(-2n), Variable.of('x'));
+    const result = SubstNegative(expr, Variable.of('x'), Constant.of(3n));
+    assert.ok(result.equals(Call.multiply(Constant.of(-2n), Constant.of(3n))));
+  });
+
+  it('does not replace at top level', function() {
+    const result = SubstNegative(Variable.of('x'), Variable.of('x'), Constant.of(3n));
+    assert.ok(result.equals(Variable.of('x')));
+  });
+
+});
+
+
+describe('SubstAllWithCheck', function() {
+
+  it('replaces and calls onMatch at each site', function() {
+    const matchSide = Variable.of('_v1');
+    const replSide = Constant.of(0n);
+    const freeVars = new Set(['_v1']);
+    const matches: string[] = [];
+    const expr = Call.add(Variable.of('x'), Variable.of('y'));
+    // Neither x nor y matches _v1 at the top, but the whole expression
+    // is add(x, y) which doesn't unify with _v1... actually _v1 is a free var
+    // so it unifies with anything at the outermost level.
+    const result = SubstAllWithCheck(expr, matchSide, replSide, freeVars, (subst) => {
+      matches.push(subst.get('_v1')!.to_string());
+    });
+    assert.ok(result.equals(Constant.of(0n)));
+    assert.equal(matches.length, 1);
+    assert.equal(matches[0], 'x + y');
+  });
+
+  it('throws from onMatch propagates', function() {
+    const matchSide = Variable.of('_v1');
+    const replSide = Constant.of(0n);
+    const freeVars = new Set(['_v1']);
+    const expr = Variable.of('x');
+    assert.throws(() => {
+      SubstAllWithCheck(expr, matchSide, replSide, freeVars, () => {
+        throw new Error('condition failed');
+      });
+    }, /condition failed/);
   });
 
 });

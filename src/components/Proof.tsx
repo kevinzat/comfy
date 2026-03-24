@@ -4,7 +4,7 @@ import { DeclsAst } from '../lang/decls_ast';
 import { TypeDeclAst } from '../lang/type_ast';
 import { FuncAst, Param, ParamConstructor, funcToDefinitions } from '../lang/func_ast';
 import { TopLevelEnv } from '../types/env';
-import { ExprToHtml } from './ProofElements';
+import { ExprToHtml, OpToHtml } from './ProofElements';
 import ProofBlock from './ProofBlock';
 import './Proof.css';
 
@@ -80,7 +80,9 @@ function renderFuncDecl(func: FuncAst, showHtml: boolean): JSX.Element {
       {defs.map((def) => (
         <div className="decl-func-case" key={def.name}>
           <span className="decl-func-case-name">{def.name}: </span>
-          <span>{ExprToHtml(def.formula.left)} = {ExprToHtml(def.formula.right)}</span>
+          <span>{ExprToHtml(def.formula.left)} = {ExprToHtml(def.formula.right)}
+            {def.condition && <>{' '}<span className="decl-func-condition">if {ExprToHtml(def.condition.left)} {OpToHtml(def.condition.op)} {ExprToHtml(def.condition.right)}</span></>}
+          </span>
         </div>
       ))}
     </div>;
@@ -89,7 +91,10 @@ function renderFuncDecl(func: FuncAst, showHtml: boolean): JSX.Element {
     const lines = [`def ${func.name} : ${sigType}`];
     for (const c of func.cases) {
       const params = c.params.map(paramToString).join(', ');
-      lines.push(`| ${func.name}(${params}) => ${c.body.to_string()}`);
+      const bodyStr = c.body.tag === 'expr'
+          ? c.body.expr.to_string()
+          : `if ${c.body.condition.to_string()} then ${c.body.thenBody.to_string()} else ${c.body.elseBody.to_string()}`;
+      lines.push(`| ${func.name}(${params}) => ${bodyStr}`);
     }
     return <div className="decl-func decl-text" key={`func-${func.name}`}>
       {lines.map((l, i) => <div key={i}>{l}</div>)}
@@ -134,7 +139,7 @@ export default class Proof extends React.Component<ProofProps, ProofState> {
                     <td className="proof-given-index">{i + 1}.</td>
                     <td className="proof-given-formula">
                       {this.state.showHtml
-                        ? <span>{ExprToHtml(f.left)} {f.op} {ExprToHtml(f.right)}</span>
+                        ? <span>{ExprToHtml(f.left)} {OpToHtml(f.op)} {ExprToHtml(f.right)}</span>
                         : f.to_string()}
                     </td>
                   </tr>

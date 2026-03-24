@@ -1,21 +1,10 @@
 @{%
 const exprs = require('../facts/exprs');
+const formula = require('../facts/formula');
 const funcAst = require('./func_ast');
 const moo = require('moo');
 const util = require('./grammar_util');
-const lexer2 = util.makeLexer(moo, {
-  WS: /[ \t\r]+/,
-  NL: { match: /\n/, lineBreaks: true },
-  arrow: '->',
-  fatArrow: '=>',
-  constant: /[0-9]+/,
-  typeName: /[A-Z][_a-zA-Z0-9]*/,
-  variable: { match: /[a-z][_a-zA-Z0-9]*/, type: moo.keywords({ def: 'def' }) },
-  pipe: '|',
-  colon: ':',
-  lparen: '(', rparen: ')', comma: ',',
-  exp: '^', times: '*', plus: '+', minus: '-'
-});
+const lexer2 = util.makeLangLexer(moo);
 const list_to_array = util.list_to_array;
 const checkCaseNames = util.checkCaseNames;
 %}

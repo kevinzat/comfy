@@ -1,0 +1,11 @@
+DIV.cases-block { margin-left: 20px; margin-top: 10px; }
+DIV.cases-title { font-family: Helvetica, sans-serif; font-weight: bold; margin-bottom: 10px; }
+
+DIV.cases-case { margin-bottom: 20px; margin-left: 10px; padding-left: 10px; border-left: 3px solid #d0d0d0; }
+DIV.cases-case-header { margin-bottom: 8px; }
+SPAN.cases-case-title { font-family: Helvetica, sans-serif; font-weight: bold; }
+
+DIV.cases-known { margin-bottom: 8px; margin-left: 20px; }
+TABLE.cases-known-table { font-family: Lucida Grande, sans-serif; }
+TD.cases-known-index { padding-right: 10px; color: #909090; text-align: right; }
+TD.cases-known-formula { }

@@ -15,6 +15,7 @@ SPAN.decl-separator { color: #808080; }
 SPAN.decl-ctor-name { }
 SPAN.decl-var-name { font-weight: bold; }
 SPAN.decl-func-case-name { color: #606060; }
+SPAN.decl-func-condition { color: #808080; font-style: italic; }
 DIV.decl-text { font-family: monospace; white-space: pre; }
 
 DIV.proof-givens { margin-bottom: 15px; }

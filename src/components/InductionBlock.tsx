@@ -3,8 +3,8 @@ import { Expression, Variable, Call } from '../facts/exprs';
 import { Formula } from '../facts/formula';
 import { Environment, NestedEnv } from '../types/env';
 import { ConstructorAst } from '../lang/type_ast';
-import { ExprToHtml } from './ProofElements';
-import CalcBlock from './CalcBlock';
+import { ExprToHtml, OpToHtml } from './ProofElements';
+import ProofBlock from './ProofBlock';
 import './InductionBlock.css';
 
 
@@ -182,7 +182,7 @@ export default class InductionBlock
 
   formatFormula(f: Formula): JSX.Element | string {
     if (this.props.showHtml) {
-      return <span>{ExprToHtml(f.left)} {f.op} {ExprToHtml(f.right)}</span>;
+      return <span>{ExprToHtml(f.left)} {OpToHtml(f.op)} {ExprToHtml(f.right)}</span>;
     } else {
       return f.to_string();
     }
@@ -229,14 +229,9 @@ export default class InductionBlock
                   </table>
                 </div>
               )}
-              <div className="induction-case-goal">
-                <span className="induction-case-goal-title">Prove: </span>
-                {this.formatFormula(c.goal)}
-              </div>
-              <CalcBlock
+              <ProofBlock
+                formula={c.goal}
                 env={c.env}
-                givens={[]}
-                goal={c.goal.to_string()}
                 defNames={this.props.defNames}
                 showHtml={showHtml}
                 onComplete={(complete) => this.handleCaseComplete(idx, complete)}

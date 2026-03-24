@@ -41,7 +41,7 @@ export function CreateTactic(ast: TacticAst, goal: Expression, env: Environment)
     }
     case TACTIC_DEFINITION: {
       const d = ast as DefinitionTacticAst;
-      return new DefinitionTactic(env, goal, d.name, d.right, d.expr);
+      return new DefinitionTactic(env, goal, d.name, d.right, d.refs, d.expr);
     }
     default:
       throw new UserError(`unknown tactic variety: ${ast.variety}`);

@@ -86,30 +86,6 @@ describe('exprs', function() {
     assert.strictEqual(abc3.to_string(), "a + b + c");
     assert.strictEqual(abc4.to_string(), "a + (b + c)");
 
-    const A = exprs.Variable.of("A");
-    const B = exprs.Variable.of("B");
-    const C = exprs.Variable.of("C");
-    const ex1 = exprs.Call.setUnion(
-        exprs.Call.setComplement(A), exprs.Call.setComplement(B));
-    assert.strictEqual(ex1.to_string(), "~A cup ~B");
-    const ex2 = exprs.Call.setIntersection(
-        exprs.Call.setComplement(A), exprs.Call.setComplement(B));
-    assert.strictEqual(ex2.to_string(), "~A cap ~B");
-    const ex3 = exprs.Call.setComplement(exprs.Call.setUnion(A, B));
-    assert.strictEqual(ex3.to_string(), "~(A cup B)");
-    const ex4 = exprs.Call.setUnion(
-        exprs.Call.setIntersection(A, B), exprs.Call.setIntersection(A, C));
-    assert.strictEqual(ex4.to_string(), "A cap B cup A cap C");
-    const ex5 = exprs.Call.setIntersection(
-        exprs.Call.setUnion(A, B), exprs.Call.setUnion(A, C));
-    assert.strictEqual(ex5.to_string(), "(A cup B) cap (A cup C)");
-    const ex6 = exprs.Call.setDifference(
-        exprs.Call.setIntersection(
-            exprs.Call.setDifference(A, C), B), C);
-    assert.strictEqual(ex6.to_string(), "A \\ C cap B \\ C");
-    const ex7 = exprs.Call.setIntersection(
-        exprs.Call.setDifference(A, C), exprs.Call.setDifference(B, C));
-    assert.strictEqual(ex7.to_string(), "A \\ C cap (B \\ C)");
   });
 
   it('var_revs', function() {

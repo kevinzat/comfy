@@ -2,41 +2,9 @@
 const exprs = require('../facts/exprs');
 const ast = require('./tactics_ast');
 const moo = require('moo');
-const lexer = moo.compile({
-  WS: /[ \t\r]+/,
-  NL: { match: /\n/, lineBreaks: true },
-  constant: /[0-9]+/,
-  variable: { match: /[a-zA-Z][_a-zA-Z0-9]*/, type: moo.keywords({ subst: 'subst', unsub: 'unsub', defof: 'defof', undef: 'undef' }) },
-  lessequal: '<=',
-  lessthan: '<',
-  equal: '=',
-  lparen: '(', rparen: ')', comma: ',',
-  exp: '^', times: '*', plus: '+', minus: '-'
-});
-const lexer2 = {
-  save: () => lexer.save(),
-  reset: (chunk, info) => lexer.reset(chunk, info),
-  formatError: (tok) => lexer.formatError(tok),
-  has: (name) => lexer.has(name),
-  next: () => {
-    let tok;
-    do {
-      tok = lexer.next();
-    } while (tok !== undefined && (tok.type === 'WS' || tok.type === 'NL'));
-    return tok;
-  }
-};
-function list_to_array(a, rev) {
-  const res = [];
-  while (a instanceof Array && a.length == 2) {
-    res.push(a[0]);
-    a = a[1];
-  }
-  res.push(a);
-  if (rev)
-    res.reverse();
-  return res;
-}
+const util = require('./grammar_util');
+const lexer2 = util.makeRuleLexer(moo);
+const list_to_array = util.list_to_array;
 %}
 
 @lexer lexer2
@@ -63,12 +31,20 @@ Tactic -> Expr %equal
       {% ([a, b, e]) => new ast.SubstituteTacticAst(parseInt(b.text), false, e) %}
     | %defof %variable
       {% ([a, name]) => new ast.DefinitionTacticAst(name.text, true) %}
-    | %defof %variable Expr
-      {% ([a, name, e]) => new ast.DefinitionTacticAst(name.text, true, e) %}
+    | %defof %variable Refs
+      {% ([a, name, refs]) => new ast.DefinitionTacticAst(name.text, true, refs) %}
+    | %defof %variable %lparen Expr %rparen
+      {% ([a, name, _lp, e, _rp]) => new ast.DefinitionTacticAst(name.text, true, [], e) %}
+    | %defof %variable Refs %lparen Expr %rparen
+      {% ([a, name, refs, _lp, e, _rp]) => new ast.DefinitionTacticAst(name.text, true, refs, e) %}
     | %undef %variable
       {% ([a, name]) => new ast.DefinitionTacticAst(name.text, false) %}
-    | %undef %variable Expr
-      {% ([a, name, e]) => new ast.DefinitionTacticAst(name.text, false, e) %}
+    | %undef %variable Refs
+      {% ([a, name, refs]) => new ast.DefinitionTacticAst(name.text, false, refs) %}
+    | %undef %variable %lparen Expr %rparen
+      {% ([a, name, _lp, e, _rp]) => new ast.DefinitionTacticAst(name.text, false, [], e) %}
+    | %undef %variable Refs %lparen Expr %rparen
+      {% ([a, name, refs, _lp, e, _rp]) => new ast.DefinitionTacticAst(name.text, false, refs, e) %}
 
 Refs -> %constant
       {% ([c]) => [parseInt(c.text)] %}

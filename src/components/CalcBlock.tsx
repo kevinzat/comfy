@@ -13,7 +13,7 @@ import { TacticAst } from '../rules/tactics_ast';
 import { Environment } from '../types/env';
 import { IsEquationChainValid } from '../decision/equation';
 import { IsInequalityChainValid } from '../decision/inequality';
-import { ExprToHtml, RuleToHtml, TacticToHtml } from './ProofElements';
+import { ExprToHtml, OpToHtml, RuleToHtml, TacticToHtml } from './ProofElements';
 import './CalcBlock.css';
 
 
@@ -434,7 +434,7 @@ export default class CalcBlock
       rows.push(
         <tr key={'top-' + i}>
           <td className="expr-elem">
-            <span>{topLines[i].op}</span>{' '}{this.formatExpr(topLines[i].expr)}
+            <span>{OpToHtml(topLines[i].op)}</span>{' '}{this.formatExpr(topLines[i].expr)}
           </td>
           <td className="rule">{this.formatRule(topLines[i])}</td>
         </tr>,
@@ -484,7 +484,7 @@ export default class CalcBlock
       rows.push(
         <tr key={'bot-' + i}>
           <td className="expr-elem">
-            <span>{op}</span>{' '}{this.formatExpr(bottomLines[i].expr)}
+            <span>{OpToHtml(op)}</span>{' '}{this.formatExpr(bottomLines[i].expr)}
           </td>
           <td className="rule">{ruleCell}</td>
         </tr>,
@@ -514,7 +514,7 @@ export default class CalcBlock
     rows.push(
       <tr key="end">
         <td className="expr-elem">
-          <span>{endOp}</span>{' '}{this.formatExpr(endExpr)}
+          <span>{OpToHtml(endOp)}</span>{' '}{this.formatExpr(endExpr)}
         </td>
         <td className="rule">{endRuleCell}</td>
       </tr>,

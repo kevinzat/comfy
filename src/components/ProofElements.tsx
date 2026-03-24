@@ -2,12 +2,16 @@ import React from 'react';
 import { Expression, Call, Constant, Variable,
          EXPR_CONSTANT, EXPR_VARIABLE, EXPR_FUNCTION,
          FUNC_ADD, FUNC_SUBTRACT, FUNC_MULTIPLY, FUNC_NEGATE,
-         FUNC_EXPONENTIATE,
-         FUNC_SET_UNION, FUNC_SET_INTERSECTION,
-         FUNC_SET_COMPLEMENT, FUNC_SET_DIFFERENCE } from '../facts/exprs';
+         FUNC_EXPONENTIATE } from '../facts/exprs';
+import { OP_LESS_EQUAL } from '../facts/formula';
 import { RuleAst, AlgebraAst, SubstituteAst, DefinitionAst, RULE_ALGEBRA, RULE_SUBSTITUTE, RULE_DEFINITION } from '../rules/rules_ast';
 import { TacticAst, AlgebraTacticAst, SubstituteTacticAst, DefinitionTacticAst, TACTIC_ALGEBRA, TACTIC_SUBSTITUTE, TACTIC_DEFINITION } from '../rules/tactics_ast';
 
+
+/** Returns the display string for a formula operator, using ≤ for <=. */
+export function OpToHtml(op: string): string {
+  return op === OP_LESS_EQUAL ? '\u2264' : op;
+}
 
 /** Returns HTML that displays the given expression. */
 export function ExprToHtml(expr: Expression): JSX.Element {
@@ -38,10 +42,6 @@ function AddExprHtml(expr: Expression, parts: any[]): void {
         parts.push(<span className="expr-op">&minus;</span>);
         AddWrappedExprHtml(call.args[0], prec, false, parts);
 
-      } else if (Call.isSetComplement(expr)) {
-        AddWrappedExprHtml(call.args[0], prec, false, parts);
-        parts.push(<sup>C</sup>);
-
       } else if (call.name === FUNC_EXPONENTIATE && call.args.length === 2) {
         AddWrappedExprHtml(call.args[0], prec, true, parts);
         parts.push(<sup>{ExprToHtml(call.args[1])}</sup>);
@@ -66,21 +66,6 @@ function AddExprHtml(expr: Expression, parts: any[]): void {
           parts.push(<span className="expr-op">&middot;</span>);
           AddWrappedExprHtml(call.args[i], prec, true, parts);
         }
-
-      } else if (Call.isSetUnion(expr)) {
-        AddWrappedExprHtml(call.args[0], prec, false, parts);
-        parts.push(" \u222A ");
-        AddWrappedExprHtml(call.args[1], prec, true, parts);
-
-      } else if (Call.isSetIntersection(expr)) {
-        AddWrappedExprHtml(call.args[0], prec, false, parts);
-        parts.push(" \u2229 ");
-        AddWrappedExprHtml(call.args[1], prec, true, parts);
-
-      } else if (Call.isSetDifference(expr)) {
-        AddWrappedExprHtml(call.args[0], prec, false, parts);
-        parts.push(" \\ ");
-        AddWrappedExprHtml(call.args[1], prec, true, parts);
 
       } else {
         // Generic function call: f(a, b, ...)

@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
-import { FuncAst, TypeAst, CaseAst, ParamVar } from '../lang/func_ast';
+import { FuncAst, TypeAst, CaseAst, ExprBody, ParamVar } from '../lang/func_ast';
 import { Constant, Variable, Call } from '../facts/exprs';
 import { Formula, OP_EQUAL } from '../facts/formula';
 import { ParseFormula } from '../facts/formula_parser';
@@ -14,9 +14,9 @@ const listType = new TypeDeclAst('List', [
 ]);
 
 const lenFunc = new FuncAst('len', new TypeAst(['List'], 'Int'), [
-  new CaseAst([new ParamVar('nil')], Constant.of(0n)),
+  new CaseAst([new ParamVar('nil')], new ExprBody(Constant.of(0n))),
   new CaseAst([new ParamVar('x')],
-      Call.add(Constant.of(1n), Call.of('len', Variable.of('x')))),
+      new ExprBody(Call.add(Constant.of(1n), Call.of('len', Variable.of('x'))))),
 ]);
 
 
@@ -162,8 +162,8 @@ describe('buildCases', function() {
     ]);
     const formula = ParseFormula('size(t) = size(t)');
     const sizeFunc = new FuncAst('size', new TypeAst(['Tree'], 'Int'), [
-      new CaseAst([new ParamVar('leaf')], Constant.of(0n)),
-      new CaseAst([new ParamVar('x')], Constant.of(1n)),
+      new CaseAst([new ParamVar('leaf')], new ExprBody(Constant.of(0n))),
+      new CaseAst([new ParamVar('x')], new ExprBody(Constant.of(1n))),
     ]);
     const env = new TopLevelEnv([treeType], [sizeFunc], [['t', 'Tree']]);
     const cases = buildCases(formula, env, 't');

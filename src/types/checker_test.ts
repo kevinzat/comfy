@@ -1,7 +1,7 @@
 
 import * as assert from 'assert';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
-import { FuncAst, TypeAst, CaseAst, ParamVar, ParamConstructor } from '../lang/func_ast';
+import { FuncAst, TypeAst, CaseAst, ExprBody, IfElseBody, ParamVar, ParamConstructor } from '../lang/func_ast';
 import { Constant, Variable, Call } from '../facts/exprs';
 import { TopLevelEnv } from './env';
 import { Formula, OP_EQUAL, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
@@ -16,9 +16,9 @@ const listType = new TypeDeclAst('List', [
 ]);
 
 const lenFunc = new FuncAst('len', new TypeAst(['List'], 'Int'), [
-  new CaseAst([new ParamVar('nil')], Constant.of(0n)),
+  new CaseAst([new ParamVar('nil')], new ExprBody(Constant.of(0n))),
   new CaseAst([new ParamVar('x')],
-      Call.add(Constant.of(1n), Call.of('len', Variable.of('x')))),
+      new ExprBody(Call.add(Constant.of(1n), Call.of('len', Variable.of('x'))))),
 ]);
 
 
@@ -213,7 +213,7 @@ describe('checkFuncDecl', function() {
   it('accepts valid function with simple params', function() {
     const f = new FuncAst('f', new TypeAst(['Int'], 'Int'), [
       new CaseAst([new ParamVar('x')],
-          Call.add(Variable.of('x'), Constant.of(1n))),
+          new ExprBody(Call.add(Variable.of('x'), Constant.of(1n)))),
     ]);
     checkFuncDecl(env, f);
   });
@@ -224,7 +224,7 @@ describe('checkFuncDecl', function() {
 
   it('throws ArityError for wrong param count', function() {
     const f = new FuncAst('f', new TypeAst(['Int', 'Int'], 'Int'), [
-      new CaseAst([new ParamVar('x')], Variable.of('x')),
+      new CaseAst([new ParamVar('x')], new ExprBody(Variable.of('x'))),
     ]);
     assert.throws(() => checkFuncDecl(env, f), ArityError);
   });
@@ -232,7 +232,7 @@ describe('checkFuncDecl', function() {
   it('throws TypeMismatchError for wrong return type', function() {
     // Declared as returning Int, but body returns List
     const f = new FuncAst('f', new TypeAst(['Int'], 'Int'), [
-      new CaseAst([new ParamVar('x')], Variable.of('nil')),
+      new CaseAst([new ParamVar('x')], new ExprBody(Variable.of('nil'))),
     ]);
     assert.throws(() => checkFuncDecl(env, f), TypeMismatchError);
   });
@@ -241,10 +241,10 @@ describe('checkFuncDecl', function() {
     // echo : (List) -> List, case with cons(a, rest) pattern
     // a should be Int, rest should be List
     const echo = new FuncAst('echo', new TypeAst(['List'], 'List'), [
-      new CaseAst([new ParamVar('x')], Variable.of('x')),
+      new CaseAst([new ParamVar('x')], new ExprBody(Variable.of('x'))),
       new CaseAst(
           [new ParamConstructor('cons', [new ParamVar('a'), new ParamVar('rest')])],
-          Call.of('cons', Variable.of('a'), Variable.of('rest'))),
+          new ExprBody(Call.of('cons', Variable.of('a'), Variable.of('rest')))),
     ]);
     checkFuncDecl(env, echo);
   });
@@ -255,7 +255,7 @@ describe('checkFuncDecl', function() {
       new CaseAst(
           [new ParamConstructor('cons', [new ParamVar('a'), new ParamVar('rest')])],
           // len expects List, but a is Int
-          Variable.of('a')),
+          new ExprBody(Variable.of('a'))),
     ]);
     // body returns Int (type of a), but function declares List return
     assert.throws(() => checkFuncDecl(env, bad), TypeMismatchError);
@@ -265,7 +265,7 @@ describe('checkFuncDecl', function() {
     const bad = new FuncAst('bad', new TypeAst(['List'], 'Int'), [
       new CaseAst(
           [new ParamConstructor('cons', [new ParamVar('a')])],
-          Constant.of(0n)),
+          new ExprBody(Constant.of(0n))),
     ]);
     assert.throws(() => checkFuncDecl(env, bad), ArityError);
   });
@@ -274,7 +274,7 @@ describe('checkFuncDecl', function() {
     const bad = new FuncAst('bad', new TypeAst(['List'], 'Int'), [
       new CaseAst(
           [new ParamConstructor('unknown', [new ParamVar('a')])],
-          Constant.of(0n)),
+          new ExprBody(Constant.of(0n))),
     ]);
     assert.throws(() => checkFuncDecl(env, bad), UnknownNameError);
   });
@@ -283,10 +283,10 @@ describe('checkFuncDecl', function() {
     // nil should be recognized as a constructor, not a variable
     // so the body can't reference it as a List variable
     const f = new FuncAst('f', new TypeAst(['List'], 'Int'), [
-      new CaseAst([new ParamVar('nil')], Constant.of(0n)),
+      new CaseAst([new ParamVar('nil')], new ExprBody(Constant.of(0n))),
       new CaseAst(
           [new ParamConstructor('cons', [new ParamVar('a'), new ParamVar('rest')])],
-          Call.add(Variable.of('a'), Constant.of(1n))),
+          new ExprBody(Call.add(Variable.of('a'), Constant.of(1n)))),
     ]);
     checkFuncDecl(env, f);
   });
@@ -295,10 +295,43 @@ describe('checkFuncDecl', function() {
     // nil is a constructor, so using it in the body should resolve
     // to the constructor (List), not a pattern-bound variable
     const f = new FuncAst('f', new TypeAst(['List'], 'List'), [
-      new CaseAst([new ParamVar('nil')], Variable.of('nil')),
+      new CaseAst([new ParamVar('nil')], new ExprBody(Variable.of('nil'))),
     ]);
     // nil in body resolves to List via constructor, return type is List — should pass
     checkFuncDecl(env, f);
+  });
+
+  it('accepts valid if/else body', function() {
+    const f = new FuncAst('f', new TypeAst(['Int'], 'Int'), [
+      new CaseAst([new ParamVar('x')],
+          new IfElseBody(
+              new Formula(Variable.of('x'), OP_LESS_THAN, Constant.of(0n)),
+              Call.negate(Variable.of('x')),
+              Variable.of('x'))),
+    ]);
+    checkFuncDecl(env, f);
+  });
+
+  it('throws TypeMismatchError when if/else branches differ', function() {
+    const f = new FuncAst('f', new TypeAst(['List'], 'Int'), [
+      new CaseAst([new ParamVar('x')],
+          new IfElseBody(
+              new Formula(Constant.of(0n), OP_LESS_THAN, Constant.of(1n)),
+              Constant.of(0n),
+              Variable.of('nil'))),
+    ]);
+    assert.throws(() => checkFuncDecl(env, f), TypeMismatchError);
+  });
+
+  it('throws TypeMismatchError when condition operands are not Int', function() {
+    const f = new FuncAst('f', new TypeAst(['List'], 'List'), [
+      new CaseAst([new ParamVar('x')],
+          new IfElseBody(
+              new Formula(Variable.of('nil'), OP_LESS_THAN, Variable.of('nil')),
+              Variable.of('x'),
+              Variable.of('x'))),
+    ]);
+    assert.throws(() => checkFuncDecl(env, f), TypeMismatchError);
   });
 
 });

@@ -1,6 +1,7 @@
 
 import * as assert from 'assert';
 import { Constant, Variable, Call } from '../facts/exprs';
+import { Formula, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
 import { FuncAst, TypeAst, CaseAst, ParamVar, ParamConstructor } from './func_ast';
 import { ParseFunc } from './func_parser';
 
@@ -17,7 +18,7 @@ describe('func_parser', function() {
     assert.equal(result.type.returnType, 'Int');
     assert.equal(result.cases.length, 1);
     assert.deepEqual(result.cases[0].params, [new ParamVar('x')]);
-    assert.ok(result.cases[0].body.equals(
+    assert.ok(result.cases[0].body.tag === 'expr' && result.cases[0].body.expr.equals(
         Call.add(Variable.of('x'), Constant.of(1n))));
   });
 
@@ -32,7 +33,7 @@ describe('func_parser', function() {
     assert.equal(result.cases.length, 1);
     assert.deepEqual(result.cases[0].params,
         [new ParamVar('x'), new ParamVar('y')]);
-    assert.ok(result.cases[0].body.equals(
+    assert.ok(result.cases[0].body.tag === 'expr' && result.cases[0].body.expr.equals(
         Call.add(Variable.of('x'), Variable.of('y'))));
   });
 
@@ -46,11 +47,11 @@ describe('func_parser', function() {
     assert.equal(result.cases.length, 2);
     assert.deepEqual(result.cases[0].params,
         [new ParamVar('a'), new ParamVar('b')]);
-    assert.ok(result.cases[0].body.equals(
+    assert.ok(result.cases[0].body.tag === 'expr' && result.cases[0].body.expr.equals(
         Call.add(Variable.of('a'), Variable.of('b'))));
     assert.deepEqual(result.cases[1].params,
         [new ParamVar('a'), new ParamVar('b')]);
-    assert.ok(result.cases[1].body.equals(
+    assert.ok(result.cases[1].body.tag === 'expr' && result.cases[1].body.expr.equals(
         Call.multiply(Variable.of('a'), Variable.of('b'))));
   });
 
@@ -60,7 +61,7 @@ describe('func_parser', function() {
          | h(x) => x^2 + 2*x + 1`);
     assert.ok(result);
     assert.equal(result.cases.length, 1);
-    assert.ok(result.cases[0].body.equals(
+    assert.ok(result.cases[0].body.tag === 'expr' && result.cases[0].body.expr.equals(
         Call.add(
             Call.add(
                 Call.exponentiate(Variable.of('x'), Constant.of(2n)),
@@ -84,7 +85,7 @@ describe('func_parser', function() {
         `def neg : (Int) -> Int
          | neg(x) => -x`);
     assert.ok(result);
-    assert.ok(result.cases[0].body.equals(
+    assert.ok(result.cases[0].body.tag === 'expr' && result.cases[0].body.expr.equals(
         Call.negate(Variable.of('x'))));
   });
 
@@ -93,7 +94,7 @@ describe('func_parser', function() {
         `def apply : (Int, Int) -> Int
          | apply(a, b) => gcd(a, b) + 1`);
     assert.ok(result);
-    assert.ok(result.cases[0].body.equals(
+    assert.ok(result.cases[0].body.tag === 'expr' && result.cases[0].body.expr.equals(
         Call.add(
             Call.of('gcd', Variable.of('a'), Variable.of('b')),
             Constant.of(1n))));
@@ -109,10 +110,10 @@ describe('func_parser', function() {
     assert.equal(result.cases.length, 2);
     assert.deepEqual(result.cases[0].params,
         [new ParamVar('nil')]);
-    assert.ok(result.cases[0].body.equals(Constant.of(0n)));
+    assert.ok(result.cases[0].body.tag === 'expr' && result.cases[0].body.expr.equals(Constant.of(0n)));
     assert.deepEqual(result.cases[1].params,
         [new ParamConstructor('cons', [new ParamVar('a'), new ParamVar('b')])]);
-    assert.ok(result.cases[1].body.equals(
+    assert.ok(result.cases[1].body.tag === 'expr' && result.cases[1].body.expr.equals(
         Call.add(Constant.of(1n),
             Call.of('len', Variable.of('b')))));
   });
@@ -130,6 +131,51 @@ describe('func_parser', function() {
 
   it('error on syntax error', function() {
     const { ast, error } = ParseFunc(`def f : Int -> Int`);
+    assert.equal(ast, undefined);
+    assert.ok(error);
+  });
+
+  it('parse if/else with < condition', function() {
+    const { ast: result } = ParseFunc(
+        `def abs : (Int) -> Int
+         | abs(x) => if x < 0 then -x else x`);
+    assert.ok(result);
+    assert.equal(result.cases.length, 1);
+    const body = result.cases[0].body;
+    assert.equal(body.tag, 'if');
+    if (body.tag !== 'if') return;
+    assert.ok(body.condition.left.equals(Variable.of('x')));
+    assert.equal(body.condition.op, '<');
+    assert.ok(body.condition.right.equals(Constant.of(0n)));
+    assert.ok(body.thenBody.equals(Call.negate(Variable.of('x'))));
+    assert.ok(body.elseBody.equals(Variable.of('x')));
+  });
+
+  it('parse if/else with <= condition', function() {
+    const { ast: result } = ParseFunc(
+        `def f : (Int) -> Int
+         | f(x) => if x <= 0 then 0 else x`);
+    assert.ok(result);
+    const body = result.cases[0].body;
+    assert.equal(body.tag, 'if');
+    if (body.tag !== 'if') return;
+    assert.equal(body.condition.op, '<=');
+    assert.ok(body.thenBody.equals(Constant.of(0n)));
+    assert.ok(body.elseBody.equals(Variable.of('x')));
+  });
+
+  it('error on if with = condition', function() {
+    const { ast, error } = ParseFunc(
+        `def f : (Int) -> Int
+         | f(x) => if x = 0 then 0 else x`);
+    assert.equal(ast, undefined);
+    assert.ok(error);
+  });
+
+  it('error on nested if/else', function() {
+    const { ast, error } = ParseFunc(
+        `def f : (Int) -> Int
+         | f(x) => if x < 0 then if x < -1 then 0 else 1 else x`);
     assert.equal(ast, undefined);
     assert.ok(error);
   });

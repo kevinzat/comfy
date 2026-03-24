@@ -1,11 +1,13 @@
 import React from 'react';
-import { Formula } from '../facts/formula';
+import { Formula, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
+import { ParseFormula } from '../facts/formula_parser';
 import { Environment } from '../types/env';
 import { Match, LongestCommonPrefix } from '../rules/infer_complete';
-import { ExprToHtml } from './ProofElements';
+import { ExprToHtml, OpToHtml } from './ProofElements';
 import { RuleSuggest } from './RuleSuggest';
 import CalcBlock from './CalcBlock';
 import InductionBlock from './InductionBlock';
+import CasesBlock from './CasesBlock';
 import './ProofBlock.css';
 
 
@@ -20,7 +22,8 @@ export interface ProofBlockProps {
 type ProofMethod =
   | { kind: 'none' }
   | { kind: 'calculate' }
-  | { kind: 'induction'; varName: string };
+  | { kind: 'induction'; varName: string }
+  | { kind: 'cases'; condition: Formula };
 
 interface ProofBlockState {
   methodText: string;
@@ -63,46 +66,61 @@ function findMethodMatches(text: string, inductVars: string[]): Match[] {
     matches.push({ description: desc, completion: 'calculate' });
   }
 
-  // Match "induct on <var>"
+  // Match "cases on ..."
+  if ('cases on'.startsWith(trimmed) && trimmed.length > 0) {
+    const desc = [
+      { bold: true, text: trimmed },
+      { bold: false, text: 'cases on'.substring(trimmed.length) + ' ...' },
+    ];
+    matches.push({ description: desc, completion: 'cases on ' });
+  } else if (trimmed.startsWith('cases on ')) {
+    const desc = [
+      { bold: true, text: trimmed },
+      { bold: false, text: '' },
+    ];
+    matches.push({ description: desc, completion: trimmed });
+  }
+
+  // Match "induction on <var>"
   const parts = trimmed.split(/\s+/);
   if (parts.length <= 3) {
     const p0 = parts[0] || '';
-    if ('induct'.startsWith(p0)) {
+    if ('induction'.startsWith(p0)) {
       if (parts.length === 1) {
-        // User typed a prefix of "induct" — show one entry per var
+        // User typed a prefix of "induction" — show one entry per var
         for (const v of inductVars) {
           const desc = p0.length > 0
             ? [{ bold: true, text: p0 },
-               { bold: false, text: 'induct'.substring(p0.length) + ' on ' + v }]
-            : [{ bold: false, text: 'induct on ' + v }];
+               { bold: false, text: 'induction'.substring(p0.length) + ' on ' + v }]
+            : [{ bold: false, text: 'induction on ' + v }];
           matches.push({
             description: desc,
-            completion: 'induct on ' + v,
+            completion: 'induction on ' + v,
           });
         }
-      } else if (parts.length >= 2 && p0 === 'induct') {
+      } else if (parts.length >= 2 && p0 === 'induction') {
         const p1 = parts[1];
         if ('on'.startsWith(p1) && parts.length === 2) {
-          // User typed "induct o" or "induct on"
+          // User typed "induction o" or "induction on"
           for (const v of inductVars) {
             const desc = [
-              { bold: true, text: 'induct' },
+              { bold: true, text: 'induction' },
               { bold: false, text: ' ' },
               { bold: true, text: p1 },
               { bold: false, text: 'on'.substring(p1.length) + ' ' + v },
             ];
             matches.push({
               description: desc,
-              completion: 'induct on ' + v,
+              completion: 'induction on ' + v,
             });
           }
         } else if (p1 === 'on' && parts.length === 3) {
-          // User typed "induct on <partial>"
+          // User typed "induction on <partial>"
           const p2 = parts[2];
           const matching = inductVars.filter(v => v.startsWith(p2));
           for (const v of matching) {
             const desc = [
-              { bold: true, text: 'induct' },
+              { bold: true, text: 'induction' },
               { bold: false, text: ' ' },
               { bold: true, text: 'on' },
               { bold: false, text: ' ' },
@@ -113,7 +131,7 @@ function findMethodMatches(text: string, inductVars: string[]): Match[] {
             }
             matches.push({
               description: desc,
-              completion: 'induct on ' + v,
+              completion: 'induction on ' + v,
             });
           }
         }
@@ -129,7 +147,7 @@ function parseMethod(text: string, env: Environment): ProofMethod | string {
   if (trimmed === '') return { kind: 'none' };
   if (trimmed === 'calculate') return { kind: 'calculate' };
 
-  const m = trimmed.match(/^induct\s+on\s+(\S+)$/);
+  const m = trimmed.match(/^induction\s+on\s+(\S+)$/);
   if (m) {
     const varName = m[1];
     if (!env.hasVariable(varName)) {
@@ -138,12 +156,25 @@ function parseMethod(text: string, env: Environment): ProofMethod | string {
     const varType = env.getVariable(varName);
     const typeDecl = env.getTypeDecl(varType.name);
     if (typeDecl === null) {
-      return `cannot induct on built-in type "${varType.name}"`;
+      return `cannot do induction on built-in type "${varType.name}"`;
     }
     return { kind: 'induction', varName };
   }
 
-  return 'expected "calculate" or "induct on <variable>"';
+  const cm = trimmed.match(/^cases\s+on\s+(.+)$/);
+  if (cm) {
+    try {
+      const condition = ParseFormula(cm[1]);
+      if (condition.op !== OP_LESS_THAN && condition.op !== OP_LESS_EQUAL) {
+        return 'cases condition must use < or <=';
+      }
+      return { kind: 'cases', condition };
+    } catch (_e) {
+      return 'syntax error in cases condition';
+    }
+  }
+
+  return 'expected "calculate", "induction on <variable>", or "cases on <inequality>"';
 }
 
 export default class ProofBlock
@@ -203,7 +234,7 @@ export default class ProofBlock
 
   formatFormula(f: Formula): JSX.Element | string {
     if (this.props.showHtml) {
-      return <span>{ExprToHtml(f.left)} {f.op} {ExprToHtml(f.right)}</span>;
+      return <span>{ExprToHtml(f.left)} {OpToHtml(f.op)} {ExprToHtml(f.right)}</span>;
     } else {
       return f.to_string();
     }
@@ -230,7 +261,7 @@ export default class ProofBlock
                 <input
                   type="text"
                   value={methodText}
-                  placeholder="calculate / induct on ..."
+                  placeholder="calculate / induction on ... / cases on ..."
                   onChange={(evt) => this.setText(evt.target.value)}
                   onKeyDown={(evt) => this.handleKeyDown(evt)}
                   onFocus={() => this.setState({ focus: true })}
@@ -257,7 +288,10 @@ export default class ProofBlock
           {this.formatFormula(formula)}
           <span className="proof-block-method-label">
             {method.kind === 'calculate' ? '(by calculation)' :
-              <>({'induct on '}<i>{method.varName}</i>{')'}</>}
+             method.kind === 'induction' ?
+              <>({'induction on '}<i>{method.varName}</i>{')'}</> :
+             method.kind === 'cases' ?
+              <>({'cases on '}{method.condition.to_string()}{')'}</> : null}
           </span>
         </div>
         {method.kind === 'calculate' &&
@@ -266,6 +300,10 @@ export default class ProofBlock
         }
         {method.kind === 'induction' &&
           <InductionBlock formula={formula} env={env} varName={method.varName}
+              defNames={defNames} showHtml={showHtml} onComplete={onComplete} />
+        }
+        {method.kind === 'cases' &&
+          <CasesBlock formula={formula} condition={method.condition} env={env}
               defNames={defNames} showHtml={showHtml} onComplete={onComplete} />
         }
       </div>
