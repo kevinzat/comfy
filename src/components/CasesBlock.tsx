@@ -1,7 +1,9 @@
 import React from 'react';
-import { Formula, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
-import { Environment, NestedEnv } from '../types/env';
+import { Formula } from '../facts/formula';
+import { Environment } from '../types/env';
+import { NestedEnv } from '../types/env';
 import { ExprToHtml, OpToHtml } from './ProofElements';
+import { buildCasesOnCondition } from '../proof/cases';
 import ProofBlock from './ProofBlock';
 import './CasesBlock.css';
 
@@ -13,14 +15,6 @@ export interface CasesBlockProps {
   defNames: string[];
   showHtml: boolean;
   onComplete?: (complete: boolean) => void;
-}
-
-function negateCondition(f: Formula): Formula {
-  if (f.op === OP_LESS_THAN) {
-    return new Formula(f.right, OP_LESS_EQUAL, f.left);
-  } else {
-    return new Formula(f.right, OP_LESS_THAN, f.left);
-  }
 }
 
 interface CasesBlockState {
@@ -36,9 +30,10 @@ export default class CasesBlock
 
   constructor(props: CasesBlockProps) {
     super(props);
-    this.negated = negateCondition(props.condition);
-    this.thenEnv = new NestedEnv(props.env, [], [props.condition]);
-    this.elseEnv = new NestedEnv(props.env, [], [this.negated]);
+    const info = buildCasesOnCondition(props.env, props.condition);
+    this.negated = info.negated;
+    this.thenEnv = info.thenEnv;
+    this.elseEnv = info.elseEnv;
     this.state = { caseComplete: [false, false] };
   }
 

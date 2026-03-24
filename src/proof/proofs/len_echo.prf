@@ -1,0 +1,38 @@
+type List
+| nil : List
+| cons : (Int, List) -> List
+
+def len : (List) -> Int
+| len(nil) => 0
+| len(cons(a, L)) => 1 + len(L)
+
+def echo : (List) -> List
+| echo(nil) => nil
+| echo(cons(a, L)) => cons(a, cons(a, echo(L)))
+
+var xs : List
+
+prove len(echo(xs)) = 2 * len(xs) by induction on xs
+
+case nil:
+  prove len(echo(nil)) = 2 * len(nil) by calculation
+  len(echo(nil))
+  defof echo_1 = len(nil)
+  defof len_1 = 0
+  = 2*0
+  ---
+  2 * len(nil)
+  undef len_1 = 2*0
+
+case cons(a, L):
+  given 1. len(echo(L)) = 2 * len(L)
+  prove len(echo(cons(a, L))) = 2 * len(cons(a, L)) by calculation
+  len(echo(cons(a, L)))
+  defof echo_2 = len(cons(a, cons(a, echo(L))))
+  defof len_2 = 1 + len(cons(a, echo(L)))
+  defof len_2 = 1 + (1 + len(echo(L)))
+  subst 1 = 1 + (1 + 2 * len(L))
+  = 2 * (1 + len(L))
+  ---
+  2 * len(cons(a, L))
+  undef len_2 = 2 * (1 + len(L))

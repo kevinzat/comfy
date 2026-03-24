@@ -2,6 +2,7 @@ import React from 'react';
 import { Formula, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
 import { ParseFormula } from '../facts/formula_parser';
 import { Environment } from '../types/env';
+import { defaultArgNames } from '../proof/induction';
 import { Match, LongestCommonPrefix } from '../rules/infer_complete';
 import { ExprToHtml, OpToHtml } from './ProofElements';
 import { RuleSuggest } from './RuleSuggest';
@@ -22,7 +23,7 @@ export interface ProofBlockProps {
 type ProofMethod =
   | { kind: 'none' }
   | { kind: 'calculate' }
-  | { kind: 'induction'; varName: string }
+  | { kind: 'induction'; varName: string; argNames?: string[] }
   | { kind: 'cases'; condition: Formula };
 
 interface ProofBlockState {
@@ -37,33 +38,41 @@ interface ProofBlockState {
  * Returns the names of variables in the environment that have an inductive
  * (non-built-in) type.
  */
-function inductiveVarNames(env: Environment, formula: Formula): string[] {
-  const names: string[] = [];
+interface InductVar {
+  name: string;
+  defaultArgs: string;  // e.g. "(a, L)" or "" if no params
+}
+
+function inductiveVars(env: Environment, formula: Formula): InductVar[] {
+  const result: InductVar[] = [];
   const allVars = new Set([...formula.left.vars(), ...formula.right.vars()]);
   for (const name of allVars) {
     if (!env.hasVariable(name)) continue;
     const varType = env.getVariable(name);
     const typeDecl = env.getTypeDecl(varType.name);
     if (typeDecl !== null) {
-      names.push(name);
+      const names = defaultArgNames(env, varType.name, name);
+      const defaultArgs = names.length > 0
+          ? ' (' + names.join(', ') + ')' : '';
+      result.push({ name, defaultArgs });
     }
   }
-  names.sort();
-  return names;
+  result.sort((a, b) => a.name.localeCompare(b.name));
+  return result;
 }
 
 /** Returns autocomplete matches for proof method input. */
-function findMethodMatches(text: string, inductVars: string[]): Match[] {
+function findMethodMatches(text: string, inductVars: InductVar[]): Match[] {
   const trimmed = text.trim();
   const matches: Match[] = [];
 
-  // Match "calculate"
-  if ('calculate'.startsWith(trimmed)) {
+  // Match "calculation"
+  if ('calculation'.startsWith(trimmed)) {
     const desc = trimmed.length > 0
       ? [{ bold: true, text: trimmed },
-         { bold: false, text: 'calculate'.substring(trimmed.length) }]
-      : [{ bold: false, text: 'calculate' }];
-    matches.push({ description: desc, completion: 'calculate' });
+         { bold: false, text: 'calculation'.substring(trimmed.length) }]
+      : [{ bold: false, text: 'calculation' }];
+    matches.push({ description: desc, completion: 'calculation' });
   }
 
   // Match "cases on ..."
@@ -81,58 +90,77 @@ function findMethodMatches(text: string, inductVars: string[]): Match[] {
     matches.push({ description: desc, completion: trimmed });
   }
 
-  // Match "induction on <var>"
+  // Match "induction on <var> [(<args>)]"
   const parts = trimmed.split(/\s+/);
+  // Stop suggesting once the user has started typing the optional (...)
   if (parts.length <= 3) {
     const p0 = parts[0] || '';
     if ('induction'.startsWith(p0)) {
       if (parts.length === 1) {
-        // User typed a prefix of "induction" — show one entry per var
+        // User typed a prefix of "induction" — show entries per var
         for (const v of inductVars) {
-          const desc = p0.length > 0
-            ? [{ bold: true, text: p0 },
-               { bold: false, text: 'induction'.substring(p0.length) + ' on ' + v }]
-            : [{ bold: false, text: 'induction on ' + v }];
+          const base = 'induction on ' + v.name;
+          const remaining = 'induction'.substring(p0.length) + ' on ' + v.name;
+          // Entry without args
           matches.push({
-            description: desc,
-            completion: 'induction on ' + v,
+            description: p0.length > 0
+              ? [{ bold: true, text: p0 }, { bold: false, text: remaining }]
+              : [{ bold: false, text: base }],
+            completion: base,
           });
+          // Entry with default args (if any)
+          if (v.defaultArgs) {
+            matches.push({
+              description: p0.length > 0
+                ? [{ bold: true, text: p0 }, { bold: false, text: remaining + v.defaultArgs }]
+                : [{ bold: false, text: base + v.defaultArgs }],
+              completion: base + v.defaultArgs,
+            });
+          }
         }
       } else if (parts.length >= 2 && p0 === 'induction') {
         const p1 = parts[1];
         if ('on'.startsWith(p1) && parts.length === 2) {
           // User typed "induction o" or "induction on"
           for (const v of inductVars) {
-            const desc = [
+            const base = 'induction on ' + v.name;
+            const descBase = [
               { bold: true, text: 'induction' },
               { bold: false, text: ' ' },
               { bold: true, text: p1 },
-              { bold: false, text: 'on'.substring(p1.length) + ' ' + v },
+              { bold: false, text: 'on'.substring(p1.length) + ' ' + v.name },
             ];
-            matches.push({
-              description: desc,
-              completion: 'induction on ' + v,
-            });
+            matches.push({ description: [...descBase], completion: base });
+            if (v.defaultArgs) {
+              matches.push({
+                description: [...descBase, { bold: false, text: v.defaultArgs }],
+                completion: base + v.defaultArgs,
+              });
+            }
           }
         } else if (p1 === 'on' && parts.length === 3) {
           // User typed "induction on <partial>"
           const p2 = parts[2];
-          const matching = inductVars.filter(v => v.startsWith(p2));
+          const matching = inductVars.filter(v => v.name.startsWith(p2));
           for (const v of matching) {
-            const desc = [
+            const base = 'induction on ' + v.name;
+            const descBase = [
               { bold: true, text: 'induction' },
               { bold: false, text: ' ' },
               { bold: true, text: 'on' },
               { bold: false, text: ' ' },
               { bold: true, text: p2 },
+              ...(v.name.length > p2.length
+                ? [{ bold: false, text: v.name.substring(p2.length) }]
+                : []),
             ];
-            if (v.length > p2.length) {
-              desc.push({ bold: false, text: v.substring(p2.length) });
+            matches.push({ description: [...descBase], completion: base });
+            if (v.defaultArgs) {
+              matches.push({
+                description: [...descBase, { bold: false, text: v.defaultArgs }],
+                completion: base + v.defaultArgs,
+              });
             }
-            matches.push({
-              description: desc,
-              completion: 'induction on ' + v,
-            });
           }
         }
       }
@@ -145,9 +173,9 @@ function findMethodMatches(text: string, inductVars: string[]): Match[] {
 function parseMethod(text: string, env: Environment): ProofMethod | string {
   const trimmed = text.trim();
   if (trimmed === '') return { kind: 'none' };
-  if (trimmed === 'calculate') return { kind: 'calculate' };
+  if (trimmed === 'calculation') return { kind: 'calculate' };
 
-  const m = trimmed.match(/^induction\s+on\s+(\S+)$/);
+  const m = trimmed.match(/^induction\s+on\s+(\S+)(?:\s+\(([^)]+)\))?$/);
   if (m) {
     const varName = m[1];
     if (!env.hasVariable(varName)) {
@@ -158,7 +186,10 @@ function parseMethod(text: string, env: Environment): ProofMethod | string {
     if (typeDecl === null) {
       return `cannot do induction on built-in type "${varType.name}"`;
     }
-    return { kind: 'induction', varName };
+    const argNames = m[2]
+        ? m[2].split(',').map(s => s.trim())
+        : undefined;
+    return { kind: 'induction', varName, argNames };
   }
 
   const cm = trimmed.match(/^cases\s+on\s+(.+)$/);
@@ -174,17 +205,17 @@ function parseMethod(text: string, env: Environment): ProofMethod | string {
     }
   }
 
-  return 'expected "calculate", "induction on <variable>", or "cases on <inequality>"';
+  return 'expected "calculation", "induction on <variable>", or "cases on <inequality>"';
 }
 
 export default class ProofBlock
     extends React.Component<ProofBlockProps, ProofBlockState> {
 
-  private inductVars: string[];
+  private inductVars: InductVar[];
 
   constructor(props: ProofBlockProps) {
     super(props);
-    this.inductVars = inductiveVarNames(props.env, props.formula);
+    this.inductVars = inductiveVars(props.env, props.formula);
     this.state = {
       methodText: '',
       matches: findMethodMatches('', this.inductVars),
@@ -261,7 +292,7 @@ export default class ProofBlock
                 <input
                   type="text"
                   value={methodText}
-                  placeholder="calculate / induction on ... / cases on ..."
+                  placeholder="calculation / induction on ... / cases on ..."
                   onChange={(evt) => this.setText(evt.target.value)}
                   onKeyDown={(evt) => this.handleKeyDown(evt)}
                   onFocus={() => this.setState({ focus: true })}
@@ -300,6 +331,7 @@ export default class ProofBlock
         }
         {method.kind === 'induction' &&
           <InductionBlock formula={formula} env={env} varName={method.varName}
+              argNames={method.argNames}
               defNames={defNames} showHtml={showHtml} onComplete={onComplete} />
         }
         {method.kind === 'cases' &&

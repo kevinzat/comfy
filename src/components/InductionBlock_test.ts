@@ -74,24 +74,24 @@ describe('buildCases', function() {
         `expected uppercase for List arg, got "${listArg}"`);
   });
 
-  it('picks fresh names avoiding formula vars', function() {
-    // Use a, b, c in the formula so they should be skipped for the Int arg.
+  it('errors when default names clash with formula vars', function() {
+    // Default Int arg is "a", which clashes with formula variable "a".
     const formula = ParseFormula('a + b + c + len(xs) = 0');
     const env = new TopLevelEnv([listType], [lenFunc],
         [['a', 'Int'], ['b', 'Int'], ['c', 'Int'], ['xs', 'List']]);
-    const cases = buildCases(formula, env, 'xs');
+    assert.throws(() => buildCases(formula, env, 'xs'),
+        /default argument name "a" clashes/);
+  });
+
+  it('uses explicit names to avoid formula var clash', function() {
+    const formula = ParseFormula('a + b + c + len(xs) = 0');
+    const env = new TopLevelEnv([listType], [lenFunc],
+        [['a', 'Int'], ['b', 'Int'], ['c', 'Int'], ['xs', 'List']]);
+    const cases = buildCases(formula, env, 'xs', ['d', 'Y']);
 
     const consCase = cases[1];
-    // Int arg should not be a, b, or c.
-    const intArg = consCase.argNames[0];
-    assert.ok(!['a', 'b', 'c', 'xs'].includes(intArg),
-        `arg name "${intArg}" should not conflict`);
-    assert.ok(intArg.length === 1 && intArg >= 'a' && intArg <= 'z',
-        `expected single lowercase letter for Int arg, got "${intArg}"`);
-    // List arg should be uppercase.
-    const listArg = consCase.argNames[1];
-    assert.ok(listArg === listArg.toUpperCase(),
-        `expected uppercase for List arg, got "${listArg}"`);
+    assert.equal(consCase.argNames[0], 'd');
+    assert.equal(consCase.argNames[1], 'Y');
   });
 
   it('goal substitutes constructor call for variable', function() {

@@ -1,18 +1,16 @@
 import React from 'react';
 import { Expression } from '../facts/exprs';
 import { UserError } from '../facts/user_error';
-import { Formula, FormulaOp, OP_EQUAL } from '../facts/formula';
+import { Formula, FormulaOp } from '../facts/formula';
 import { ParseFormula } from '../facts/formula_parser';
 import { RuleSuggest } from './RuleSuggest';
 import { Match, FindForwardMatches, FindBackwardMatches, LongestCommonPrefix } from '../rules/infer_complete';
-import { ParseForwardRule, CreateRule } from '../rules/infer_forward';
+import { ParseForwardRule } from '../rules/infer_forward';
 import { ParseBackwardRule } from '../rules/infer_backward';
-import { CreateTactic } from '../rules/infer_backward';
 import { RuleAst } from '../rules/rules_ast';
 import { TacticAst } from '../rules/tactics_ast';
 import { Environment } from '../types/env';
-import { IsEquationChainValid } from '../decision/equation';
-import { IsInequalityChainValid } from '../decision/inequality';
+import { Step, applyForwardRule, applyBackwardRule, topFrontier, botFrontier, isComplete, checkValidity } from '../proof/calc_proof';
 import { ExprToHtml, OpToHtml, RuleToHtml, TacticToHtml } from './ProofElements';
 import './CalcBlock.css';
 
@@ -122,32 +120,9 @@ export default class CalcBlock
     }
   }
 
-  /** Builds the chain of formulas and validates it against the goal operator. */
   private checkValidity(): string | undefined {
-    const { topLines, bottomLines, startExpr, endExpr, goal } = this.state;
-
-    // Build the full chain of formulas from start to end.
-    // Top lines: each stores (op, expr) meaning prev op expr.
-    // Bottom lines: each stores (op, premise) where the tactic proved
-    //   Formula(premise, op, goal_below). In chain order (outermost first),
-    //   the goal_below is bottomLines[i-1].expr (or endExpr for i=0).
-    const chain: Formula[] = [];
-    let prev = startExpr;
-    for (const line of topLines) {
-      chain.push(new Formula(prev, line.op, line.expr));
-      prev = line.expr;
-    }
-    for (let i = bottomLines.length - 1; i >= 0; i--) {
-      const goalExpr = i > 0 ? bottomLines[i - 1].expr : endExpr;
-      chain.push(new Formula(prev, bottomLines[i].op, goalExpr));
-      prev = goalExpr;
-    }
-
-    if (goal.op === OP_EQUAL) {
-      return IsEquationChainValid(chain);
-    } else {
-      return IsInequalityChainValid(chain, goal.op);
-    }
+    const { goal, topLines, bottomLines } = this.state;
+    return checkValidity(goal, topLines, bottomLines);
   }
 
   formatExpr(expr: Expression): JSX.Element | string {
@@ -168,18 +143,15 @@ export default class CalcBlock
   }
 
   topFrontier(): Expression {
-    const { topLines, startExpr } = this.state;
-    return topLines.length > 0 ? topLines[topLines.length - 1].expr : startExpr;
+    return topFrontier(this.state.goal, this.state.topLines);
   }
 
   botFrontier(): Expression {
-    const { bottomLines, endExpr } = this.state;
-    return bottomLines.length > 0
-        ? bottomLines[bottomLines.length - 1].expr : endExpr;
+    return botFrontier(this.state.goal, this.state.bottomLines);
   }
 
   isComplete(): boolean {
-    return this.topFrontier().equals(this.botFrontier());
+    return isComplete(this.state.goal, this.state.topLines, this.state.bottomLines);
   }
 
   // --- Text input handling ---
@@ -258,19 +230,9 @@ export default class CalcBlock
 
     try {
       if (which === 'top') {
-        const parsed = ParseForwardRule(text);
-        const env = this.props.env;
-        const rule = CreateRule(parsed, this.topFrontier(), env);
-        const formula = rule.apply();
-
-        if (!formula.left.equals(this.topFrontier())) {
-          throw new UserError(
-            `rule produced ${formula.left.to_string()}, expected ${this.topFrontier().to_string()}`);
-        }
-
+        const step = applyForwardRule(text, this.topFrontier(), this.props.env);
         const topLines = this.state.topLines.slice(0);
-        topLines.push(new Line(formula.op, formula.right, text, true));
-        const newExpr = formula.right;
+        topLines.push(new Line(step.op, step.expr, text, true));
 
         this.setState({
           topLines,
@@ -280,16 +242,11 @@ export default class CalcBlock
           topDelayTimer: undefined,
         });
       } else {
-        const parsed = ParseBackwardRule(text);
-        const env = this.props.env;
-        const tactic = CreateTactic(parsed, this.botFrontier(), env);
-        const formula = tactic.apply();
-        const premise = formula.left;
-
+        const step = applyBackwardRule(text, this.botFrontier(), this.props.env);
         const bottomLines = this.state.bottomLines.slice(0);
-        bottomLines.push(new Line(formula.op, premise, text, false));
+        bottomLines.push(new Line(step.op, step.expr, text, false));
 
-        const complete = this.topFrontier().equals(premise);
+        const complete = this.topFrontier().equals(step.expr);
         this.setState({
           bottomLines,
           botText: '',

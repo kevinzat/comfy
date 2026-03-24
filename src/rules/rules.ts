@@ -8,6 +8,7 @@ import { UnifyExprs, EnumerateReplacements, ApplySubst, SubstAll, SubstAllWithCh
 import { IsEquationImplied } from '../decision/equation';
 import { IsInequalityImplied } from '../decision/inequality';
 import { UserError } from '../facts/user_error';
+import { TacticAst, AlgebraTacticAst, SubstituteTacticAst, DefinitionTacticAst } from './tactics_ast';
 
 export const RULE_ALGEBRA = 2;
 export const RULE_SUBSTITUTE = 3;
@@ -46,6 +47,9 @@ export abstract class Rule {
 
   abstract doApply(): Formula;
 
+  /** Returns the corresponding backward tactic AST. */
+  abstract reverse(): TacticAst;
+
   apply(): Formula {
     if (this.result_ === undefined) {
       this.result_ = this.doApply();
@@ -61,10 +65,12 @@ export abstract class Rule {
 export class AlgebraRule extends Rule {
   formula: Formula;
   known: Formula[];
+  knownIndices: number[];
 
   constructor(env: Environment, formula: Formula, ...knowns: number[]) {
     super(RULE_ALGEBRA);
     this.formula = formula;
+    this.knownIndices = knowns;
     this.known = knowns.map(i => env.getFact(i));
 
     const useInequality = formula.op !== OP_EQUAL ||
@@ -88,6 +94,11 @@ export class AlgebraRule extends Rule {
   doApply(): Formula {
     return this.formula;
   }
+
+  reverse(): TacticAst {
+    return new AlgebraTacticAst(this.formula.op, this.formula.left,
+        this.knownIndices);
+  }
 }
 
 /**
@@ -107,6 +118,7 @@ export class SubstituteRule extends Rule {
   ex: Expression;
   eq: Formula;
   right: boolean;
+  knownIndex: number;
   _result?: Expression;
   _resultFormula?: Formula;
 
@@ -116,6 +128,7 @@ export class SubstituteRule extends Rule {
     this.eq = env.getFact(known);
     this.ex = ex;
     this.right = right;
+    this.knownIndex = known;
 
     const from = right ? this.eq.left : this.eq.right;
     const to = right ? this.eq.right : this.eq.left;
@@ -182,6 +195,10 @@ export class SubstituteRule extends Rule {
   doApply(): Formula {
     return this._resultFormula!;
   }
+
+  reverse(): TacticAst {
+    return new SubstituteTacticAst(this.knownIndex, this.right);
+  }
 }
 
 /**
@@ -195,14 +212,18 @@ export class SubstituteRule extends Rule {
 export class DefinitionRule extends Rule {
   ex: Expression;
   defFormula: Formula;
+  name: string;
   right: boolean;
+  knownIndices: number[];
   _result: Expression;
 
   constructor(env: Environment, ex: Expression, name: string, right: boolean,
       knowns: number[] = [], result?: Expression) {
     super(RULE_DEFINITION);
     this.ex = ex;
+    this.name = name;
     this.right = right;
+    this.knownIndices = knowns;
     const def = lookupDefinition(env, name);
     this.defFormula = def.formula;
     const knownFacts = knowns.map(i => env.getFact(i));
@@ -267,5 +288,9 @@ export class DefinitionRule extends Rule {
 
   doApply(): Formula {
     return new Formula(this.ex, OP_EQUAL, this._result);
+  }
+
+  reverse(): TacticAst {
+    return new DefinitionTacticAst(this.name, this.right, this.knownIndices);
   }
 }

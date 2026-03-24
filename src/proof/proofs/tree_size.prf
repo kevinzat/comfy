@@ -1,0 +1,37 @@
+type Tree
+| leaf : Tree
+| node : (Tree, Tree) -> Tree
+
+def size : (Tree) -> Int
+| size(leaf) => 1
+| size(node(L, R)) => 1 + size(L) + size(R)
+
+def leaves : (Tree) -> Int
+| leaves(leaf) => 1
+| leaves(node(L, R)) => leaves(L) + leaves(R)
+
+var T : Tree
+
+prove size(T) = 2 * leaves(T) - 1 by induction on T (L, R)
+
+case leaf:
+  prove size(leaf) = 2 * leaves(leaf) - 1 by calculation
+  size(leaf)
+  defof size_1 = 1
+  ---
+  2 * leaves(leaf) - 1
+  undef leaves_1 = 2 * 1 - 1
+  (1) =
+
+case node(L, R):
+  given 1. size(L) = 2 * leaves(L) - 1
+  given 2. size(R) = 2 * leaves(R) - 1
+  prove size(node(L, R)) = 2 * leaves(node(L, R)) - 1 by calculation
+  size(node(L, R))
+  defof size_2 = 1 + size(L) + size(R)
+  subst 1 = 1 + (2 * leaves(L) - 1) + size(R)
+  subst 2 = 1 + (2 * leaves(L) - 1) + (2 * leaves(R) - 1)
+  = 2 * (leaves(L) + leaves(R)) - 1
+  ---
+  2 * leaves(node(L, R)) - 1
+  undef leaves_2 = 2 * (leaves(L) + leaves(R)) - 1

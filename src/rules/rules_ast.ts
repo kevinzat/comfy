@@ -57,7 +57,7 @@ export class SubstituteAst extends RuleAst {
 
   to_string(): string {
     const base = `${this.right ? 'subst' : 'unsub'} ${this.index}`;
-    return this.expr !== undefined ? `${base} ${this.expr.to_string()}` : base;
+    return this.expr !== undefined ? `${base} (${this.expr.to_string()})` : base;
   }
 }
 
@@ -82,6 +82,6 @@ export class DefinitionAst extends RuleAst {
   to_string(): string {
     const base = `${this.right ? 'defof' : 'undef'} ${this.name}`;
     const refsStr = this.refs.length > 0 ? ` ${this.refs.join(' ')}` : '';
-    return this.expr !== undefined ? `${base}${refsStr} ${this.expr.to_string()}` : `${base}${refsStr}`;
+    return this.expr !== undefined ? `${base}${refsStr} (${this.expr.to_string()})` : `${base}${refsStr}`;
   }
 }

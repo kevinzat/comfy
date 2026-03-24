@@ -1,0 +1,50 @@
+type List
+| nil : List
+| cons : (Int, List) -> List
+
+def sum : (List) -> Int
+| sum(nil) => 0
+| sum(cons(a, L)) => a + sum(L)
+
+def positives : (List) -> List
+| positives(nil) => nil
+| positives(cons(a, L)) => if a < 0 then positives(L) else cons(a, positives(L))
+
+var S : List
+
+prove sum(S) <= sum(positives(S)) by induction on S (a, L)
+
+case nil:
+  prove sum(nil) <= sum(positives(nil)) by calculation
+  sum(nil)
+  defof sum_1 = 0
+  ---
+  sum(positives(nil))
+  undef positives_1 = sum(nil)
+  undef sum_1 = 0
+
+case cons(a, L):
+  given 1. sum(L) <= sum(positives(L))
+  prove sum(cons(a, L)) <= sum(positives(cons(a, L))) by cases on a < 0
+
+  case then:
+    given 2. a < 0
+    prove sum(cons(a, L)) <= sum(positives(cons(a, L))) by calculation
+    sum(cons(a, L))
+    defof sum_2 = a + sum(L)
+    subst 1 <= a + sum(positives(L))
+    < sum(positives(L)) 2
+    ---
+    sum(positives(cons(a, L)))
+    undef positives_2a 2 = sum(positives(L))
+
+  case else:
+    given 2. 0 <= a
+    prove sum(cons(a, L)) <= sum(positives(cons(a, L))) by calculation
+    sum(cons(a, L))
+    defof sum_2 = a + sum(L)
+    subst 1 <= a + sum(positives(L))
+    ---
+    sum(positives(cons(a, L)))
+    undef positives_2b 2 = sum(cons(a, positives(L)))
+    undef sum_2 = a + sum(positives(L))
