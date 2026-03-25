@@ -11,16 +11,16 @@ SPAN.btn-edit-chain { display: inline-block; margin-top: 8px; color: #909090; cu
 SPAN.btn-edit-chain:first-child { margin-left: 0; }
 SPAN.btn-edit-chain:hover { color: #606060; }
 
-SPAN.complete-msg { display: inline-block; margin-top: 8px; margin-left: 10px; font-family: Helvetica, sans-serif; color: #2a9d8f; font-weight: bold; }
+SPAN.complete-msg { display: inline-block; margin-top: 8px; margin-left: 10px; font-family: Helvetica, sans-serif; color: #53A19C; font-weight: bold; }
 
 SPAN.line-error { margin-left: 10px; margin-right: 10px; color: white; }
-SPAN.validity-error { display: inline-block; margin-top: 8px; margin-left: 10px; font-family: Helvetica, sans-serif; color: #e63946; font-weight: bold; font-size: 0.9em; }
+SPAN.validity-error { display: inline-block; margin-top: 8px; margin-left: 10px; font-family: Helvetica, sans-serif; color: #a34040; font-weight: bold; font-size: 0.9em; }
 
 DIV.line-suggest {
   position: absolute;
   border: 1px solid black;
   box-shadow: 5px 5px 5px #c0c0c0;
-  background-color: #dfefff;
+  background-color: #FDF9EF;
   padding: 5px;
   z-index: 99;
 }
