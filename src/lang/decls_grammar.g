@@ -44,20 +44,20 @@ Types -> %typeName
     | Types %comma %typeName
       {% ([a, _comma, b]) => [b.text, a] %}
 
-TheoremDecl -> %kw_theorem %variable %lparen TheoremParams %rparen %pipe Formula
-      {% ([_thm, name, _lp, params, _rp, _pipe, concl]) =>
+TheoremDecl -> %kw_theorem %variable TheoremParamGroups %pipe Formula
+      {% ([_thm, name, params, _pipe, concl]) =>
           new theoremAst.TheoremAst(name.text, expandParams(params), undefined, concl) %}
-    | %kw_theorem %variable %lparen TheoremParams %rparen %pipe Formula %fatArrow Formula
-      {% ([_thm, name, _lp, params, _rp, _pipe, premise, _arrow, concl]) =>
+    | %kw_theorem %variable TheoremParamGroups %pipe Formula %fatArrow Formula
+      {% ([_thm, name, params, _pipe, premise, _arrow, concl]) =>
           new theoremAst.TheoremAst(name.text, expandParams(params), premise, concl) %}
 
-TheoremParams -> TheoremParamGroup
+TheoremParamGroups -> TheoremParamGroup
       {% ([g]) => [g] %}
-    | TheoremParams %comma TheoremParamGroup
-      {% ([gs, _comma, g]) => gs.concat([g]) %}
+    | TheoremParamGroups TheoremParamGroup
+      {% ([gs, g]) => gs.concat([g]) %}
 
-TheoremParamGroup -> TheoremNames %colon %typeName
-      {% ([names, _colon, type]) => ({ names, type: type.text }) %}
+TheoremParamGroup -> %lparen TheoremNames %colon %typeName %rparen
+      {% ([_lp, names, _colon, type, _rp]) => ({ names, type: type.text }) %}
 
 TheoremNames -> %variable
       {% ([v]) => [v.text] %}

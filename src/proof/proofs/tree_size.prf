@@ -25,13 +25,13 @@ case leaf:
   1 =
 
 case node(L, R):
-  given 1. size(L) = 2 * leaves(L) - 1
-  given 2. size(R) = 2 * leaves(R) - 1
+  given IH_L : size(L) = 2 * leaves(L) - 1
+  given IH_R : size(R) = 2 * leaves(R) - 1
   prove size(node(L, R)) = 2 * leaves(node(L, R)) - 1 by calculation
   size(node(L, R))
   defof size_2 = 1 + size(L) + size(R)
-  subst 1 = 1 + (2 * leaves(L) - 1) + size(R)
-  subst 2 = 1 + (2 * leaves(L) - 1) + (2 * leaves(R) - 1)
+  apply IH_L => 1 + (2 * leaves(L) - 1) + size(R)
+  apply IH_R => 1 + (2 * leaves(L) - 1) + (2 * leaves(R) - 1)
   = 2 * (leaves(L) + leaves(R)) - 1
   ---
   2 * leaves(node(L, R)) - 1

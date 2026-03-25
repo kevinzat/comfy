@@ -136,7 +136,7 @@ export default class Proof extends React.Component<ProofProps, ProofState> {
             </table>
           </div>
         }
-        <ProofBlock formula={goal} env={proofEnv}
+        <ProofBlock formula={goal} env={proofEnv} premise={theorem.premise}
             defNames={decls.functions.flatMap(f => funcToDefinitions(f).map(d => d.name))}
             showHtml={this.state.showHtml}
             onComplete={(c) => this.setState({ complete: c })} />

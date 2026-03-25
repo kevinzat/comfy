@@ -2,6 +2,36 @@ import { DeclsAst } from '../lang/decls_ast';
 import { ParseDecls } from '../lang/decls_parser';
 
 
+/**
+ * Parses Lean-style param groups from a string, e.g. "(S, T : List) (x : Int)".
+ * Returns [name, typeName] pairs. Throws ParseError on malformed input.
+ */
+export function parseParams(text: string, line: number): [string, string][] {
+  const params: [string, string][] = [];
+  const groupRegex = /\(([^)]+)\)/g;
+  let match;
+  while ((match = groupRegex.exec(text)) !== null) {
+    const content = match[1];
+    const colonIdx = content.indexOf(':');
+    if (colonIdx === -1) {
+      throw new ParseError(line, `missing ":" in param group "(${content})"`);
+    }
+    const namesStr = content.substring(0, colonIdx).trim();
+    const typeName = content.substring(colonIdx + 1).trim();
+    if (!typeName) {
+      throw new ParseError(line, `missing type name in param group "(${content})"`);
+    }
+    const names = namesStr.split(',').map(s => s.trim()).filter(s => s.length > 0);
+    if (names.length === 0) {
+      throw new ParseError(line, `missing variable names in param group "(${content})"`);
+    }
+    for (const name of names) {
+      params.push([name, typeName]);
+    }
+  }
+  return params;
+}
+
 interface TaggedLine { text: string; line: number; }
 
 export interface CalcStep {
@@ -25,8 +55,17 @@ export interface GivenLine {
   line: number;
 }
 
+export interface IHLine {
+  name: string;
+  params: [string, string][];
+  premise: string | undefined;
+  formula: string;
+  line: number;
+}
+
 export interface CaseBlock {
   label: string;
+  ihTheorems: IHLine[];
   givens: GivenLine[];
   goal: string;
   goalLine: number;
@@ -54,6 +93,7 @@ export interface ProofFile {
   decls: DeclsAst;
   theoremName: string;
   theoremLine: number;
+  givens: GivenLine[];
   proof: ProofNode;
 }
 
@@ -108,8 +148,8 @@ function parseMethod(text: string, line: number): ProofNode {
       kind: 'cases',
       condition: casesMatch[1],
       conditionLine: line,
-      thenCase: { label: 'then', givens: [], goal: '', goalLine: 0, proof: { kind: 'calculate', forwardStart: null, forwardSteps: [], backwardStart: null, backwardSteps: [] } },
-      elseCase: { label: 'else', givens: [], goal: '', goalLine: 0, proof: { kind: 'calculate', forwardStart: null, forwardSteps: [], backwardStart: null, backwardSteps: [] } },
+      thenCase: { label: 'then', ihTheorems: [], givens: [], goal: '', goalLine: 0, proof: { kind: 'calculate', forwardStart: null, forwardSteps: [], backwardStart: null, backwardSteps: [] } },
+      elseCase: { label: 'else', ihTheorems: [], givens: [], goal: '', goalLine: 0, proof: { kind: 'calculate', forwardStart: null, forwardSteps: [], backwardStart: null, backwardSteps: [] } },
     };
   }
 
@@ -118,7 +158,7 @@ function parseMethod(text: string, line: number): ProofNode {
 
 const ALGEBRA_PREFIX = /^(=|<=|<)\s/;
 const NON_ALGEBRA_PREFIX = /^(subst|unsub|defof|undef|apply|unapp)\s/;
-const BACKWARD_ALGEBRA_SUFFIX = /\s+(<=|<|=)$/;
+const BACKWARD_ALGEBRA_SUFFIX = /\s+(<=|<|=)(\s+since\s+[\d,\s]+)?$/;
 const OP_SEPARATOR = /^(.*)\s+(<=|<|=)\s+(.+)$/;
 const HAS_ARROW = /=>/;
 
@@ -231,7 +271,36 @@ function parseCaseBlock(lines: Lines): CaseBlock {
   }
   const label = headerMatch[1];
 
-  // Parse optional "given N. <formula>" lines
+  // Parse optional "given IH (params) : [premise =>] formula" lines.
+  const ihTheorems: IHLine[] = [];
+  while (true) {
+    const next = peekLine(lines);
+    if (next === undefined) break;
+    const trimmed = next.trim();
+    // Match: given <IH name> [(<params>)] : <body>
+    const ihMatch = trimmed.match(
+        /^given\s+(IH(?:_\w+|\d+)?)\s*((?:\([^)]*\)\s*)*):\s+(.+)$/);
+    if (!ihMatch) break;
+    const entry = readLine(lines)!;
+    const name = ihMatch[1];
+    const paramsText = ihMatch[2].trim();
+    const params = parseParams(paramsText, entry.line);
+    const body = ihMatch[3];
+    // Split on => for optional premise.
+    const arrowIdx = body.indexOf('=>');
+    let premise: string | undefined;
+    let formula: string;
+    if (arrowIdx !== -1) {
+      premise = body.substring(0, arrowIdx).trim();
+      formula = body.substring(arrowIdx + 2).trim();
+    } else {
+      premise = undefined;
+      formula = body;
+    }
+    ihTheorems.push({ name, params, premise, formula, line: entry.line });
+  }
+
+  // Parse optional "given N. <formula>" lines (cases-on conditions).
   const givens: GivenLine[] = [];
   while (true) {
     const next = peekLine(lines);
@@ -256,7 +325,7 @@ function parseCaseBlock(lines: Lines): CaseBlock {
   const proof = parseMethod(proveMatch[2], proveEntry.line);
   parseProofBody(lines, proof);
 
-  return { label, givens, goal, goalLine: proveEntry.line, proof };
+  return { label, ihTheorems, givens, goal, goalLine: proveEntry.line, proof };
 }
 
 export function parseProofFile(source: string): ProofFile {
@@ -296,14 +365,26 @@ export function parseProofFile(source: string): ProofFile {
   const theoremName = proveMatch[1];
   const proofNode = parseMethod(proveMatch[2], proveIdx + 1);
 
-  // Parse the proof body.
+  // Parse optional top-level "given N. <formula>" lines (premise).
   const lines: Lines = { raw: rawLines, pos: proveIdx + 1 };
+  const givens: GivenLine[] = [];
+  while (true) {
+    const next = peekLine(lines);
+    if (next === undefined) break;
+    const givenMatch = next.trim().match(/^given\s+(\d+)\.\s+(.+)$/);
+    if (!givenMatch) break;
+    const entry = readLine(lines)!;
+    givens.push({ index: parseInt(givenMatch[1]), text: givenMatch[2], line: entry.line });
+  }
+
+  // Parse the proof body.
   parseProofBody(lines, proofNode);
 
   return {
     decls,
     theoremName,
     theoremLine: proveIdx + 1,
+    givens,
     proof: proofNode,
   };
 }

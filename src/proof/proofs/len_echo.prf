@@ -26,13 +26,13 @@ case nil:
   undef len_1 = 2*0
 
 case cons(a, L):
-  given 1. len(echo(L)) = 2 * len(L)
+  given IH : len(echo(L)) = 2 * len(L)
   prove len(echo(cons(a, L))) = 2 * len(cons(a, L)) by calculation
   len(echo(cons(a, L)))
   defof echo_2 = len(cons(a, cons(a, echo(L))))
   defof len_2 = 1 + len(cons(a, echo(L)))
   defof len_2 = 1 + (1 + len(echo(L)))
-  subst 1 = 1 + (1 + 2 * len(L))
+  apply IH = 1 + (1 + 2 * len(L))
   = 2 * (1 + len(L))
   ---
   2 * len(cons(a, L))

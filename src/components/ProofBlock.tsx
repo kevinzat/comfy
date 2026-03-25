@@ -15,6 +15,7 @@ import './ProofBlock.css';
 export interface ProofBlockProps {
   formula: Formula;
   env: Environment;
+  premise?: Formula;
   defNames: string[];
   showHtml: boolean;
   onComplete?: (complete: boolean) => void;
@@ -331,7 +332,7 @@ export default class ProofBlock
         }
         {method.kind === 'induction' &&
           <InductionBlock formula={formula} env={env} varName={method.varName}
-              argNames={method.argNames}
+              argNames={method.argNames} premise={this.props.premise}
               defNames={defNames} showHtml={showHtml} onComplete={onComplete} />
         }
         {method.kind === 'cases' &&

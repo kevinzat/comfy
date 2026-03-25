@@ -6,6 +6,7 @@ import { ParseBackwardRule, CreateTactic } from '../rules/infer_backward';
 import { RuleAst } from '../rules/rules_ast';
 import { TacticAst } from '../rules/tactics_ast';
 import { TopLevelEnv, NestedEnv, Environment } from '../types/env';
+import { TheoremAst } from '../lang/theorem_ast';
 import { ParseExpr } from '../facts/exprs_parser';
 import { ParseFormula } from '../facts/formula_parser';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
@@ -308,11 +309,12 @@ describe('testAllSplits: len_zero_add.prf', function() {
   });
 
   it('cons case', function() {
-    const ih = ParseFormula('0 + len(ys) = len(ys)');
-    const caseEnv = new NestedEnv(env, [['n', 'Int'], ['ys', 'List']], [ih]);
+    const ih = new TheoremAst('IH', [], undefined,
+        ParseFormula('0 + len(ys) = len(ys)'));
+    const caseEnv = new NestedEnv(env, [['n', 'Int'], ['ys', 'List']], [], [ih]);
     testAllSplits(caseEnv,
         ParseFormula('0 + len(cons(n, ys)) = len(cons(n, ys))'),
-        ['defof len_2', '= 1 + len(ys) since 1'],
+        ['defof len_2', '= 1 + len(ys)'],
         ['undef len_2']);
   });
 });
@@ -331,11 +333,12 @@ describe('testAllSplits: len_echo.prf', function() {
   });
 
   it('cons case', function() {
-    const ih = ParseFormula('len(echo(L)) = 2 * len(L)');
-    const caseEnv = new NestedEnv(env, [['a', 'Int'], ['L', 'List']], [ih]);
+    const ih = new TheoremAst('IH', [], undefined,
+        ParseFormula('len(echo(L)) = 2 * len(L)'));
+    const caseEnv = new NestedEnv(env, [['a', 'Int'], ['L', 'List']], [], [ih]);
     testAllSplits(caseEnv,
         ParseFormula('len(echo(cons(a, L))) = 2 * len(cons(a, L))'),
-        ['defof echo_2', 'defof len_2', 'defof len_2', 'subst 1', '= 2 * (1 + len(L))'],
+        ['defof echo_2', 'defof len_2', 'defof len_2', 'apply IH', '= 2 * (1 + len(L))'],
         ['undef len_2']);
   });
 });
@@ -354,13 +357,15 @@ describe('testAllSplits: tree_size.prf', function() {
   });
 
   it('node case', function() {
-    const ih1 = ParseFormula('size(L) = 2 * leaves(L) - 1');
-    const ih2 = ParseFormula('size(R) = 2 * leaves(R) - 1');
+    const ih1 = new TheoremAst('IH_L', [], undefined,
+        ParseFormula('size(L) = 2 * leaves(L) - 1'));
+    const ih2 = new TheoremAst('IH_R', [], undefined,
+        ParseFormula('size(R) = 2 * leaves(R) - 1'));
     const caseEnv = new NestedEnv(env,
-        [['L', 'Tree'], ['R', 'Tree']], [ih1, ih2]);
+        [['L', 'Tree'], ['R', 'Tree']], [], [ih1, ih2]);
     testAllSplits(caseEnv,
         ParseFormula('size(node(L, R)) = 2 * leaves(node(L, R)) - 1'),
-        ['defof size_2', 'subst 1', 'subst 2', '= 2 * (leaves(L) + leaves(R)) - 1'],
+        ['defof size_2', 'apply IH_L => 1 + (2 * leaves(L) - 1) + size(R)', 'apply IH_R => 1 + (2 * leaves(L) - 1) + (2 * leaves(R) - 1)', '= 2 * (leaves(L) + leaves(R)) - 1'],
         ['undef leaves_2']);
   });
 });
@@ -379,24 +384,86 @@ describe('testAllSplits: sum_positives.prf', function() {
   });
 
   it('cons/then case', function() {
-    const ih = ParseFormula('sum(L) <= sum(positives(L))');
+    const ih = new TheoremAst('IH', [], undefined,
+        ParseFormula('sum(L) <= sum(positives(L))'));
     const cond = ParseFormula('a < 0');
-    const outerEnv = new NestedEnv(env, [['a', 'Int'], ['L', 'List']], [ih]);
+    const outerEnv = new NestedEnv(env, [['a', 'Int'], ['L', 'List']], [], [ih]);
     const caseEnv = new NestedEnv(outerEnv, [], [cond]);
     testAllSplits(caseEnv,
         ParseFormula('sum(cons(a, L)) <= sum(positives(cons(a, L)))'),
-        ['defof sum_2', 'subst 1', '< sum(positives(L)) since 2'],
-        ['undef positives_2a since 2']);
+        ['defof sum_2', 'apply IH', '< sum(positives(L)) since 1'],
+        ['undef positives_2a since 1']);
   });
 
   it('cons/else case', function() {
-    const ih = ParseFormula('sum(L) <= sum(positives(L))');
+    const ih = new TheoremAst('IH', [], undefined,
+        ParseFormula('sum(L) <= sum(positives(L))'));
     const cond = ParseFormula('0 <= a');
-    const outerEnv = new NestedEnv(env, [['a', 'Int'], ['L', 'List']], [ih]);
+    const outerEnv = new NestedEnv(env, [['a', 'Int'], ['L', 'List']], [], [ih]);
     const caseEnv = new NestedEnv(outerEnv, [], [cond]);
     testAllSplits(caseEnv,
         ParseFormula('sum(cons(a, L)) <= sum(positives(cons(a, L)))'),
-        ['defof sum_2', 'subst 1'],
-        ['undef positives_2b since 2', 'undef sum_2']);
+        ['defof sum_2', 'apply IH'],
+        ['undef positives_2b since 1', 'undef sum_2']);
+  });
+});
+
+
+describe('IH theorem with free params (unification)', function() {
+
+  const concatFunc = new FuncAst('concat', new TypeAst(['List', 'List'], 'List'), [
+    new CaseAst(
+        [new ParamConstructor('nil', []), new ParamVar('R')],
+        new ExprBody(Variable.of('R'))),
+    new CaseAst(
+        [new ParamConstructor('cons', [new ParamVar('a'), new ParamVar('L')]),
+         new ParamVar('R')],
+        new ExprBody(Call.of('cons', Variable.of('a'),
+            Call.of('concat', Variable.of('L'), Variable.of('R'))))),
+  ]);
+
+  const topEnv = new TopLevelEnv([listType], [lenFunc, concatFunc]);
+
+  it('apply IH with free param unifying to a different value', function() {
+    // Scenario: proving len(concat(S, T)) = len(S) + len(T) by induction on S.
+    // In the cons case, the IH is: IH (T: List): len(concat(L, T)) = len(L) + len(T)
+    // We apply it where T = cons(a, nil), which is different from the variable T.
+    const ih = new TheoremAst('IH', [['T', 'List']], undefined,
+        ParseFormula('len(concat(L, T)) = len(L) + len(T)'));
+    const caseEnv = new NestedEnv(topEnv,
+        [['a', 'Int'], ['L', 'List']], [], [ih]);
+
+    // Current expression: len(concat(L, cons(a, nil)))
+    // Applying IH should unify T = cons(a, nil) and produce len(L) + len(cons(a, nil))
+    const current = ParseExpr('len(concat(L, cons(a, nil)))');
+    const result = applyForwardRule('apply IH', current, caseEnv);
+    assert.equal(result.expr.to_string(), 'len(L) + len(cons(a, nil))');
+    assert.equal(result.op, '=');
+  });
+
+  it('apply IH with free param unifying to a complex expression', function() {
+    // IH (T: List): len(concat(L, T)) = len(L) + len(T)
+    // Apply where T = concat(X, Y) — a nested concat.
+    const ih = new TheoremAst('IH', [['T', 'List']], undefined,
+        ParseFormula('len(concat(L, T)) = len(L) + len(T)'));
+    const caseEnv = new NestedEnv(topEnv,
+        [['L', 'List'], ['X', 'List'], ['Y', 'List']], [], [ih]);
+
+    const current = ParseExpr('len(concat(L, concat(X, Y)))');
+    const result = applyForwardRule('apply IH', current, caseEnv);
+    assert.equal(result.expr.to_string(), 'len(L) + len(concat(X, Y))');
+  });
+
+  it('unapp IH with free param (reverse direction)', function() {
+    // IH (T: List): len(concat(L, T)) = len(L) + len(T)
+    // unapp: match right side len(L) + len(cons(a, nil)), produce left side len(concat(L, cons(a, nil)))
+    const ih = new TheoremAst('IH', [['T', 'List']], undefined,
+        ParseFormula('len(concat(L, T)) = len(L) + len(T)'));
+    const caseEnv = new NestedEnv(topEnv,
+        [['a', 'Int'], ['L', 'List']], [], [ih]);
+
+    const goal = ParseExpr('len(concat(L, cons(a, nil)))');
+    const result = applyBackwardRule('unapp IH', goal, caseEnv);
+    assert.equal(result.expr.to_string(), 'len(L) + len(cons(a, nil))');
   });
 });

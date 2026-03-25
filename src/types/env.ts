@@ -253,20 +253,23 @@ export class NestedEnv implements Environment {
   private parent: Environment;
   private locals: Map<string, NamedType>;
   private localFacts: Formula[];
+  private localTheorems: TheoremAst[];
 
   /**
    * Creates a nested environment extending the parent with additional local
-   * variables and facts. Validates that all variable type names exist.
-   * Call check() to validate local facts.
+   * variables, facts, and theorems. Validates that all variable type names
+   * exist. Call check() to validate local facts.
    * @throws UnknownTypeError if any variable references an unknown type.
    */
-  constructor(parent: Environment, variables: [string, string][], facts: Formula[] = []) {
+  constructor(parent: Environment, variables: [string, string][],
+      facts: Formula[] = [], theorems: TheoremAst[] = []) {
     this.parent = parent;
     this.locals = new Map();
     for (const [name, typeName] of variables) {
       this.locals.set(name, getType(parent, typeName));
     }
     this.localFacts = facts.slice(0);
+    this.localTheorems = theorems.slice(0);
   }
 
   check(): void {
@@ -283,8 +286,16 @@ export class NestedEnv implements Environment {
   hasFunction(name: string): boolean { return this.parent.hasFunction(name); }
   getFunctionType(name: string): Type { return this.parent.getFunctionType(name); }
   getFunctionDecl(name: string): FuncAst { return this.parent.getFunctionDecl(name); }
-  hasTheorem(name: string): boolean { return this.parent.hasTheorem(name); }
-  getTheorem(name: string): TheoremAst { return this.parent.getTheorem(name); }
+  hasTheorem(name: string): boolean {
+    return this.localTheorems.some(t => t.name === name) ||
+        this.parent.hasTheorem(name);
+  }
+
+  getTheorem(name: string): TheoremAst {
+    const local = this.localTheorems.find(t => t.name === name);
+    if (local) return local;
+    return this.parent.getTheorem(name);
+  }
 
   hasVariable(name: string): boolean {
     return this.locals.has(name) || this.parent.hasVariable(name);

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Formula } from '../facts/formula';
+import { TheoremAst } from '../lang/theorem_ast';
 import { Environment } from '../types/env';
 import { CaseInfo, buildCases } from '../proof/induction';
 import { ExprToHtml, OpToHtml } from './ProofElements';
@@ -15,6 +16,7 @@ export interface InductionBlockProps {
   env: Environment;
   varName: string;
   argNames?: string[];
+  premise?: Formula;
   defNames?: string[];
   showHtml: boolean;
   onComplete?: (complete: boolean) => void;
@@ -32,7 +34,7 @@ export default class InductionBlock
 
   constructor(props: InductionBlockProps) {
     super(props);
-    this.cases = buildCases(props.formula, props.env, props.varName, props.argNames);
+    this.cases = buildCases(props.formula, props.env, props.varName, props.argNames, props.premise);
     this.state = {
       caseComplete: this.cases.map(() => false),
     };
@@ -55,9 +57,25 @@ export default class InductionBlock
     }
   }
 
+  formatIHName(thm: TheoremAst): string {
+    if (thm.params.length === 0) return thm.name;
+    // Group consecutive params of the same type into Lean-style groups.
+    const groups: { names: string[]; type: string }[] = [];
+    for (const [name, type] of thm.params) {
+      const last = groups[groups.length - 1];
+      if (last && last.type === type) {
+        last.names.push(name);
+      } else {
+        groups.push({ names: [name], type });
+      }
+    }
+    const paramStr = groups.map(g =>
+        `(${g.names.join(', ')} : ${g.type})`).join(' ');
+    return `${thm.name} ${paramStr}`;
+  }
+
   render() {
     const { varName, showHtml } = this.props;
-    const parentNumFacts = this.props.env.numFacts();
 
     return (
       <div className="induction-block">
@@ -77,18 +95,18 @@ export default class InductionBlock
                   Case <i>{varName}</i> = {ctorLabel}:
                 </span>
               </div>
-              {c.ihFacts.length > 0 && (
+              {c.ihTheorems.length > 0 && (
                 <div className="induction-ih">
                   <div className="induction-ih-title">Induction hypotheses:</div>
                   <table className="induction-ih-table">
                     <tbody>
-                      {c.ihFacts.map((f, i) => (
+                      {c.ihTheorems.map((thm, i) => (
                         <tr key={i}>
                           <td className="induction-ih-index">
-                            {parentNumFacts + i + 1}.
+                            {this.formatIHName(thm)}:
                           </td>
                           <td className="induction-ih-formula">
-                            {this.formatFormula(f)}
+                            {this.formatFormula(thm.conclusion)}
                           </td>
                         </tr>
                       ))}

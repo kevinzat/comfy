@@ -31,7 +31,7 @@ case nil:
   len(nil)
 
 case cons(a, L):
-  given 1. len(reverse(L)) = len(L)
+  given IH : len(reverse(L)) = len(L)
   prove len(reverse(cons(a, L))) = len(cons(a, L)) by calculation
 
   len(reverse(cons(a, L)))
@@ -39,7 +39,7 @@ case cons(a, L):
   apply len_concat = len(reverse(L)) + len(cons(a, nil))
   defof len_2 => len(reverse(L)) + (1 + len(nil))
   defof len_1 = len(reverse(L)) + (1 + 0)
-  subst 1 = len(L) + (1 + 0)
+  apply IH = len(L) + (1 + 0)
   ---
   len(cons(a, L))
   undef len_2 = 1 + len(L)

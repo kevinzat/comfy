@@ -25,13 +25,13 @@ case nil:
   undef concat_1 = concat(S, T)
 
 case cons(a, L):
-  given 1. concat(concat(L, S), T) = concat(L, concat(S, T))
+  given IH (S, T : List) : concat(concat(L, S), T) = concat(L, concat(S, T))
   prove concat(concat(cons(a, L), S), T) = concat(cons(a, L), concat(S, T)) by calculation
 
   concat(concat(cons(a, L), S), T)
   defof concat_2 => concat(cons(a, concat(L, S)), T)
   defof concat_2 => cons(a, concat(concat(L, S), T))
-  subst 1 = cons(a, concat(L, concat(S, T)))
+  apply IH = cons(a, concat(L, concat(S, T)))
   ---
   concat(cons(a, L), concat(S, T))
   undef concat_2 => cons(a, concat(L, concat(S, T)))

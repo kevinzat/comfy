@@ -26,13 +26,13 @@ case nil:
   len(T) =
 
 case cons(a, L):
-  given 1. len(concat(L, T)) = len(L) + len(T)
+  given IH (T : List) : len(concat(L, T)) = len(L) + len(T)
   prove len(concat(cons(a, L), T)) = len(cons(a, L)) + len(T) by calculation
 
   len(concat(cons(a, L), T))
   defof concat_2 = len(cons(a, concat(L, T)))
   defof len_2 = 1 + len(concat(L, T))
-  subst 1 = 1 + (len(L) + len(T))
+  apply IH = 1 + (len(L) + len(T))
   ---
   len(cons(a, L)) + len(T)
   undef len_2 = 1 + len(L) + len(T)

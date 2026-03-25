@@ -117,7 +117,7 @@ describe('decls_parser', function() {
         `type List
          | nil : List
          | cons : (Int, List) -> List
-         theorem foo (x : Int, L, R : List)
+         theorem foo (x : Int) (L, R : List)
          | x = x`);
     assert.ok(ast);
     assert.deepEqual(ast.theorems[0].params,

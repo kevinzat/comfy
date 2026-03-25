@@ -3,11 +3,12 @@ import { ParseExpr } from '../facts/exprs_parser';
 import { Formula } from '../facts/formula';
 import { ParseFormula } from '../facts/formula_parser';
 import { Environment, TopLevelEnv, NestedEnv } from '../types/env';
+import { TheoremAst } from '../lang/theorem_ast';
 import { checkFormula } from '../types/checker';
-import { buildCases } from './induction';
+import { buildCases, CaseInfo } from './induction';
 import { buildCasesOnCondition } from './cases';
 import { Step, applyForwardRule, applyBackwardRule, topFrontier, botFrontier, isComplete, checkValidity } from './calc_proof';
-import { ProofFile, ProofNode, CalcProofNode, CalcStep, GivenLine, CaseBlock } from './proof_file';
+import { ProofFile, ProofNode, CalcProofNode, CalcStep, GivenLine, IHLine, CaseBlock } from './proof_file';
 
 
 export class CheckError extends Error {
@@ -119,9 +120,91 @@ function checkGivens(
   }
 }
 
+function paramsEqual(
+    a: [string, string][], b: [string, string][]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i][0] !== b[i][0] || a[i][1] !== b[i][1]) return false;
+  }
+  return true;
+}
+
+function formatParams(params: [string, string][]): string {
+  if (params.length === 0) return '';
+  const groups: { names: string[]; type: string }[] = [];
+  for (const [name, type] of params) {
+    const last = groups[groups.length - 1];
+    if (last && last.type === type) {
+      last.names.push(name);
+    } else {
+      groups.push({ names: [name], type });
+    }
+  }
+  return ' ' + groups.map(g =>
+      `(${g.names.join(', ')} : ${g.type})`).join(' ');
+}
+
+function checkIHTheorems(
+    ihLines: IHLine[], expected: TheoremAst[]): void {
+  if (ihLines.length !== expected.length) {
+    const line = ihLines.length > 0 ? ihLines[0].line : 0;
+    throw new CheckError(line,
+        `expected ${expected.length} IH theorems, got ${ihLines.length}`);
+  }
+  for (let i = 0; i < ihLines.length; i++) {
+    const ih = ihLines[i];
+    const exp = expected[i];
+    if (ih.name !== exp.name) {
+      throw new CheckError(ih.line,
+          `expected IH named "${exp.name}", got "${ih.name}"`);
+    }
+    if (!paramsEqual(ih.params, exp.params)) {
+      throw new CheckError(ih.line,
+          `IH ${ih.name} params should be${formatParams(exp.params)}, ` +
+          `got${formatParams(ih.params)}`);
+    }
+    // Check premise if expected.
+    if (exp.premise) {
+      if (!ih.premise) {
+        throw new CheckError(ih.line,
+            `IH ${ih.name} should have premise ${exp.premise.to_string()}`);
+      }
+      let parsedPremise: Formula;
+      try {
+        parsedPremise = ParseFormula(ih.premise);
+      } catch (e: any) {
+        throw new CheckError(ih.line, `bad IH premise: ${e.message}`);
+      }
+      if (parsedPremise.to_string() !== exp.premise.to_string()) {
+        throw new CheckError(ih.line,
+            `IH ${ih.name} premise is ${exp.premise.to_string()}, not ${parsedPremise.to_string()}`);
+      }
+    } else if (ih.premise) {
+      throw new CheckError(ih.line,
+          `IH ${ih.name} should not have a premise`);
+    }
+    // Check conclusion.
+    let parsed: Formula;
+    try {
+      parsed = ParseFormula(ih.formula);
+    } catch (e: any) {
+      throw new CheckError(ih.line, `bad IH formula: ${e.message}`);
+    }
+    if (parsed.to_string() !== exp.conclusion.to_string()) {
+      throw new CheckError(ih.line,
+          `IH ${ih.name} is ${exp.conclusion.to_string()}, not ${parsed.to_string()}`);
+    }
+  }
+}
+
 function checkCaseBlock(
     block: CaseBlock, goal: Formula, env: Environment,
-    parentFactCount: number): void {
+    parentFactCount: number, expectedIH?: TheoremAst[]): void {
+  // Check stated IH theorems match the expected ones.
+  if (expectedIH) {
+    checkIHTheorems(block.ihTheorems, expectedIH);
+  }
+
   // Check stated givens match the environment's facts.
   checkGivens(block.givens, env, parentFactCount);
 
@@ -142,19 +225,21 @@ function checkCaseBlock(
 }
 
 function checkProof(
-    goal: Formula, env: Environment, node: ProofNode): void {
+    goal: Formula, env: Environment, node: ProofNode,
+    premise?: Formula): void {
   if (node.kind === 'calculate') {
     checkCalc(goal, env, node);
   } else if (node.kind === 'induction') {
     const parentFactCount = env.numFacts();
-    const cases = buildCases(goal, env, node.varName, node.argNames);
+    const cases = buildCases(goal, env, node.varName, node.argNames, premise);
     if (node.cases.length !== cases.length) {
       const line = node.cases.length > 0 ? node.cases[0].goalLine : 0;
       throw new CheckError(line,
           `expected ${cases.length} cases, got ${node.cases.length}`);
     }
     for (let i = 0; i < cases.length; i++) {
-      checkCaseBlock(node.cases[i], cases[i].goal, cases[i].env, parentFactCount);
+      checkCaseBlock(node.cases[i], cases[i].goal, cases[i].env,
+          parentFactCount, cases[i].ihTheorems);
     }
   } else if (node.kind === 'cases') {
     let condition: Formula;
@@ -210,5 +295,8 @@ export function checkProofFile(pf: ProofFile): void {
     throw new CheckError(pf.theoremLine, `type error: ${e.message}`);
   }
 
-  checkProof(theorem.conclusion, proofEnv, pf.proof);
+  // Validate top-level given lines (premise).
+  checkGivens(pf.givens, proofEnv, 0);
+
+  checkProof(theorem.conclusion, proofEnv, pf.proof, theorem.premise);
 }

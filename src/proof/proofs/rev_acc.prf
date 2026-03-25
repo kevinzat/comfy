@@ -1,0 +1,47 @@
+type List
+| nil : List
+| cons : (Int, List) -> List
+
+def concat : (List, List) -> List
+| concat(nil, R) => R
+| concat(cons(a, L), R) => cons(a, concat(L, R))
+
+theorem concat_assoc (R, S, T : List)
+| concat(concat(R, S), T) = concat(R, concat(S, T))
+
+def reverse : (List) -> List
+| reverse(nil) => nil
+| reverse(cons(a, L)) => concat(reverse(L), cons(a, nil))
+
+def rev_acc : (List, List) -> List
+| rev_acc(nil, R) => R
+| rev_acc(cons(a, L), R) => rev_acc(L, cons(a, R))
+
+theorem rev_acc_inv (S, T : List)
+| rev_acc(S, T) = concat(reverse(S), T)
+
+prove rev_acc_inv by induction on S (a, L)
+
+case nil:
+  prove rev_acc(nil, T) = concat(reverse(nil), T) by calculation
+
+  rev_acc(nil, T)
+  defof rev_acc_1 = T
+  ---
+  concat(reverse(nil), T)
+  undef reverse_1 = concat(nil, T)
+  undef concat_1 = T
+
+case cons(a, L):
+  given IH (T : List) : rev_acc(L, T) = concat(reverse(L), T)
+  prove rev_acc(cons(a, L), T) = concat(reverse(cons(a, L)), T) by calculation
+
+  rev_acc(cons(a, L), T)
+  defof rev_acc_2 = rev_acc(L, cons(a, T))
+  apply IH = concat(reverse(L), cons(a, T))
+  ---
+  concat(reverse(cons(a, L)), T)
+  undef reverse_2 = concat(concat(reverse(L), cons(a, nil)), T)
+  unapp concat_assoc = concat(reverse(L), concat(cons(a, nil), T))
+  undef concat_2 = concat(reverse(L), cons(a, concat(nil, T)))
+  undef concat_1 = concat(reverse(L), cons(a, T))
