@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Worked Examples &mdash; Comfy Docs</title>
+  <link rel="stylesheet" href="docs.css">
+</head>
+<body>
+
+<div class="titlebar">
+  <img src="../img/comfy-logo.png" alt="Comfy" class="logo" width="36" height="36">
+  <h1><a href="index.html">Comfy Docs</a></h1>
+  <nav>
+    <a href="../index.html">Launch App</a>
+    <a href="index.html">Docs Home</a>
+  </nav>
+</div>
+
+<div class="content">
+
+  <div class="breadcrumb"><a href="index.html">Docs</a> &rsaquo; Worked Examples</div>
+
+  <h2>Worked Examples</h2>
+
+  <p>
+    These examples show complete proofs you can follow step by step in the
+    Comfy UI. Each example shows the declarations, the goal, and every rule
+    applied in the calculation chains.
+  </p>
+
+  <!-- ===== EXAMPLE 1 ===== -->
+
+  <h2>Example 1: Pure Algebra</h2>
+
+  <p>Prove <code>x^2 + 2*x*y + y^2 = (x + y)^2</code> with no declarations.</p>
+
+  <h3>Setup</h3>
+  <ul>
+    <li><strong>Declarations:</strong> (empty)</li>
+    <li><strong>Givens:</strong> (none)</li>
+    <li><strong>Prove:</strong> <code>x^2 + 2*x*y + y^2 = (x + y)^2</code></li>
+  </ul>
+
+  <h3>Proof</h3>
+  <p>Method: <code>calculation</code></p>
+
+  <pre><code>  x^2 + 2*x*y + y^2
+                              <span class="comment">no forward steps needed</span>
+
+(x^2 + 2*x*y + y^2) =        <span class="comment">backward: algebra recognizes this</span>
+  (x + y)^2</code></pre>
+
+  <p>
+    The built-in algebra decision procedure expands <code>(x + y)^2</code> and
+    confirms it equals <code>x^2 + 2*x*y + y^2</code>. One backward algebra
+    step is all that's needed.
+  </p>
+
+  <!-- ===== EXAMPLE 2 ===== -->
+
+  <h2>Example 2: List Length &mdash; 0 + len(xs) = len(xs)</h2>
+
+  <p>A simple induction proof on lists.</p>
+
+  <h3>Setup</h3>
+
+  <p><strong>Declarations:</strong></p>
+  <pre><code><span class="kw">type</span> <span class="type-name">List</span>
+  | <span class="ctor">nil</span> : <span class="type-name">List</span>
+  | <span class="ctor">cons</span> : (<span class="type-name">Int</span>, <span class="type-name">List</span>) -> <span class="type-name">List</span>
+
+<span class="kw">def</span> <span class="func-name">len</span> : (<span class="type-name">List</span>) -> <span class="type-name">Int</span>
+  | len(<span class="ctor">nil</span>) => <span class="num">0</span>
+  | len(<span class="ctor">cons</span>(a, L)) => <span class="num">1</span> + len(L)
+
+<span class="kw">var</span> xs : <span class="type-name">List</span></code></pre>
+
+  <p><strong>Prove:</strong> <code>0 + len(xs) = len(xs)</code></p>
+
+  <h3>Proof</h3>
+  <p>Method: <code>induction on xs</code></p>
+
+  <h4>Base Case: xs = nil</h4>
+  <p>Goal: <code>0 + len(nil) = len(nil)</code></p>
+  <p>Method: <code>calculation</code></p>
+
+  <pre><code>  0 + len(nil)
+= 0 + 0             <span class="comment">defof len_1 (0 + 0)    &mdash; unfold len(nil) = 0, giving 0 + 0</span>
+= 0                  <span class="comment">= 0                    &mdash; algebra: 0 + 0 = 0</span>
+
+= 0                  <span class="comment">undef len_1            &mdash; fold 0 back to len(nil)</span>
+  len(nil)</code></pre>
+
+  <p>
+    Forward: unfold <code>len(nil)</code> to <code>0</code>, simplify <code>0 + 0</code>.
+    Backward: fold <code>0</code> back to <code>len(nil)</code>.
+    Chains meet at <code>0</code>.
+  </p>
+
+  <h4>Inductive Case: xs = cons(a, L)</h4>
+  <p>Known fact 1 (IH): <code>0 + len(L) = len(L)</code></p>
+  <p>Goal: <code>0 + len(cons(a, L)) = len(cons(a, L))</code></p>
+  <p>Method: <code>calculation</code></p>
+
+  <pre><code>  0 + len(cons(a, L))
+= 0 + (1 + len(L))  <span class="comment">defof len_2            &mdash; unfold len(cons(a, L)) = 1 + len(L)</span>
+= 1 + len(L)         <span class="comment">= 1 + len(L) 1        &mdash; algebra citing IH: 0 + (1 + len(L)) = 1 + len(L)</span>
+
+= 1 + len(L)         <span class="comment">undef len_2            &mdash; fold back to len(cons(a, L))</span>
+  len(cons(a, L))</code></pre>
+
+  <p>
+    The key step is <code>= 1 + len(L) 1</code> which uses the induction
+    hypothesis (fact 1: <code>0 + len(L) = len(L)</code>) to simplify.
+  </p>
+
+
+</div>
+
+<div class="footer">
+  <a href="rules.html">&larr; Rules Reference</a> &nbsp;|&nbsp;
+  <a href="index.html">Docs Home</a>
+</div>
+
+</body>
+</html>
