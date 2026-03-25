@@ -34,7 +34,7 @@ export class AlgebraAst extends RuleAst {
     if (this.refs.length === 0) {
       return `${this.op} ${this.expr.to_string()}`;
     } else {
-      return `${this.op} ${this.expr.to_string()} ${this.refs.join(' ')}`;
+      return `${this.op} ${this.expr.to_string()} since ${this.refs.join(' ')}`;
     }
   }
 }
@@ -57,7 +57,7 @@ export class SubstituteAst extends RuleAst {
 
   to_string(): string {
     const base = `${this.right ? 'subst' : 'unsub'} ${this.index}`;
-    return this.expr !== undefined ? `${base} (${this.expr.to_string()})` : base;
+    return this.expr !== undefined ? `${base} => ${this.expr.to_string()}` : base;
   }
 }
 
@@ -81,7 +81,8 @@ export class DefinitionAst extends RuleAst {
 
   to_string(): string {
     const base = `${this.right ? 'defof' : 'undef'} ${this.name}`;
-    const refsStr = this.refs.length > 0 ? ` ${this.refs.join(' ')}` : '';
-    return this.expr !== undefined ? `${base}${refsStr} (${this.expr.to_string()})` : `${base}${refsStr}`;
+    const refsStr = this.refs.length > 0 ? ` since ${this.refs.join(' ')}` : '';
+    const exprStr = this.expr !== undefined ? ` => ${this.expr.to_string()}` : '';
+    return `${base}${refsStr}${exprStr}`;
   }
 }

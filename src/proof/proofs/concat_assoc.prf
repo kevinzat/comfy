@@ -30,9 +30,9 @@ case cons(a, L):
   prove concat(concat(cons(a, L), S), T) = concat(cons(a, L), concat(S, T)) by calculation
 
   concat(concat(cons(a, L), S), T)
-  defof concat_2 (concat(cons(a, concat(L, S)), T)) = concat(cons(a, concat(L, S)), T)
-  defof concat_2 (cons(a, concat(concat(L, S), T))) = cons(a, concat(concat(L, S), T))
+  defof concat_2 => concat(cons(a, concat(L, S)), T)
+  defof concat_2 => cons(a, concat(concat(L, S), T))
   subst 1 = cons(a, concat(L, concat(S, T)))
   ---
   concat(cons(a, L), concat(S, T))
-  undef concat_2 (cons(a, concat(L, concat(S, T)))) = cons(a, concat(L, concat(S, T)))
+  undef concat_2 => cons(a, concat(L, concat(S, T)))

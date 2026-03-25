@@ -33,10 +33,10 @@ case cons(a, L):
     sum(cons(a, L))
     defof sum_2 = a + sum(L)
     subst 1 <= a + sum(positives(L))
-    < sum(positives(L)) 2
+    < sum(positives(L)) since 2
     ---
     sum(positives(cons(a, L)))
-    undef positives_2a 2 = sum(positives(L))
+    undef positives_2a since 2 = sum(positives(L))
 
   case else:
     given 2. 0 <= a
@@ -46,5 +46,5 @@ case cons(a, L):
     subst 1 <= a + sum(positives(L))
     ---
     sum(positives(cons(a, L)))
-    undef positives_2b 2 = sum(cons(a, positives(L)))
+    undef positives_2b since 2 = sum(cons(a, positives(L)))
     undef sum_2 = a + sum(positives(L))

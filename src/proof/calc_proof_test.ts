@@ -94,7 +94,7 @@ describe('multi-step proofs', function() {
     const top: Step[] = [];
     const bot: Step[] = [];
 
-    top.push(applyForwardRule('= 3 + 1 1', topFrontier(goal, top), env));
+    top.push(applyForwardRule('= 3 + 1 since 1', topFrontier(goal, top), env));
     bot.push(applyBackwardRule('(3 + 1) =', botFrontier(goal, bot), env));
 
     assert.ok(isComplete(goal, top, bot));
@@ -106,8 +106,8 @@ describe('multi-step proofs', function() {
     const goal = ParseFormula('len(nil) + len(nil) = 0');
     const top: Step[] = [];
 
-    top.push(applyForwardRule('defof len_1 (len(nil) + 0)', topFrontier(goal, top), env));
-    top.push(applyForwardRule('defof len_1 (0 + 0)', topFrontier(goal, top), env));
+    top.push(applyForwardRule('defof len_1 => len(nil) + 0', topFrontier(goal, top), env));
+    top.push(applyForwardRule('defof len_1 => 0 + 0', topFrontier(goal, top), env));
     top.push(applyForwardRule('= 0', topFrontier(goal, top), env));
 
     assert.ok(isComplete(goal, top, []));
@@ -119,7 +119,7 @@ describe('multi-step proofs', function() {
     const goal = ParseFormula('x < y + 1');
     const top: Step[] = [];
 
-    top.push(applyForwardRule('< y 1', topFrontier(goal, top), env));
+    top.push(applyForwardRule('< y since 1', topFrontier(goal, top), env));
     top.push(applyForwardRule('<= y + 1', topFrontier(goal, top), env));
 
     assert.ok(isComplete(goal, top, []));

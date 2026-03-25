@@ -13,7 +13,7 @@ prove 0 + len(xs) = len(xs) by induction on xs (n, ys)
 case nil:
   prove 0 + len(nil) = len(nil) by calculation
   0 + len(nil)
-  defof len_1 (0 + 0) = 0 + 0
+  defof len_1 => 0 + 0
   = 0
   ---
   len(nil)
@@ -24,7 +24,7 @@ case cons(n, ys):
   prove 0 + len(cons(n, ys)) = len(cons(n, ys)) by calculation
   0 + len(cons(n, ys))
   defof len_2 = 0 + (1 + len(ys))
-  = 1 + len(ys) 1
+  = 1 + len(ys) since 1
   ---
   len(cons(n, ys))
   undef len_2 = 1 + len(ys)

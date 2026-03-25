@@ -11,40 +11,40 @@ const list_to_array = util.list_to_array;
 
 Tactic -> Expr %equal
       {% ([e, op]) => new ast.AlgebraTacticAst('=', e, []) %}
-    | Expr %equal Refs
-      {% ([e, op, refs]) => new ast.AlgebraTacticAst('=', e, refs) %}
+    | Expr %equal %since Refs
+      {% ([e, op, _s, refs]) => new ast.AlgebraTacticAst('=', e, refs) %}
     | Expr %lessthan
       {% ([e, op]) => new ast.AlgebraTacticAst('<', e, []) %}
-    | Expr %lessthan Refs
-      {% ([e, op, refs]) => new ast.AlgebraTacticAst('<', e, refs) %}
+    | Expr %lessthan %since Refs
+      {% ([e, op, _s, refs]) => new ast.AlgebraTacticAst('<', e, refs) %}
     | Expr %lessequal
       {% ([e, op]) => new ast.AlgebraTacticAst('<=', e, []) %}
-    | Expr %lessequal Refs
-      {% ([e, op, refs]) => new ast.AlgebraTacticAst('<=', e, refs) %}
+    | Expr %lessequal %since Refs
+      {% ([e, op, _s, refs]) => new ast.AlgebraTacticAst('<=', e, refs) %}
     | %subst %constant
       {% ([a, b]) => new ast.SubstituteTacticAst(parseInt(b.text), true) %}
-    | %subst %constant Expr
-      {% ([a, b, e]) => new ast.SubstituteTacticAst(parseInt(b.text), true, e) %}
+    | %subst %constant %arrow Expr
+      {% ([a, b, _arr, e]) => new ast.SubstituteTacticAst(parseInt(b.text), true, e) %}
     | %unsub %constant
       {% ([a, b]) => new ast.SubstituteTacticAst(parseInt(b.text), false) %}
-    | %unsub %constant Expr
-      {% ([a, b, e]) => new ast.SubstituteTacticAst(parseInt(b.text), false, e) %}
+    | %unsub %constant %arrow Expr
+      {% ([a, b, _arr, e]) => new ast.SubstituteTacticAst(parseInt(b.text), false, e) %}
     | %defof %variable
       {% ([a, name]) => new ast.DefinitionTacticAst(name.text, true) %}
-    | %defof %variable Refs
-      {% ([a, name, refs]) => new ast.DefinitionTacticAst(name.text, true, refs) %}
-    | %defof %variable %lparen Expr %rparen
-      {% ([a, name, _lp, e, _rp]) => new ast.DefinitionTacticAst(name.text, true, [], e) %}
-    | %defof %variable Refs %lparen Expr %rparen
-      {% ([a, name, refs, _lp, e, _rp]) => new ast.DefinitionTacticAst(name.text, true, refs, e) %}
+    | %defof %variable %since Refs
+      {% ([a, name, _s, refs]) => new ast.DefinitionTacticAst(name.text, true, refs) %}
+    | %defof %variable %arrow Expr
+      {% ([a, name, _arr, e]) => new ast.DefinitionTacticAst(name.text, true, [], e) %}
+    | %defof %variable %since Refs %arrow Expr
+      {% ([a, name, _s, refs, _arr, e]) => new ast.DefinitionTacticAst(name.text, true, refs, e) %}
     | %undef %variable
       {% ([a, name]) => new ast.DefinitionTacticAst(name.text, false) %}
-    | %undef %variable Refs
-      {% ([a, name, refs]) => new ast.DefinitionTacticAst(name.text, false, refs) %}
-    | %undef %variable %lparen Expr %rparen
-      {% ([a, name, _lp, e, _rp]) => new ast.DefinitionTacticAst(name.text, false, [], e) %}
-    | %undef %variable Refs %lparen Expr %rparen
-      {% ([a, name, refs, _lp, e, _rp]) => new ast.DefinitionTacticAst(name.text, false, refs, e) %}
+    | %undef %variable %since Refs
+      {% ([a, name, _s, refs]) => new ast.DefinitionTacticAst(name.text, false, refs) %}
+    | %undef %variable %arrow Expr
+      {% ([a, name, _arr, e]) => new ast.DefinitionTacticAst(name.text, false, [], e) %}
+    | %undef %variable %since Refs %arrow Expr
+      {% ([a, name, _s, refs, _arr, e]) => new ast.DefinitionTacticAst(name.text, false, refs, e) %}
 
 Refs -> %constant
       {% ([c]) => [parseInt(c.text)] %}

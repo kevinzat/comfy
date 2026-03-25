@@ -123,6 +123,7 @@ const ALGEBRA_PREFIX = /^(=|<=|<)\s/;
 const NON_ALGEBRA_PREFIX = /^(subst|unsub|defof|undef)\s/;
 const BACKWARD_ALGEBRA_PREFIX = /^\(/;
 const OP_SEPARATOR = /^(.*)\s+(<=|<|=)\s+(.+)$/;
+const HAS_ARROW = /=>/;
 
 function parseCalcStep(trimmed: string, line: number): CalcStep {
   // Algebra rules (forward: "= expr", "< expr", "<= expr")
@@ -131,8 +132,13 @@ function parseCalcStep(trimmed: string, line: number): CalcStep {
     return { ruleText: trimmed, line };
   }
 
-  // Non-algebra rules: "<rule> <op> <result>" where op is =, <, or <=
+  // Non-algebra rules.
   if (NON_ALGEBRA_PREFIX.test(trimmed)) {
+    // Rules with "=>" specify their own result — no separate "= expr" needed.
+    if (HAS_ARROW.test(trimmed)) {
+      return { ruleText: trimmed, line };
+    }
+    // Rules without "=>" need "<rule> <op> <result>".
     const m = trimmed.match(OP_SEPARATOR);
     if (!m) {
       throw new ParseError(line,

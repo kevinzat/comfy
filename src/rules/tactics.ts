@@ -3,7 +3,7 @@
 import { Expression } from '../facts/exprs';
 import { Formula, FormulaOp, OP_EQUAL, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
 import { Environment } from '../types/env';
-import { UnifyExprs, EnumerateReplacements, ApplySubst, SubstAll, SubstAllWithCheck, FreshenVarsMany, SubstPositive, SubstNegative } from '../facts/unify';
+import { EquationRewriter, InequalityRewriter, DefinitionRewriter } from './rewriter';
 import { lookupDefinition } from './rules';
 import { IsEquationImplied } from '../decision/equation';
 import { IsInequalityImplied } from '../decision/inequality';
@@ -84,8 +84,7 @@ export class SubstituteTactic extends Tactic {
   eq: Formula;
   right: boolean;
   known: number;
-  _premise: Expression;
-  _resultFormula?: Formula;
+  _resultFormula: Formula;
 
   constructor(env: Environment, goal: Expression, known: number, right: boolean, premise?: Expression) {
     super(TACTIC_SUBSTITUTE, goal);
@@ -103,70 +102,23 @@ export class SubstituteTactic extends Tactic {
     const ineqTo = right ? this.eq.right : this.eq.left;
 
     if (this.eq.op === OP_EQUAL) {
-      const from = eqFrom;
-      const to = eqTo;
-      if (premise !== undefined) {
-        const fullGoal = goal.subst(from, to);
-        const fullPremise = premise.subst(from, to);
-        if (!fullGoal.equals(fullPremise)) {
-          throw new UserError(
-            `subst: provided premise ${premise.to_string()} cannot be produced by substitution`);
-        }
-        this._premise = premise;
-      } else {
-        const substituted = goal.subst(from, to);
-        if (substituted.equals(goal)) {
-          throw new UserError(
-            `subst: ${from.to_string()} not found in ${goal.to_string()}`);
-        }
-        this._premise = substituted;
-      }
-      this._resultFormula = new Formula(this._premise, OP_EQUAL, this.goal);
+      const rewriter = new EquationRewriter('subst', goal, eqFrom, eqTo);
+      this._resultFormula = new Formula(rewriter.rewrite(premise), OP_EQUAL, goal);
     } else {
-      const from = ineqFrom;
-      const to = ineqTo;
-      const posResult = SubstPositive(goal, from, to);
-      const negResult = SubstNegative(goal, from, to);
-      const posChanged = !posResult.equals(goal);
-      const negChanged = !negResult.equals(goal);
-      const flippedOp: FormulaOp = this.eq.op === OP_LESS_THAN ? OP_LESS_EQUAL : OP_LESS_THAN;
-
-      if (premise !== undefined) {
-        const fullGoal = goal.subst(from, to);
-        const fullPremise = premise.subst(from, to);
-        if (!fullGoal.equals(fullPremise)) {
-          throw new UserError(
-            `subst: provided premise ${premise.to_string()} cannot be produced by substitution`);
-        }
-        this._premise = premise;
-        if (posChanged && premise.equals(posResult)) {
-          this._resultFormula = new Formula(premise, this.eq.op, goal);
-        } else if (negChanged && premise.equals(negResult)) {
-          this._resultFormula = new Formula(goal, flippedOp, premise);
-        } else {
-          throw new UserError(
-            `subst: cannot determine polarity for inequality substitution`);
-        }
+      const rewriter = new InequalityRewriter('subst', goal, ineqFrom, ineqTo);
+      rewriter.rewrite(premise);
+      if (rewriter.positive) {
+        this._resultFormula = new Formula(rewriter.result, this.eq.op, goal);
       } else {
-        if (posChanged && negChanged) {
-          throw new UserError(
-            `subst: ${from.to_string()} appears in both positive and negative positions; provide an explicit result`);
-        } else if (posChanged) {
-          this._premise = posResult;
-          this._resultFormula = new Formula(posResult, this.eq.op, goal);
-        } else if (negChanged) {
-          this._premise = negResult;
-          this._resultFormula = new Formula(goal, flippedOp, negResult);
-        } else {
-          throw new UserError(
-            `subst: ${from.to_string()} not found in ${goal.to_string()}`);
-        }
+        const flippedOp: FormulaOp =
+            this.eq.op === OP_LESS_THAN ? OP_LESS_EQUAL : OP_LESS_THAN;
+        this._resultFormula = new Formula(goal, flippedOp, rewriter.result);
       }
     }
   }
 
   apply(): Formula {
-    return this._resultFormula!;
+    return this._resultFormula;
   }
 
   reverse(): RuleAst {
@@ -205,55 +157,10 @@ export class DefinitionTactic extends Tactic {
           `defof/undef: "${name}" has no condition; known facts must not be provided`);
 
     // Backward is opposite direction from forward
-    const origMatch = right ? this.defFormula.right : this.defFormula.left;
-    const origRepl = right ? this.defFormula.left : this.defFormula.right;
-    const origVars = new Set(origMatch.var_refs().filter(v => !env.hasConstructor(v)));
-
-    const toFreshen = [origMatch, origRepl];
-    if (def.condition) {
-      toFreshen.push(def.condition.left, def.condition.right);
-    }
-    const [freshened, freeVars] = FreshenVarsMany(toFreshen, origVars);
-    const matchSide = freshened[0];
-    const replSide = freshened[1];
-
-    if (premise !== undefined) {
-      const possibilities = EnumerateReplacements(goal, (node) => {
-        const subst = UnifyExprs(node, matchSide, freeVars);
-        if (subst === undefined) return undefined;
-        if (def.condition) {
-          const condLeft = ApplySubst(freshened[2], subst);
-          const condRight = ApplySubst(freshened[3], subst);
-          const concrete = new Formula(condLeft, def.condition.op, condRight);
-          if (!IsInequalityImplied(knownFacts, concrete))
-            return undefined;
-        }
-        return ApplySubst(replSide, subst);
-      });
-      if (!possibilities.some(p => p.equals(premise))) {
-        throw new UserError(
-            `defof/undef: provided premise ${premise.to_string()} cannot be produced`);
-      }
-      this._premise = premise;
-    } else {
-      if (def.condition) {
-        this._premise = SubstAllWithCheck(goal, matchSide, replSide, freeVars, (subst) => {
-          const condLeft = ApplySubst(freshened[2], subst);
-          const condRight = ApplySubst(freshened[3], subst);
-          const concrete = new Formula(condLeft, def.condition!.op, condRight);
-          if (!IsInequalityImplied(knownFacts, concrete)) {
-            throw new UserError(
-                `defof/undef: condition ${concrete.to_string()} is not implied by the cited facts: ${knownFacts.map(f => f.to_string()).join(' | ')}`);
-          }
-        });
-      } else {
-        this._premise = SubstAll(goal, matchSide, replSide, freeVars);
-      }
-      if (this._premise.equals(goal)) {
-        throw new UserError(
-            `defof/undef: no matches found in ${goal.to_string()}`);
-      }
-    }
+    const rewriter = new DefinitionRewriter(
+        'defof/undef', env, goal, def.formula, !right,
+        def.condition, knownFacts);
+    this._premise = rewriter.rewrite(premise);
   }
 
   apply(): Formula {

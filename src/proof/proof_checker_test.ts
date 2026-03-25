@@ -51,7 +51,7 @@ const validNilCase =
 `case nil:
   prove 0 + len(nil) = len(nil) by calculation
   0 + len(nil)
-  defof len_1 (0 + 0) = 0 + 0
+  defof len_1 => 0 + 0
   = 0
   ---
   len(nil)
@@ -63,7 +63,7 @@ const validConsCase =
   prove 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
   0 + len(cons(a, L))
   defof len_2 = 0 + (1 + len(L))
-  = 1 + len(L) 1
+  = 1 + len(L) since 1
   ---
   len(cons(a, L))
   undef len_2 = 1 + len(L)`;
@@ -93,7 +93,7 @@ prove 0 + len(xs) = len(xs) by induction on xs
 case nil:
   prove 0 + len(nil) = len(nil) by calculation
   0 + len(nil)
-  defof len_1 (0 + 0) = 0 + 0
+  defof len_1 => 0 + 0
   = 0
   ---
   len(nil)
@@ -103,7 +103,7 @@ ${validConsCase}`;
     checkFails(source, 20, /syntax error/);
   });
 
-  it('reports wrong expression after forward rule', function() {
+  it('reports wrong explicit result in forward rule', function() {
     const source = `${preamble}
 
 prove 0 + len(xs) = len(xs) by induction on xs
@@ -111,13 +111,13 @@ prove 0 + len(xs) = len(xs) by induction on xs
 case nil:
   prove 0 + len(nil) = len(nil) by calculation
   0 + len(nil)
-  defof len_1 (0 + 0) = 999
+  defof len_1 => 999
   ---
   len(nil)
   undef len_1 = 0
 
 ${validConsCase}`;
-    checkFails(source, 16, /expected 0 \+ 0, got 999/);
+    checkFails(source, 16, /cannot be produced/);
   });
 
   it('reports wrong start expression', function() {
@@ -143,7 +143,7 @@ prove 0 + len(xs) = len(xs) by induction on xs
 case nil:
   prove 0 + len(nil) = len(nil) by calculation
   0 + len(nil)
-  defof len_1 (0 + 0) = 0 + 0
+  defof len_1 => 0 + 0
 
 ${validConsCase}`;
     checkFails(source, 16, /incomplete/);
@@ -215,7 +215,7 @@ given 1. x = 3
 
 prove x + 1 = 4 by calculation
   x + 1
-  = 3 + 1 1
+  = 3 + 1 since 1
   = 4`;
     check(source);
   });

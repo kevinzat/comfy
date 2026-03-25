@@ -41,10 +41,10 @@ describe('Rule.reverse()', function() {
   it('algebra rule with refs reverses preserving refs', function() {
     const env = new TopLevelEnv([], [], [], [ParseFormula('x + y = 5')]);
     const current = ParseExpr('x + y');
-    const ast = ParseForwardRule('= 5 1');
+    const ast = ParseForwardRule('= 5 since 1');
     const rule = CreateRule(ast, current, env);
     const tacticAst = rule.reverse();
-    assert.strictEqual(tacticAst.to_string(), '= x + y 1');
+    assert.strictEqual(tacticAst.to_string(), '= x + y since 1');
   });
 
   it('subst rule reverses to subst tactic', function() {
@@ -302,7 +302,7 @@ describe('testAllSplits: len_zero_add.prf', function() {
   it('nil case', function() {
     testAllSplits(env,
         ParseFormula('0 + len(nil) = len(nil)'),
-        ['defof len_1 (0 + 0)', '= 0'],
+        ['defof len_1 => 0 + 0', '= 0'],
         ['undef len_1']);
   });
 
@@ -311,7 +311,7 @@ describe('testAllSplits: len_zero_add.prf', function() {
     const caseEnv = new NestedEnv(env, [['n', 'Int'], ['ys', 'List']], [ih]);
     testAllSplits(caseEnv,
         ParseFormula('0 + len(cons(n, ys)) = len(cons(n, ys))'),
-        ['defof len_2', '= 1 + len(ys) 1'],
+        ['defof len_2', '= 1 + len(ys) since 1'],
         ['undef len_2']);
   });
 });
@@ -381,8 +381,8 @@ describe('testAllSplits: sum_positives.prf', function() {
     const caseEnv = new NestedEnv(outerEnv, [], [cond]);
     testAllSplits(caseEnv,
         ParseFormula('sum(cons(a, L)) <= sum(positives(cons(a, L)))'),
-        ['defof sum_2', 'subst 1', '< sum(positives(L)) 2'],
-        ['undef positives_2a 2']);
+        ['defof sum_2', 'subst 1', '< sum(positives(L)) since 2'],
+        ['undef positives_2a since 2']);
   });
 
   it('cons/else case', function() {
@@ -393,6 +393,6 @@ describe('testAllSplits: sum_positives.prf', function() {
     testAllSplits(caseEnv,
         ParseFormula('sum(cons(a, L)) <= sum(positives(cons(a, L)))'),
         ['defof sum_2', 'subst 1'],
-        ['undef positives_2b 2', 'undef sum_2']);
+        ['undef positives_2b since 2', 'undef sum_2']);
   });
 });

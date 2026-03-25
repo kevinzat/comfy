@@ -21,8 +21,10 @@ export function makeRuleLexer(moo) {
     NL: { match: /\n/, lineBreaks: true },
     constant: /[0-9]+/,
     variable: { match: /[a-zA-Z][_a-zA-Z0-9]*/, type: moo.keywords({
-      subst: 'subst', unsub: 'unsub', defof: 'defof', undef: 'undef'
+      subst: 'subst', unsub: 'unsub', defof: 'defof', undef: 'undef',
+      since: 'since'
     }) },
+    arrow: '=>',
     lessequal: '<=',
     lessthan: '<',
     equal: '=',

@@ -25,7 +25,7 @@ describe('ParseForwardRule', function() {
   });
 
   it('parses = Expr with refs', function() {
-    const ast = ParseForwardRule('= x + 1 1 2');
+    const ast = ParseForwardRule('= x + 1 since 1 2');
     assert.strictEqual(ast.variety, RULE_ALGEBRA);
     const a = ast as AlgebraAst;
     assert.strictEqual(a.op, '=');
@@ -41,7 +41,7 @@ describe('ParseForwardRule', function() {
   });
 
   it('parses <= Expr with ref', function() {
-    const ast = ParseForwardRule('<= 2*x + 3 1');
+    const ast = ParseForwardRule('<= 2*x + 3 since 1');
     const a = ast as AlgebraAst;
     assert.strictEqual(a.op, '<=');
     assert.deepStrictEqual(a.refs, [1]);
@@ -73,7 +73,7 @@ describe('ParseForwardRule', function() {
   });
 
   it('parses subst N Expr', function() {
-    const ast = ParseForwardRule('subst 1 (3 + 1)');
+    const ast = ParseForwardRule('subst 1 => 3 + 1');
     assert.strictEqual(ast.variety, RULE_SUBSTITUTE);
     const s = ast as SubstituteAst;
     assert.strictEqual(s.index, 1);
@@ -82,7 +82,7 @@ describe('ParseForwardRule', function() {
   });
 
   it('parses unsub N Expr', function() {
-    const ast = ParseForwardRule('unsub 2 (2*b+b)');
+    const ast = ParseForwardRule('unsub 2 => 2*b+b');
     assert.strictEqual(ast.variety, RULE_SUBSTITUTE);
     const s = ast as SubstituteAst;
     assert.strictEqual(s.index, 2);
@@ -125,7 +125,7 @@ describe('ParseForwardRule', function() {
   });
 
   it('parses defof name with refs', function() {
-    const ast = ParseForwardRule('defof positives_2a 1 2');
+    const ast = ParseForwardRule('defof positives_2a since 1 2');
     const d = ast as DefinitionAst;
     assert.strictEqual(d.name, 'positives_2a');
     assert.strictEqual(d.right, true);
@@ -133,8 +133,8 @@ describe('ParseForwardRule', function() {
     assert.strictEqual(d.expr, undefined);
   });
 
-  it('parses defof name with explicit result in parens', function() {
-    const ast = ParseForwardRule('defof len_1 (0)');
+  it('parses defof name with explicit result', function() {
+    const ast = ParseForwardRule('defof len_1 => 0');
     const d = ast as DefinitionAst;
     assert.strictEqual(d.name, 'len_1');
     assert.deepStrictEqual(d.refs, []);
@@ -143,7 +143,7 @@ describe('ParseForwardRule', function() {
   });
 
   it('parses defof name with refs and explicit result', function() {
-    const ast = ParseForwardRule('defof positives_2a 1 (x + 1)');
+    const ast = ParseForwardRule('defof positives_2a since 1 => x + 1');
     const d = ast as DefinitionAst;
     assert.strictEqual(d.name, 'positives_2a');
     assert.deepStrictEqual(d.refs, [1]);
@@ -152,7 +152,7 @@ describe('ParseForwardRule', function() {
   });
 
   it('parses undef name with refs', function() {
-    const ast = ParseForwardRule('undef positives_2b 3');
+    const ast = ParseForwardRule('undef positives_2b since 3');
     const d = ast as DefinitionAst;
     assert.strictEqual(d.name, 'positives_2b');
     assert.strictEqual(d.right, false);
@@ -174,7 +174,7 @@ describe('CreateRule', function() {
   });
 
   it('algebra = citing a given', function() {
-    const ast = ParseForwardRule('= 5 1');
+    const ast = ParseForwardRule('= 5 since 1');
     const current = ParseExpr('x + y');
     const env = new TopLevelEnv([], [], [], [ParseFormula('x + y = 5')]);
     const rule = CreateRule(ast, current, env);
@@ -183,7 +183,7 @@ describe('CreateRule', function() {
   });
 
   it('algebra = rejects wrong equation', function() {
-    const ast = ParseForwardRule('= 6 1');
+    const ast = ParseForwardRule('= 6 since 1');
     const current = ParseExpr('x + y');
     const env = new TopLevelEnv([], [], [], [ParseFormula('x + y = 5')]);
     assert.throws(() => CreateRule(ast, current, env), /algebra/);
@@ -219,7 +219,7 @@ describe('CreateRule', function() {
 
   it('subst with explicit result (partial substitution)', function() {
     // Given x = 3, current is x + x, only replace first x
-    const ast = ParseForwardRule('subst 1 (3 + x)');
+    const ast = ParseForwardRule('subst 1 => 3 + x');
     const current = ParseExpr('x + x');
     const env = new TopLevelEnv([], [], [], [ParseFormula('x = 3')]);
     const rule = CreateRule(ast, current, env);
@@ -228,7 +228,7 @@ describe('CreateRule', function() {
   });
 
   it('subst rejects invalid explicit result', function() {
-    const ast = ParseForwardRule('subst 1 (y + 1)');
+    const ast = ParseForwardRule('subst 1 => y + 1');
     const current = ParseExpr('x + 1');
     const env = new TopLevelEnv([], [], [], [ParseFormula('x = 3')]);
     assert.throws(() => CreateRule(ast, current, env), /cannot be produced/);
@@ -296,7 +296,7 @@ describe('CreateRule', function() {
     const ast = ParseForwardRule('subst 1');
     const current = ParseExpr('x - x');
     const env = new TopLevelEnv([], [], [], [ParseFormula('x < 3')]);
-    assert.throws(() => CreateRule(ast, current, env), /positive and negative/);
+    assert.throws(() => CreateRule(ast, current, env), /multiple matches/);
   });
 
   it('subst with <= produces <=', function() {
@@ -314,21 +314,21 @@ describe('CreateRule', function() {
     const ast = ParseForwardRule('subst 1');
     const current = ParseExpr('y + 1');
     const env = new TopLevelEnv([], [], [], [ParseFormula('x < 3')]);
-    assert.throws(() => CreateRule(ast, current, env), /not found/);
+    assert.throws(() => CreateRule(ast, current, env), /no matches found/);
   });
 
   it('subst with inequality does not recurse into user functions', function() {
     const ast = ParseForwardRule('subst 1');
     const current = ParseExpr('f(x)');
     const env = new TopLevelEnv([], [], [], [ParseFormula('x < 3')]);
-    assert.throws(() => CreateRule(ast, current, env), /not found/);
+    assert.throws(() => CreateRule(ast, current, env), /no matches found/);
   });
 
   it('subst rejects when nothing to substitute', function() {
     const ast = ParseForwardRule('subst 1');
     const current = ParseExpr('y + 1');
     const env = new TopLevelEnv([], [], [], [ParseFormula('x = 3')]);
-    assert.throws(() => CreateRule(ast, current, env), /not found/);
+    assert.throws(() => CreateRule(ast, current, env), /no matches found/);
   });
 
   it('subst rejects out of range index', function() {
@@ -464,7 +464,7 @@ describe('CreateRule - conditional definition', function() {
     // Known fact 1: a < 0
     const env = new TopLevelEnv([listType], [positivesFunc], [],
         [ParseFormula('a < 0')]);
-    const ast = ParseForwardRule('defof positives_2a 1');
+    const ast = ParseForwardRule('defof positives_2a since 1');
     const current = Call.of('positives', Call.of('cons', Variable.of('a'), Variable.of('L')));
     const rule = CreateRule(ast, current, env);
     const result = rule.apply();
@@ -475,7 +475,7 @@ describe('CreateRule - conditional definition', function() {
   it('defof positives_2a inside a larger expression', function() {
     const env = new TopLevelEnv([listType], [positivesFunc], [],
         [ParseFormula('a < 0')]);
-    const ast = ParseForwardRule('defof positives_2a 1');
+    const ast = ParseForwardRule('defof positives_2a since 1');
     const current = Call.of('len', Call.of('positives',
         Call.of('cons', Variable.of('a'), Variable.of('L'))));
     const rule = CreateRule(ast, current, env);
@@ -488,7 +488,7 @@ describe('CreateRule - conditional definition', function() {
     // positives_2b condition: 0 <= a
     const env = new TopLevelEnv([listType], [positivesFunc], [],
         [ParseFormula('0 <= a')]);
-    const ast = ParseForwardRule('defof positives_2b 1');
+    const ast = ParseForwardRule('defof positives_2b since 1');
     const current = Call.of('positives', Call.of('cons', Variable.of('a'), Variable.of('L')));
     const rule = CreateRule(ast, current, env);
     const result = rule.apply();
@@ -500,7 +500,7 @@ describe('CreateRule - conditional definition', function() {
     // Known fact is a <= 0, but condition requires a < 0
     const env = new TopLevelEnv([listType], [positivesFunc], [],
         [ParseFormula('a <= 0')]);
-    const ast = ParseForwardRule('defof positives_2a 1');
+    const ast = ParseForwardRule('defof positives_2a since 1');
     const current = Call.of('positives', Call.of('cons', Variable.of('a'), Variable.of('L')));
     assert.throws(() => CreateRule(ast, current, env), /condition/);
   });
@@ -515,7 +515,7 @@ describe('CreateRule - conditional definition', function() {
   it('defof unconditional fails when knowns provided', function() {
     const env = new TopLevelEnv([listType], [positivesFunc], [],
         [ParseFormula('a < 0')]);
-    const ast = ParseForwardRule('defof positives_1 1');
+    const ast = ParseForwardRule('defof positives_1 since 1');
     const current = Call.of('positives', Variable.of('nil'));
     assert.throws(() => CreateRule(ast, current, env), /must not be provided/);
   });
