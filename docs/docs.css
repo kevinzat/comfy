@@ -53,6 +53,22 @@ body {
   text-decoration: underline;
 }
 
+/* Banner section */
+.banner {
+  background: #f3eff8;
+  border-bottom: 1px solid #ddd;
+  padding: 30px 24px;
+}
+
+.banner-inner {
+  max-width: 820px;
+  margin: 0 auto;
+}
+
+.banner h2 {
+  margin-top: 16px;
+}
+
 /* Main content area */
 .content {
   max-width: 820px;
