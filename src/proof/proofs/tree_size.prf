@@ -10,9 +10,10 @@ def leaves : (Tree) -> Int
 | leaves(leaf) => 1
 | leaves(node(L, R)) => leaves(L) + leaves(R)
 
-var T : Tree
+theorem tree_size (T : Tree)
+| size(T) = 2 * leaves(T) - 1
 
-prove size(T) = 2 * leaves(T) - 1 by induction on T (L, R)
+prove tree_size by induction on T (L, R)
 
 case leaf:
   prove size(leaf) = 2 * leaves(leaf) - 1 by calculation
@@ -21,7 +22,7 @@ case leaf:
   ---
   2 * leaves(leaf) - 1
   undef leaves_1 = 2 * 1 - 1
-  (1) =
+  1 =
 
 case node(L, R):
   given 1. size(L) = 2 * leaves(L) - 1

@@ -6,6 +6,7 @@ import { FormulaOp } from '../facts/formula';
 export const TACTIC_ALGEBRA = 2;
 export const TACTIC_SUBSTITUTE = 3;
 export const TACTIC_DEFINITION = 4;
+export const TACTIC_APPLY = 5;
 
 export abstract class TacticAst {
   variety: number;
@@ -83,6 +84,33 @@ export class DefinitionTacticAst extends TacticAst {
 
   to_string(): string {
     const base = `${this.right ? 'defof' : 'undef'} ${this.name}`;
+    const refsStr = this.refs.length > 0 ? ` since ${this.refs.join(' ')}` : '';
+    const exprStr = this.expr !== undefined ? ` => ${this.expr.to_string()}` : '';
+    return `${base}${refsStr}${exprStr}`;
+  }
+}
+
+/**
+ * Backward apply: the opposite of forward apply/unapp.
+ * apply name: undoes a forward apply (replaces right with left in goal).
+ * unapp name: undoes a forward unapp (replaces left with right in goal).
+ */
+export class ApplyTacticAst extends TacticAst {
+  readonly name: string;
+  readonly right: boolean;
+  readonly refs: number[];
+  readonly expr: Expression | undefined;
+
+  constructor(name: string, right: boolean, refs: number[] = [], expr?: Expression) {
+    super(TACTIC_APPLY);
+    this.name = name;
+    this.right = right;
+    this.refs = refs;
+    this.expr = expr;
+  }
+
+  to_string(): string {
+    const base = `${this.right ? 'apply' : 'unapp'} ${this.name}`;
     const refsStr = this.refs.length > 0 ? ` since ${this.refs.join(' ')}` : '';
     const exprStr = this.expr !== undefined ? ` => ${this.expr.to_string()}` : '';
     return `${base}${refsStr}${exprStr}`;

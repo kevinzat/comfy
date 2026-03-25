@@ -45,7 +45,8 @@ def len : (List) -> Int
 | len(nil) => 0
 | len(cons(a, L)) => 1 + len(L)
 
-var xs : List`;
+theorem len_zero_add (xs : List)
+| 0 + len(xs) = len(xs)`;
 
 const validNilCase =
 `case nil:
@@ -74,7 +75,7 @@ describe('proof_checker errors', function() {
   it('reports bad forward rule with line number', function() {
     const source = `${preamble}
 
-prove 0 + len(xs) = len(xs) by induction on xs
+prove len_zero_add by induction on xs
 
 case nil:
   prove 0 + len(nil) = len(nil) by calculation
@@ -82,13 +83,13 @@ case nil:
   = 999
 
 ${validConsCase}`;
-    checkFails(source, 16, /algebra/);
+    checkFails(source, 17, /algebra/);
   });
 
   it('reports bad backward rule with line number', function() {
     const source = `${preamble}
 
-prove 0 + len(xs) = len(xs) by induction on xs
+prove len_zero_add by induction on xs
 
 case nil:
   prove 0 + len(nil) = len(nil) by calculation
@@ -100,13 +101,13 @@ case nil:
   = 999
 
 ${validConsCase}`;
-    checkFails(source, 20, /syntax error/);
+    checkFails(source, 21, /syntax error/);
   });
 
   it('reports wrong explicit result in forward rule', function() {
     const source = `${preamble}
 
-prove 0 + len(xs) = len(xs) by induction on xs
+prove len_zero_add by induction on xs
 
 case nil:
   prove 0 + len(nil) = len(nil) by calculation
@@ -117,13 +118,13 @@ case nil:
   undef len_1 = 0
 
 ${validConsCase}`;
-    checkFails(source, 16, /cannot be produced/);
+    checkFails(source, 17, /cannot be produced/);
   });
 
   it('reports wrong start expression', function() {
     const source = `${preamble}
 
-prove 0 + len(xs) = len(xs) by induction on xs
+prove len_zero_add by induction on xs
 
 case nil:
   prove 0 + len(nil) = len(nil) by calculation
@@ -132,13 +133,13 @@ case nil:
   len(nil)
 
 ${validConsCase}`;
-    checkFails(source, 15, /expected 0 \+ len\(nil\), got 999/);
+    checkFails(source, 16, /expected 0 \+ len\(nil\), got 999/);
   });
 
   it('reports incomplete proof', function() {
     const source = `${preamble}
 
-prove 0 + len(xs) = len(xs) by induction on xs
+prove len_zero_add by induction on xs
 
 case nil:
   prove 0 + len(nil) = len(nil) by calculation
@@ -146,92 +147,94 @@ case nil:
   defof len_1 => 0 + 0
 
 ${validConsCase}`;
-    checkFails(source, 16, /incomplete/);
+    checkFails(source, 17, /incomplete/);
   });
 
   it('reports wrong number of induction cases', function() {
     const source = `${preamble}
 
-prove 0 + len(xs) = len(xs) by induction on xs
+prove len_zero_add by induction on xs
 
 ${validNilCase}`;
-    checkFails(source, 14, /expected 2 cases, got 1/);
+    checkFails(source, 15, /expected 2 cases, got 1/);
   });
 
   it('reports mismatched induction goal', function() {
     const source = `${preamble}
 
-prove 0 + len(xs) = len(xs) by induction on xs
+prove len_zero_add by induction on xs
 
 case nil:
   prove 0 + len(nil) = 999 by calculation
 
 ${validConsCase}`;
-    checkFails(source, 14, /stated goal.*does not match/);
+    checkFails(source, 15, /stated goal.*does not match/);
   });
 
   it('reports wrong operator on non-algebra step', function() {
-    const source = `${preamble}
+    const source = `type List
+| nil : List
+| cons : (Int, List) -> List
 
-given 1. xs = nil
+def len : (List) -> Int
+| len(nil) => 0
+| len(cons(a, L)) => 1 + len(L)
 
-prove len(xs) <= 0 by calculation
-  len(xs)
-  subst 1 = len(nil)`;
-    // subst with fact "xs = nil" produces =, but we stated =, so this should pass.
-    // Let's test a real mismatch: state < when it's actually =.
-    const badSource = `${preamble}
+theorem foo (xs : List)
+| xs = nil => len(xs) <= 0
 
-given 1. xs = nil
-
-prove len(xs) <= 0 by calculation
+prove foo by calculation
   len(xs)
   subst 1 < len(nil)`;
-    checkFails(badSource, 15, /expected operator </);
+    checkFails(source, 14, /expected operator </);
   });
 
   it('accepts a valid simple calculation', function() {
-    const source = `prove x + y = y + x by calculation
+    const source = `theorem comm (x, y : Int)
+| x + y = y + x
+
+prove comm by calculation
   x + y
   = y + x`;
     check(source);
   });
 
   it('accepts a valid inequality proof', function() {
-    const source = `var x : Int
-var y : Int
+    const source = `theorem foo (x, y : Int)
+| x < x + 2
 
-prove x < x + 2 by calculation
+prove foo by calculation
   x
   < x + 1
   <= x + 2`;
     check(source);
   });
 
-  it('accepts a proof using a given fact', function() {
-    const source = `var x : Int
+  it('accepts a proof using a given fact (premise)', function() {
+    const source = `theorem foo (x : Int)
+| x = 3 => x + 1 = 4
 
-given 1. x = 3
-
-prove x + 1 = 4 by calculation
+prove foo by calculation
   x + 1
   = 3 + 1 since 1
   = 4`;
     check(source);
   });
 
-  it('reports bad given formula', function() {
-    const source = `given 1. ??? bad
+  it('rejects unknown theorem name', function() {
+    const source = `theorem foo (x : Int)
+| x = x
 
-prove x = x by calculation
+prove bar by calculation
   x`;
-    checkFails(source, 1, /bad given/);
+    checkFails(source, 4, /unknown theorem/);
   });
 
   it('rejects cases condition with = operator', function() {
-    const source = `var x : Int
+    const source = `theorem foo (x : Int)
+| x = x
 
-prove x = x by cases on x = 0
+prove foo by cases on x = 0
 
 case then:
   prove x = x by calculation
@@ -240,7 +243,7 @@ case then:
 case else:
   prove x = x by calculation
   x`;
-    checkFails(source, 3, /cases condition must use < or <=/);
+    checkFails(source, 4, /cases condition must use < or <=/);
   });
 });
 
@@ -248,31 +251,29 @@ case else:
 describe('proof_file parse errors', function() {
 
   it('rejects missing prove statement', function() {
-    parseFails(`var x : Int`, 1, /missing "prove"/);
+    parseFails(`theorem foo (x : Int)\n| x = x`, 2, /missing "prove"/);
   });
 
   it('rejects malformed prove line', function() {
-    parseFails(`prove x = x`, 1, /expected "prove <formula> by <method>"/);
+    parseFails(`theorem foo (x : Int)\n| x = x\nprove foo`, 3, /expected "prove <name> by <method>"/);
   });
 
   it('rejects unknown proof method', function() {
-    parseFails(`prove x = x by magic`, 1, /expected "calculation"/);
+    parseFails(`theorem foo (x : Int)\n| x = x\nprove foo by magic`, 3, /expected "calculation"/);
   });
 
   it('rejects induction with no cases', function() {
     const source = `${preamble}
 
-prove 0 + len(xs) = len(xs) by induction on xs`;
-    parseFails(source, 11, /no cases/);
+prove len_zero_add by induction on xs`;
+    parseFails(source, 12, /no cases/);
   });
 
   it('rejects bad declarations', function() {
-    parseFails(`type = bad\n\nprove x = x by calculation`, 1, /declaration error/);
+    parseFails(`type = bad\n\ntheorem foo (x : Int)\n| x = x\nprove foo by calculation`, 1, /declaration error/);
   });
 
   it('rejects non-algebra rule without operator separator', function() {
-    parseFails(`prove x + y = y + x by calculation
-  x + y
-  defof foo`, 3, /expected.*<rule> =/);
+    parseFails(`theorem foo (x, y : Int)\n| x + y = y + x\nprove foo by calculation\n  x + y\n  defof bar`, 5, /expected.*<rule> =/);
   });
 });

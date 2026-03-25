@@ -6,6 +6,7 @@ import { FormulaOp } from '../facts/formula';
 export const RULE_ALGEBRA = 2;
 export const RULE_SUBSTITUTE = 3;
 export const RULE_DEFINITION = 4;
+export const RULE_APPLY = 5;
 
 export abstract class RuleAst {
   variety: number;
@@ -81,6 +82,32 @@ export class DefinitionAst extends RuleAst {
 
   to_string(): string {
     const base = `${this.right ? 'defof' : 'undef'} ${this.name}`;
+    const refsStr = this.refs.length > 0 ? ` since ${this.refs.join(' ')}` : '';
+    const exprStr = this.expr !== undefined ? ` => ${this.expr.to_string()}` : '';
+    return `${base}${refsStr}${exprStr}`;
+  }
+}
+
+/**
+ * apply name / unapp name: apply a theorem by unification.
+ * right = true for apply (replace left with right), false for unapp (replace right with left).
+ */
+export class ApplyAst extends RuleAst {
+  readonly name: string;
+  readonly right: boolean;
+  readonly refs: number[];
+  readonly expr: Expression | undefined;
+
+  constructor(name: string, right: boolean, refs: number[] = [], expr?: Expression) {
+    super(RULE_APPLY);
+    this.name = name;
+    this.right = right;
+    this.refs = refs;
+    this.expr = expr;
+  }
+
+  to_string(): string {
+    const base = `${this.right ? 'apply' : 'unapp'} ${this.name}`;
     const refsStr = this.refs.length > 0 ? ` since ${this.refs.join(' ')}` : '';
     const exprStr = this.expr !== undefined ? ` => ${this.expr.to_string()}` : '';
     return `${base}${refsStr}${exprStr}`;

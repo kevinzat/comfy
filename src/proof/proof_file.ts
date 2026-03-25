@@ -1,7 +1,5 @@
 import { DeclsAst } from '../lang/decls_ast';
 import { ParseDecls } from '../lang/decls_parser';
-import { Formula, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
-import { ParseFormula } from '../facts/formula_parser';
 
 
 interface TaggedLine { text: string; line: number; }
@@ -54,9 +52,8 @@ export type ProofNode = CalcProofNode | InductionProofNode | CasesProofNode;
 
 export interface ProofFile {
   decls: DeclsAst;
-  givens: GivenLine[];
-  formula: string;
-  formulaLine: number;
+  theoremName: string;
+  theoremLine: number;
   proof: ProofNode;
 }
 
@@ -120,15 +117,15 @@ function parseMethod(text: string, line: number): ProofNode {
 }
 
 const ALGEBRA_PREFIX = /^(=|<=|<)\s/;
-const NON_ALGEBRA_PREFIX = /^(subst|unsub|defof|undef)\s/;
-const BACKWARD_ALGEBRA_PREFIX = /^\(/;
+const NON_ALGEBRA_PREFIX = /^(subst|unsub|defof|undef|apply|unapp)\s/;
+const BACKWARD_ALGEBRA_SUFFIX = /\s+(<=|<|=)$/;
 const OP_SEPARATOR = /^(.*)\s+(<=|<|=)\s+(.+)$/;
 const HAS_ARROW = /=>/;
 
 function parseCalcStep(trimmed: string, line: number): CalcStep {
-  // Algebra rules (forward: "= expr", "< expr", "<= expr")
-  // and backward algebra ("(expr) =", etc.) — the whole line is the rule.
-  if (ALGEBRA_PREFIX.test(trimmed) || BACKWARD_ALGEBRA_PREFIX.test(trimmed)) {
+  // Forward algebra: starts with "= expr", "< expr", "<= expr".
+  // Backward algebra: ends with a bare operator "expr =", "expr <", "expr <=".
+  if (ALGEBRA_PREFIX.test(trimmed) || BACKWARD_ALGEBRA_SUFFIX.test(trimmed)) {
     return { ruleText: trimmed, line };
   }
 
@@ -277,24 +274,11 @@ export function parseProofFile(source: string): ProofFile {
     throw new ParseError(rawLines.length, 'missing "prove" statement');
   }
 
-  // Split preamble into declarations and givens.
-  const declLines: string[] = [];
-  const givens: GivenLine[] = [];
-  for (let i = 0; i < proveIdx; i++) {
-    const trimmed = rawLines[i].trim();
-    const givenMatch = trimmed.match(/^given\s+(\d+)\.\s+(.+)$/);
-    if (givenMatch) {
-      givens.push({ index: parseInt(givenMatch[1]), text: givenMatch[2], line: i + 1 });
-    } else {
-      declLines.push(rawLines[i]);
-    }
-  }
-
-  // Parse declarations.
-  const preamble = declLines.join('\n').trim();
+  // Parse declarations (everything before the prove line).
+  const preamble = rawLines.slice(0, proveIdx).join('\n').trim();
   let decls: DeclsAst;
   if (preamble.length === 0) {
-    decls = new DeclsAst([], [], []);
+    decls = new DeclsAst([], [], [], []);
   } else {
     const declsResult = ParseDecls(preamble);
     if (declsResult.error) {
@@ -303,13 +287,13 @@ export function parseProofFile(source: string): ProofFile {
     decls = declsResult.ast!;
   }
 
-  // Parse the prove line: "prove <formula> by <method>"
+  // Parse the prove line: "prove <name> by <method>"
   const proveLine = rawLines[proveIdx].trim();
-  const proveMatch = proveLine.match(/^prove\s+(.+)\s+by\s+(.+)$/);
+  const proveMatch = proveLine.match(/^prove\s+(\S+)\s+by\s+(.+)$/);
   if (!proveMatch) {
-    throw new ParseError(proveIdx + 1, 'expected "prove <formula> by <method>"');
+    throw new ParseError(proveIdx + 1, 'expected "prove <name> by <method>"');
   }
-  const formula = proveMatch[1];
+  const theoremName = proveMatch[1];
   const proofNode = parseMethod(proveMatch[2], proveIdx + 1);
 
   // Parse the proof body.
@@ -318,9 +302,8 @@ export function parseProofFile(source: string): ProofFile {
 
   return {
     decls,
-    givens,
-    formula,
-    formulaLine: proveIdx + 1,
+    theoremName,
+    theoremLine: proveIdx + 1,
     proof: proofNode,
   };
 }

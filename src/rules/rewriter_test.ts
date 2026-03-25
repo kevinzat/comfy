@@ -3,11 +3,12 @@ import { ParseExpr } from '../facts/exprs_parser';
 import { ParseFormula } from '../facts/formula_parser';
 import { Constant, Variable, Call } from '../facts/exprs';
 import { Formula, OP_LESS_THAN } from '../facts/formula';
-import { EquationRewriter, InequalityRewriter, DefinitionRewriter } from './rewriter';
+import { EquationRewriter, InequalityRewriter, DefinitionRewriter, TheoremEquationRewriter, TheoremInequalityRewriter } from './rewriter';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
 import { FuncAst, TypeAst, CaseAst, ExprBody, IfElseBody, ParamVar, ParamConstructor } from '../lang/func_ast';
 import { funcToDefinitions } from '../lang/func_ast';
 import { TopLevelEnv } from '../types/env';
+import { TheoremAst } from '../lang/theorem_ast';
 
 
 describe('EquationRewriter', function() {
@@ -168,7 +169,7 @@ describe('DefinitionRewriter', function() {
             Call.of('cons', Variable.of('a'), Call.of('positives', Variable.of('L'))))),
   ]);
 
-  const env = new TopLevelEnv([listType], [lenFunc, positivesFunc], [], []);
+  const env = new TopLevelEnv([listType], [lenFunc, positivesFunc]);
 
   function getDef(name: string) {
     const funcName = name.match(/^(.+)_/)![1];
@@ -243,5 +244,142 @@ describe('DefinitionRewriter', function() {
     const rw = new DefinitionRewriter('test', env, ex,
       def.formula, true, def.condition, knownFacts);
     assert.throws(() => rw.rewrite(), /condition.*not implied/);
+  });
+});
+
+
+describe('TheoremEquationRewriter', function() {
+
+  const env = new TopLevelEnv([], []);
+
+  it('applies equation theorem by unification', function() {
+    const conclusion = ParseFormula('a + b = b + a');
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('x + y'), conclusion, true, undefined, []);
+    assert.strictEqual(rw.rewrite().to_string(), 'y + x');
+  });
+
+  it('applies inside a larger expression', function() {
+    const conclusion = ParseFormula('a + b = b + a');
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('(x + y) * 2'), conclusion, true, undefined, []);
+    assert.strictEqual(rw.rewrite().to_string(), '(y + x)*2');
+  });
+
+  it('reverse direction (right=false) matches right side', function() {
+    const conclusion = ParseFormula('a + b = b + a');
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('y + x'), conclusion, false, undefined, []);
+    assert.strictEqual(rw.rewrite().to_string(), 'x + y');
+  });
+
+  it('rejects when no match found', function() {
+    const conclusion = ParseFormula('a + b = b + a');
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('x * y'), conclusion, true, undefined, []);
+    assert.throws(() => rw.rewrite(), /no matches found/);
+  });
+
+  it('requires explicit result for multiple matches', function() {
+    const conclusion = ParseFormula('a + b = b + a');
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('(x + y) + (u + v)'), conclusion, true, undefined, []);
+    assert.throws(() => rw.rewrite(), /multiple matches/);
+  });
+
+  it('accepts explicit result for multiple matches', function() {
+    const conclusion = ParseFormula('a + b = b + a');
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('(x + y) + (u + v)'), conclusion, true, undefined, []);
+    const result = rw.rewrite(ParseExpr('(u + v) + (x + y)'));
+    // Swaps the two summands at the top level
+    assert.ok(result.equals(ParseExpr('(u + v) + (x + y)')));
+  });
+
+  it('validates equation premise with IsEquationImplied', function() {
+    const premise = ParseFormula('n = 0');
+    const conclusion = ParseFormula('n + 1 = 1');
+    const knownFacts = [ParseFormula('x = 0')];
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('x + 1'), conclusion, true, premise, knownFacts);
+    assert.strictEqual(rw.rewrite().to_string(), '1');
+  });
+
+  it('validates inequality premise with IsInequalityImplied', function() {
+    const premise = ParseFormula('0 < n');
+    const conclusion = ParseFormula('n = n');
+    const knownFacts = [ParseFormula('0 < x')];
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('x'), conclusion, true, premise, knownFacts);
+    assert.strictEqual(rw.rewrite().to_string(), 'x');
+  });
+
+  it('rejects when premise not implied', function() {
+    const premise = ParseFormula('0 < n');
+    const conclusion = ParseFormula('n = n');
+    const knownFacts = [ParseFormula('0 <= x')];
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('x'), conclusion, true, premise, knownFacts);
+    assert.throws(() => rw.rewrite(), /premise.*not implied/);
+  });
+});
+
+
+describe('TheoremInequalityRewriter', function() {
+
+  const env = new TopLevelEnv([], []);
+
+  it('applies inequality theorem at positive position', function() {
+    const conclusion = ParseFormula('n < n + 1');
+    const rw = new TheoremInequalityRewriter('test', env,
+      ParseExpr('x'), conclusion, true, undefined, []);
+    rw.rewrite();
+    assert.strictEqual(rw.result.to_string(), 'x + 1');
+    assert.strictEqual(rw.positive, true);
+  });
+
+  it('applies inequality theorem at negative position (negate)', function() {
+    // Use a+b < a+b+1 so the top-level -x doesn't match (needs two args)
+    const conclusion = ParseFormula('a + b < a + b + 1');
+    const rw = new TheoremInequalityRewriter('test', env,
+      ParseExpr('-(x + y)'), conclusion, true, undefined, []);
+    rw.rewrite();
+    assert.strictEqual(rw.result.to_string(), '-(x + y + 1)');
+    assert.strictEqual(rw.positive, false);
+  });
+
+  it('rejects mixed polarity with explicit result', function() {
+    // x - y has x at positive and y at negative — both match n, giving two candidates
+    const conclusion = ParseFormula('n < n + 1');
+    const rw = new TheoremInequalityRewriter('test', env,
+      ParseExpr('x - y'), conclusion, true, undefined, []);
+    assert.throws(() => rw.rewrite(), /multiple matches/);
+  });
+
+  it('accepts explicit result for polarity disambiguation', function() {
+    const conclusion = ParseFormula('n < n + 1');
+    const rw = new TheoremInequalityRewriter('test', env,
+      ParseExpr('x - y'), conclusion, true, undefined, []);
+    rw.rewrite(ParseExpr('x + 1 - y'));
+    assert.strictEqual(rw.positive, true);
+  });
+
+  it('validates premise', function() {
+    const premise = ParseFormula('0 < n');
+    const conclusion = ParseFormula('n < n + 1');
+    const knownFacts = [ParseFormula('0 < x')];
+    const rw = new TheoremInequalityRewriter('test', env,
+      ParseExpr('x'), conclusion, true, premise, knownFacts);
+    rw.rewrite();
+    assert.strictEqual(rw.result.to_string(), 'x + 1');
+  });
+
+  it('rejects when premise not implied', function() {
+    const premise = ParseFormula('0 < n');
+    const conclusion = ParseFormula('n < n + 1');
+    const knownFacts = [ParseFormula('0 <= x')];
+    const rw = new TheoremInequalityRewriter('test', env,
+      ParseExpr('x'), conclusion, true, premise, knownFacts);
+    assert.throws(() => rw.rewrite(), /premise.*not implied/);
   });
 });

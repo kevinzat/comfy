@@ -10,9 +10,10 @@ def positives : (List) -> List
 | positives(nil) => nil
 | positives(cons(a, L)) => if a < 0 then positives(L) else cons(a, positives(L))
 
-var S : List
+theorem sum_positives (S : List)
+| sum(S) <= sum(positives(S))
 
-prove sum(S) <= sum(positives(S)) by induction on S (a, L)
+prove sum_positives by induction on S (a, L)
 
 case nil:
   prove sum(nil) <= sum(positives(nil)) by calculation

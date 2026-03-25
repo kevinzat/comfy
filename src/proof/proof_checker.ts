@@ -2,7 +2,8 @@ import { Expression } from '../facts/exprs';
 import { ParseExpr } from '../facts/exprs_parser';
 import { Formula } from '../facts/formula';
 import { ParseFormula } from '../facts/formula_parser';
-import { Environment, TopLevelEnv } from '../types/env';
+import { Environment, TopLevelEnv, NestedEnv } from '../types/env';
+import { checkFormula } from '../types/checker';
 import { buildCases } from './induction';
 import { buildCasesOnCondition } from './cases';
 import { Step, applyForwardRule, applyBackwardRule, topFrontier, botFrontier, isComplete, checkValidity } from './calc_proof';
@@ -175,35 +176,39 @@ function checkProof(
 }
 
 export function checkProofFile(pf: ProofFile): void {
-  const facts: Formula[] = [];
-  for (let i = 0; i < pf.givens.length; i++) {
-    const g = pf.givens[i];
-    if (g.index !== i + 1) {
-      throw new CheckError(g.line,
-          `expected fact number ${i + 1}, got ${g.index}`);
-    }
-    try {
-      facts.push(ParseFormula(g.text));
-    } catch (e: any) {
-      throw new CheckError(g.line, `bad given: ${e.message}`);
-    }
+  // Look up the theorem by name and remove it from the declarations.
+  const theoremIdx = pf.decls.theorems.findIndex(t => t.name === pf.theoremName);
+  if (theoremIdx === -1) {
+    throw new CheckError(pf.theoremLine,
+        `unknown theorem "${pf.theoremName}"`);
   }
+  const theorem = pf.decls.theorems[theoremIdx];
+  const remainingTheorems = pf.decls.theorems.filter((_, i) => i !== theoremIdx);
 
+  // Build the top-level env without the theorem being proved.
   const env = new TopLevelEnv(
-      pf.decls.types, pf.decls.functions, pf.decls.variables, facts);
+      pf.decls.types, pf.decls.functions,
+      [], remainingTheorems);
 
   try {
     env.check();
   } catch (e: any) {
-    throw new CheckError(pf.formulaLine, `type error: ${e.message}`);
+    throw new CheckError(pf.theoremLine, `type error: ${e.message}`);
   }
 
-  let goal: Formula;
+  // Build the proof env with theorem params as variables and premise as given.
+  const givens: Formula[] = theorem.premise ? [theorem.premise] : [];
+  const proofEnv = new NestedEnv(env, theorem.params, givens);
+
+  // Type-check the theorem being proved (its formulas reference the params).
+  // proofEnv.check() validates the premise (it's in givens); the conclusion
+  // must be checked separately.
   try {
-    goal = ParseFormula(pf.formula);
+    proofEnv.check();
+    checkFormula(proofEnv, theorem.conclusion);
   } catch (e: any) {
-    throw new CheckError(pf.formulaLine, `bad formula: ${e.message}`);
+    throw new CheckError(pf.theoremLine, `type error: ${e.message}`);
   }
 
-  checkProof(goal, env, pf.proof);
+  checkProof(theorem.conclusion, proofEnv, pf.proof);
 }

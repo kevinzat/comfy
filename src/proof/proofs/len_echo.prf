@@ -10,9 +10,10 @@ def echo : (List) -> List
 | echo(nil) => nil
 | echo(cons(a, L)) => cons(a, cons(a, echo(L)))
 
-var xs : List
+theorem len_echo (xs : List)
+| len(echo(xs)) = 2 * len(xs)
 
-prove len(echo(xs)) = 2 * len(xs) by induction on xs
+prove len_echo by induction on xs
 
 case nil:
   prove len(echo(nil)) = 2 * len(nil) by calculation

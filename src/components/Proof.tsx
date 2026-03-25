@@ -1,9 +1,10 @@
 import React from 'react';
-import { ParseFormula } from '../facts/formula_parser';
+import { Formula } from '../facts/formula';
 import { DeclsAst } from '../lang/decls_ast';
+import { TheoremAst } from '../lang/theorem_ast';
 import { TypeDeclAst } from '../lang/type_ast';
 import { FuncAst, Param, ParamConstructor, funcToDefinitions } from '../lang/func_ast';
-import { TopLevelEnv } from '../types/env';
+import { TopLevelEnv, NestedEnv } from '../types/env';
 import { ExprToHtml, OpToHtml } from './ProofElements';
 import ProofBlock from './ProofBlock';
 import './Proof.css';
@@ -11,8 +12,7 @@ import './Proof.css';
 
 export interface ProofProps {
   decls: DeclsAst;
-  givens: string[];
-  goal: string;
+  theorem: TheoremAst;
 }
 
 interface ProofState {
@@ -57,20 +57,6 @@ function renderTypeDecl(decl: TypeDeclAst, showHtml: boolean): JSX.Element {
   }
 }
 
-function renderVarDecl(name: string, typeName: string, showHtml: boolean): JSX.Element {
-  if (showHtml) {
-    return <div className="decl-var" key={`var-${name}`}>
-      <span className="decl-keyword">var </span>
-      <span className="decl-var-name">{name}</span>
-      <span className="decl-var-type"> : {typeName}</span>
-    </div>;
-  } else {
-    return <div className="decl-var decl-text" key={`var-${name}`}>
-      {`var ${name} : ${typeName}`}
-    </div>;
-  }
-}
-
 function renderFuncDecl(func: FuncAst, showHtml: boolean): JSX.Element {
   if (showHtml) {
     const sigType = `(${func.type.paramTypes.join(', ')}) → ${func.type.returnType}`;
@@ -110,12 +96,15 @@ export default class Proof extends React.Component<ProofProps, ProofState> {
 
   render() {
     const decls = this.props.decls;
-    const givens = this.props.givens.map(ParseFormula);
-    const goal = ParseFormula(this.props.goal);
-    const env = new TopLevelEnv(decls.types, decls.functions, decls.variables, givens);
+    const theorem = this.props.theorem;
+    const givens: Formula[] = theorem.premise ? [theorem.premise] : [];
+    const goal = theorem.conclusion;
+    const env = new TopLevelEnv(decls.types, decls.functions,
+        [], decls.theorems);
+    const proofEnv = new NestedEnv(env, theorem.params, givens);
 
-    const hasDecls = decls.types.length > 0 || decls.functions.length > 0 ||
-        decls.variables.length > 0;
+    const hasDecls = decls.types.length > 0 || decls.functions.length > 0;
+
 
     return (
       <div className="proof">
@@ -125,7 +114,6 @@ export default class Proof extends React.Component<ProofProps, ProofState> {
             <div className="proof-decls-body">
               {decls.types.map(t => renderTypeDecl(t, this.state.showHtml))}
               {decls.functions.map(f => renderFuncDecl(f, this.state.showHtml))}
-              {decls.variables.map(([name, typeName]) => renderVarDecl(name, typeName, this.state.showHtml))}
             </div>
           </div>
         }
@@ -148,7 +136,7 @@ export default class Proof extends React.Component<ProofProps, ProofState> {
             </table>
           </div>
         }
-        <ProofBlock formula={goal} env={env}
+        <ProofBlock formula={goal} env={proofEnv}
             defNames={decls.functions.flatMap(f => funcToDefinitions(f).map(d => d.name))}
             showHtml={this.state.showHtml}
             onComplete={(c) => this.setState({ complete: c })} />

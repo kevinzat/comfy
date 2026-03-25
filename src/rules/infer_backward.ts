@@ -4,8 +4,8 @@ import * as nearley from 'nearley';
 import { Expression } from '../facts/exprs';
 import { Formula } from '../facts/formula';
 import { UserError } from '../facts/user_error';
-import { TacticAst, AlgebraTacticAst, SubstituteTacticAst, DefinitionTacticAst, TACTIC_ALGEBRA, TACTIC_SUBSTITUTE, TACTIC_DEFINITION } from './tactics_ast';
-import { Tactic, AlgebraTactic, SubstituteTactic, DefinitionTactic } from './tactics';
+import { TacticAst, AlgebraTacticAst, SubstituteTacticAst, DefinitionTacticAst, ApplyTacticAst, TACTIC_ALGEBRA, TACTIC_SUBSTITUTE, TACTIC_DEFINITION, TACTIC_APPLY } from './tactics_ast';
+import { Tactic, AlgebraTactic, SubstituteTactic, DefinitionTactic, ApplyTactic } from './tactics';
 import { Environment } from '../types/env';
 import grammar from './tactics_grammar';
 
@@ -42,6 +42,10 @@ export function CreateTactic(ast: TacticAst, goal: Expression, env: Environment)
     case TACTIC_DEFINITION: {
       const d = ast as DefinitionTacticAst;
       return new DefinitionTactic(env, goal, d.name, d.right, d.refs, d.expr);
+    }
+    case TACTIC_APPLY: {
+      const a = ast as ApplyTacticAst;
+      return new ApplyTactic(env, goal, a.name, a.right, a.refs, a.expr);
     }
     default:
       throw new UserError(`unknown tactic variety: ${ast.variety}`);

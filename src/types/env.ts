@@ -2,6 +2,7 @@ import { UserError } from '../facts/user_error';
 import { Formula } from '../facts/formula';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
 import { FuncAst, TypeAst } from '../lang/func_ast';
+import { TheoremAst } from '../lang/theorem_ast';
 import { getType, checkFormula, checkFuncDecl } from './checker';
 import { Type, NamedType } from './type';
 
@@ -70,6 +71,14 @@ export interface Environment {
    */
   getFact(index: number): Formula;
 
+  /** Returns true if a theorem with the given name is defined. */
+  hasTheorem(name: string): boolean;
+  /**
+   * Returns the AST for the theorem.
+   * @throws Error if the theorem is not defined. Use hasTheorem to check first.
+   */
+  getTheorem(name: string): TheoremAst;
+
   /**
    * Validates all definitions and facts in the environment.
    * @throws UnknownTypeError, TypeMismatchError, ArityError, UnknownNameError
@@ -82,11 +91,11 @@ export class TopLevelEnv implements Environment {
   private types: Map<string, TypeDeclAst | null>;
   private constructors: Map<string, [Type, ConstructorAst]>;
   private functions: Map<string, [Type, FuncAst]>;
-  private variables: Map<string, NamedType>;
   private facts: Formula[];
+  private theorems_: TheoremAst[];
 
   /**
-   * Creates a top-level environment with the given types, functions, variables,
+   * Creates a top-level environment with the given types, functions,
    * and known facts. Int is included as a built-in type. Validates name
    * uniqueness, shadowing, and that all referenced type names exist.
    * Call check() to perform full type checking of function bodies and facts.
@@ -97,8 +106,8 @@ export class TopLevelEnv implements Environment {
   constructor(
       types: TypeDeclAst[],
       functions: FuncAst[],
-      variables: [string, string][],
       facts: Formula[] = [],
+      theorems: TheoremAst[] = [],
   ) {
     this.types = new Map<string, TypeDeclAst | null>([['Int', null]]);
     for (const t of types) {
@@ -127,11 +136,19 @@ export class TopLevelEnv implements Environment {
       this.functions.set(f.name, [getType(this, f.type), f]);
     }
 
-    this.variables = new Map();
-    for (const [name, typeName] of variables) {
-      if (this.variables.has(name))
-        throw new DuplicateError('variable', name);
-      this.variables.set(name, getType(this, typeName));
+    this.theorems_ = [];
+    for (const thm of theorems) {
+      if (this.functions.has(thm.name))
+        throw new DuplicateError('theorem (conflicts with function)', thm.name);
+      if (this.constructors.has(thm.name))
+        throw new DuplicateError('theorem (conflicts with constructor)', thm.name);
+      if (this.theorems_.some(t => t.name === thm.name))
+        throw new DuplicateError('theorem', thm.name);
+      // Validate that all param types exist
+      for (const [_, typeName] of thm.params) {
+        getType(this, typeName);
+      }
+      this.theorems_.push(thm);
     }
 
     this.facts = facts.slice(0);
@@ -143,6 +160,13 @@ export class TopLevelEnv implements Environment {
     }
     for (const f of this.facts) {
       checkFormula(this, f);
+    }
+    for (const thm of this.theorems_) {
+      const thmEnv = new NestedEnv(this, thm.params);
+      if (thm.premise) {
+        checkFormula(thmEnv, thm.premise);
+      }
+      checkFormula(thmEnv, thm.conclusion);
     }
   }
 
@@ -188,14 +212,23 @@ export class TopLevelEnv implements Environment {
     return this.functions.get(name)![1];
   }
 
-  hasVariable(name: string): boolean {
-    return this.variables.has(name);
+  hasTheorem(name: string): boolean {
+    return this.theorems_.some(t => t.name === name);
+  }
+
+  getTheorem(name: string): TheoremAst {
+    const thm = this.theorems_.find(t => t.name === name);
+    if (!thm)
+      throw new Error(`unknown theorem: "${name}"`);
+    return thm;
+  }
+
+  hasVariable(_name: string): boolean {
+    return false;
   }
 
   getVariable(name: string): NamedType {
-    if (!this.variables.has(name))
-      throw new Error(`unknown variable: "${name}"`);
-    return this.variables.get(name)!;
+    throw new Error(`unknown variable: "${name}"`);
   }
 
   numFacts(): number {
@@ -250,6 +283,8 @@ export class NestedEnv implements Environment {
   hasFunction(name: string): boolean { return this.parent.hasFunction(name); }
   getFunctionType(name: string): Type { return this.parent.getFunctionType(name); }
   getFunctionDecl(name: string): FuncAst { return this.parent.getFunctionDecl(name); }
+  hasTheorem(name: string): boolean { return this.parent.hasTheorem(name); }
+  getTheorem(name: string): TheoremAst { return this.parent.getTheorem(name); }
 
   hasVariable(name: string): boolean {
     return this.locals.has(name) || this.parent.hasVariable(name);

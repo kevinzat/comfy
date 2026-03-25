@@ -45,6 +45,22 @@ Rule -> %equal Expr
       {% ([a, name, _arr, e]) => new ast.DefinitionAst(name.text, false, [], e) %}
     | %undef %variable %since Refs %arrow Expr
       {% ([a, name, _s, refs, _arr, e]) => new ast.DefinitionAst(name.text, false, refs, e) %}
+    | %apply %variable
+      {% ([a, name]) => new ast.ApplyAst(name.text, true) %}
+    | %apply %variable %since Refs
+      {% ([a, name, _s, refs]) => new ast.ApplyAst(name.text, true, refs) %}
+    | %apply %variable %arrow Expr
+      {% ([a, name, _arr, e]) => new ast.ApplyAst(name.text, true, [], e) %}
+    | %apply %variable %since Refs %arrow Expr
+      {% ([a, name, _s, refs, _arr, e]) => new ast.ApplyAst(name.text, true, refs, e) %}
+    | %unapp %variable
+      {% ([a, name]) => new ast.ApplyAst(name.text, false) %}
+    | %unapp %variable %since Refs
+      {% ([a, name, _s, refs]) => new ast.ApplyAst(name.text, false, refs) %}
+    | %unapp %variable %arrow Expr
+      {% ([a, name, _arr, e]) => new ast.ApplyAst(name.text, false, [], e) %}
+    | %unapp %variable %since Refs %arrow Expr
+      {% ([a, name, _s, refs, _arr, e]) => new ast.ApplyAst(name.text, false, refs, e) %}
 
 Refs -> %constant
       {% ([c]) => [parseInt(c.text)] %}

@@ -24,13 +24,14 @@ export function makeLangLexer(moo) {
     constant: /[0-9]+/,
     typeName: /[A-Z][_a-zA-Z0-9]*/,
     variable: { match: /[a-z][_a-zA-Z0-9]*/, type: moo.keywords({
-      def: 'def', type: 'type', kw_var: 'var',
+      def: 'def', type: 'type', kw_theorem: 'theorem',
       kw_if: 'if', kw_then: 'then', kw_else: 'else'
     }) },
     pipe: '|',
     colon: ':',
     lessequal: '<=',
     lessthan: '<',
+    equal: '=',
     lparen: '(', rparen: ')', comma: ',',
     exp: '^', times: '*', plus: '+', minus: '-'
   });

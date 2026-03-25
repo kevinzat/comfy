@@ -3,7 +3,7 @@ import * as assert from 'assert';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
 import { FuncAst, TypeAst, CaseAst, ExprBody, IfElseBody, ParamVar, ParamConstructor } from '../lang/func_ast';
 import { Constant, Variable, Call } from '../facts/exprs';
-import { TopLevelEnv } from './env';
+import { TopLevelEnv, NestedEnv } from './env';
 import { Formula, OP_EQUAL, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
 import { getType, checkExpr, checkFuncDecl, checkFormula, UnknownTypeError,
     UnknownNameError, ArityError, TypeMismatchError } from './checker';
@@ -25,21 +25,21 @@ const lenFunc = new FuncAst('len', new TypeAst(['List'], 'Int'), [
 describe('getType', function() {
 
   it('resolves built-in type name to NamedType', function() {
-    const env = new TopLevelEnv([], [], []);
+    const env = new TopLevelEnv([], []);
     const t = getType(env, 'Int');
     assert.equal(t.kind, 'named');
     assert.equal(t.name, 'Int');
   });
 
   it('resolves user-defined type name to NamedType', function() {
-    const env = new TopLevelEnv([listType], [], []);
+    const env = new TopLevelEnv([listType], []);
     const t = getType(env, 'List');
     assert.equal(t.kind, 'named');
     assert.equal(t.name, 'List');
   });
 
   it('resolves TypeAst to FunctionType', function() {
-    const env = new TopLevelEnv([listType], [], []);
+    const env = new TopLevelEnv([listType], []);
     const ft = getType(env, new TypeAst(['List'], 'Int'));
     assert.equal(ft.kind, 'function');
     assert.equal(ft.paramTypes.length, 1);
@@ -48,7 +48,7 @@ describe('getType', function() {
   });
 
   it('resolves multi-param TypeAst', function() {
-    const env = new TopLevelEnv([listType], [], []);
+    const env = new TopLevelEnv([listType], []);
     const ft = getType(env, new TypeAst(['Int', 'List'], 'List'));
     assert.equal(ft.kind, 'function');
     assert.equal(ft.paramTypes.length, 2);
@@ -58,19 +58,19 @@ describe('getType', function() {
   });
 
   it('throws UnknownTypeError for unknown type name', function() {
-    const env = new TopLevelEnv([], [], []);
+    const env = new TopLevelEnv([], []);
     assert.throws(() => getType(env, 'Foo'), UnknownTypeError);
   });
 
   it('throws UnknownTypeError for unknown param type in TypeAst', function() {
-    const env = new TopLevelEnv([], [], []);
+    const env = new TopLevelEnv([], []);
     assert.throws(
         () => getType(env, new TypeAst(['Foo'], 'Int')),
         UnknownTypeError);
   });
 
   it('throws UnknownTypeError for unknown return type in TypeAst', function() {
-    const env = new TopLevelEnv([], [], []);
+    const env = new TopLevelEnv([], []);
     assert.throws(
         () => getType(env, new TypeAst(['Int'], 'Foo')),
         UnknownTypeError);
@@ -81,7 +81,7 @@ describe('getType', function() {
 
 describe('checkExpr', function() {
 
-  const env = new TopLevelEnv([listType], [lenFunc], [['x', 'Int'], ['L', 'List']]);
+  const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['x', 'Int'], ['L', 'List']]);
 
   it('constant returns Int', function() {
     assert.equal(checkExpr(env, Constant.of(42n)).name, 'Int');
@@ -167,7 +167,7 @@ describe('checkExpr', function() {
 
 describe('checkFormula', function() {
 
-  const env = new TopLevelEnv([listType], [lenFunc], [['x', 'Int'], ['L', 'List']]);
+  const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['x', 'Int'], ['L', 'List']]);
 
   it('accepts = with matching types (Int)', function() {
     checkFormula(env, new Formula(Variable.of('x'), OP_EQUAL, Constant.of(1n)));
@@ -208,7 +208,7 @@ describe('checkFormula', function() {
 
 describe('checkFuncDecl', function() {
 
-  const env = new TopLevelEnv([listType], [lenFunc], []);
+  const env = new TopLevelEnv([listType], [lenFunc]);
 
   it('accepts valid function with simple params', function() {
     const f = new FuncAst('f', new TypeAst(['Int'], 'Int'), [

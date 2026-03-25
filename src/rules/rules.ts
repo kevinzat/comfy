@@ -4,15 +4,16 @@ import { Expression } from '../facts/exprs';
 import { Formula, FormulaOp, OP_EQUAL, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
 import { Definition, funcToDefinitions } from '../lang/func_ast';
 import { Environment } from '../types/env';
-import { EquationRewriter, InequalityRewriter, DefinitionRewriter } from './rewriter';
+import { EquationRewriter, InequalityRewriter, DefinitionRewriter, TheoremEquationRewriter, TheoremInequalityRewriter } from './rewriter';
 import { IsEquationImplied } from '../decision/equation';
 import { IsInequalityImplied } from '../decision/inequality';
 import { UserError } from '../facts/user_error';
-import { TacticAst, AlgebraTacticAst, SubstituteTacticAst, DefinitionTacticAst } from './tactics_ast';
+import { TacticAst, AlgebraTacticAst, SubstituteTacticAst, DefinitionTacticAst, ApplyTacticAst } from './tactics_ast';
 
 export const RULE_ALGEBRA = 2;
 export const RULE_SUBSTITUTE = 3;
 export const RULE_DEFINITION = 4;
+export const RULE_APPLY = 5;
 
 /**
  * Looks up a definition by name (e.g. "len_2" or "abs_1a").
@@ -202,5 +203,71 @@ export class DefinitionRule extends Rule {
 
   reverse(): TacticAst {
     return new DefinitionTacticAst(this.name, this.right, this.knownIndices);
+  }
+}
+
+/**
+ * Apply rule: applies a theorem by unification.
+ *
+ * apply name (right = true): match left side of conclusion, replace with right.
+ * unapp name (right = false): match right side of conclusion, replace with left.
+ *
+ * For equation conclusions: produces an equality, uses full tree walk.
+ * For inequality conclusions: produces an inequality, uses polarity-aware walk.
+ * If the theorem has a premise, the user must cite facts that imply it.
+ */
+export class ApplyRule extends Rule {
+  ex: Expression;
+  name: string;
+  right: boolean;
+  knownIndices: number[];
+  _resultFormula: Formula;
+
+  constructor(env: Environment, ex: Expression, name: string, right: boolean,
+      knowns: number[] = [], result?: Expression) {
+    super(RULE_APPLY);
+    this.ex = ex;
+    this.name = name;
+    this.right = right;
+    this.knownIndices = knowns;
+
+    if (!env.hasTheorem(name))
+      throw new UserError(`apply/unapp: unknown theorem "${name}"`);
+    const theorem = env.getTheorem(name);
+    const knownFacts = knowns.map(i => env.getFact(i));
+
+    if (theorem.premise && knowns.length === 0)
+      throw new UserError(
+          `apply/unapp: "${name}" has a premise; known facts must be provided`);
+    if (!theorem.premise && knowns.length > 0)
+      throw new UserError(
+          `apply/unapp: "${name}" has no premise; known facts must not be provided`);
+
+    if (theorem.conclusion.op === OP_EQUAL) {
+      const rewriter = new TheoremEquationRewriter(
+          'apply/unapp', env, ex, theorem.conclusion, right,
+          theorem.premise, knownFacts);
+      this._resultFormula = new Formula(ex, OP_EQUAL, rewriter.rewrite(result));
+    } else {
+      const rewriter = new TheoremInequalityRewriter(
+          'apply/unapp', env, ex, theorem.conclusion, right,
+          theorem.premise, knownFacts);
+      rewriter.rewrite(result);
+      if (rewriter.positive) {
+        this._resultFormula = new Formula(ex, theorem.conclusion.op, rewriter.result);
+      } else {
+        const flippedOp: FormulaOp =
+            theorem.conclusion.op === OP_LESS_THAN ? OP_LESS_EQUAL : OP_LESS_THAN;
+        this._resultFormula = new Formula(rewriter.result, flippedOp, ex);
+      }
+    }
+  }
+
+  doApply(): Formula {
+    return this._resultFormula;
+  }
+
+  reverse(): TacticAst {
+    return new ApplyTacticAst(this.name, this.right, this.knownIndices);
   }
 }

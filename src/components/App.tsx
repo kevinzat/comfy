@@ -1,11 +1,12 @@
 import React from 'react';
 import { DeclsAst } from '../lang/decls_ast';
+import { TheoremAst } from '../lang/theorem_ast';
 import ProofSetup from './ProofSetup';
 import Proof from './Proof';
 
 
 interface AppState {
-  problem: { decls: DeclsAst; givens: string[]; goal: string } | null;
+  problem: { decls: DeclsAst; theorem: TheoremAst } | null;
 }
 
 export default class App extends React.Component<{}, AppState> {
@@ -17,12 +18,11 @@ export default class App extends React.Component<{}, AppState> {
   render() {
     if (this.state.problem === null) {
       return <ProofSetup
-          onStart={(decls, givens, goal) =>
-            this.setState({ problem: { decls, givens, goal } })} />;
+          onStart={(decls, theorem) =>
+            this.setState({ problem: { decls, theorem } })} />;
     } else {
       return <Proof decls={this.state.problem.decls}
-          givens={this.state.problem.givens}
-          goal={this.state.problem.goal} />;
+          theorem={this.state.problem.theorem} />;
     }
   }
 }

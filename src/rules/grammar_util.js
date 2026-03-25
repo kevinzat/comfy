@@ -22,7 +22,7 @@ export function makeRuleLexer(moo) {
     constant: /[0-9]+/,
     variable: { match: /[a-zA-Z][_a-zA-Z0-9]*/, type: moo.keywords({
       subst: 'subst', unsub: 'unsub', defof: 'defof', undef: 'undef',
-      since: 'since'
+      apply: 'apply', unapp: 'unapp', since: 'since'
     }) },
     arrow: '=>',
     lessequal: '<=',

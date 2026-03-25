@@ -36,7 +36,7 @@ describe('isComplete', function() {
 describe('applyForwardRule', function() {
 
   it('algebra step', function() {
-    const env = new TopLevelEnv([], [], [], []);
+    const env = new TopLevelEnv([], []);
     const goal = ParseFormula('x + y = y + x');
     const step = applyForwardRule('= y + x', goal.left, env);
     assert.strictEqual(step.expr.to_string(), 'y + x');
@@ -45,7 +45,7 @@ describe('applyForwardRule', function() {
   });
 
   it('subst step', function() {
-    const env = new TopLevelEnv([], [], [], [ParseFormula('x = 3')]);
+    const env = new TopLevelEnv([], [], [ParseFormula('x = 3')]);
     const goal = ParseFormula('x + 1 = 3 + 1');
     const step = applyForwardRule('subst 1', goal.left, env);
     assert.ok(isComplete(goal, [step], []));
@@ -53,7 +53,7 @@ describe('applyForwardRule', function() {
   });
 
   it('defof step', function() {
-    const env = new TopLevelEnv([listType], [lenFunc], [], []);
+    const env = new TopLevelEnv([listType], [lenFunc]);
     const goal = ParseFormula('len(nil) = 0');
     const step = applyForwardRule('defof len_1', goal.left, env);
     assert.ok(isComplete(goal, [step], []));
@@ -61,7 +61,7 @@ describe('applyForwardRule', function() {
   });
 
   it('rejects invalid rule', function() {
-    const env = new TopLevelEnv([], [], [], []);
+    const env = new TopLevelEnv([], []);
     const goal = ParseFormula('x + y = y + x');
     assert.throws(() => applyForwardRule('= z', goal.left, env), /algebra/);
   });
@@ -71,7 +71,7 @@ describe('applyForwardRule', function() {
 describe('applyBackwardRule', function() {
 
   it('algebra step', function() {
-    const env = new TopLevelEnv([], [], [], []);
+    const env = new TopLevelEnv([], []);
     const goal = ParseFormula('y + x = x + y');
     const step = applyBackwardRule('(y + x) =', goal.right, env);
     assert.ok(isComplete(goal, [], [step]));
@@ -79,7 +79,7 @@ describe('applyBackwardRule', function() {
   });
 
   it('rejects invalid tactic', function() {
-    const env = new TopLevelEnv([], [], [], []);
+    const env = new TopLevelEnv([], []);
     const goal = ParseFormula('x + y = y + x');
     assert.throws(() => applyBackwardRule('(z) =', goal.right, env), /algebra/);
   });
@@ -89,7 +89,7 @@ describe('applyBackwardRule', function() {
 describe('multi-step proofs', function() {
 
   it('forward and backward meet in the middle', function() {
-    const env = new TopLevelEnv([], [], [], [ParseFormula('x = 3')]);
+    const env = new TopLevelEnv([], [], [ParseFormula('x = 3')]);
     const goal = ParseFormula('x + 1 = 4');
     const top: Step[] = [];
     const bot: Step[] = [];
@@ -102,7 +102,7 @@ describe('multi-step proofs', function() {
   });
 
   it('multi-step forward with definitions', function() {
-    const env = new TopLevelEnv([listType], [lenFunc], [], []);
+    const env = new TopLevelEnv([listType], [lenFunc]);
     const goal = ParseFormula('len(nil) + len(nil) = 0');
     const top: Step[] = [];
 
@@ -115,7 +115,7 @@ describe('multi-step proofs', function() {
   });
 
   it('inequality proof with < chain', function() {
-    const env = new TopLevelEnv([], [], [], [ParseFormula('x < y')]);
+    const env = new TopLevelEnv([], [], [ParseFormula('x < y')]);
     const goal = ParseFormula('x < y + 1');
     const top: Step[] = [];
 
@@ -137,7 +137,7 @@ describe('topFrontier / botFrontier', function() {
   });
 
   it('returns last step expr after steps', function() {
-    const env = new TopLevelEnv([], [], [], [ParseFormula('a = b')]);
+    const env = new TopLevelEnv([], [], [ParseFormula('a = b')]);
     const goal = ParseFormula('a + 1 = b + 1');
     const step = applyForwardRule('subst 1', goal.left, env);
     assert.strictEqual(topFrontier(goal, [step]).to_string(), 'b + 1');

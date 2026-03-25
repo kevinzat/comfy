@@ -30,7 +30,7 @@ const lenFunc = new FuncAst('len', new TypeAst(['List'], 'Int'), [
 describe('Rule.reverse()', function() {
 
   it('algebra rule reverses to algebra tactic', function() {
-    const env = new TopLevelEnv([], [], [], []);
+    const env = new TopLevelEnv([], []);
     const current = ParseExpr('x + y');
     const ast = ParseForwardRule('= y + x');
     const rule = CreateRule(ast, current, env);
@@ -39,7 +39,7 @@ describe('Rule.reverse()', function() {
   });
 
   it('algebra rule with refs reverses preserving refs', function() {
-    const env = new TopLevelEnv([], [], [], [ParseFormula('x + y = 5')]);
+    const env = new TopLevelEnv([], [], [ParseFormula('x + y = 5')]);
     const current = ParseExpr('x + y');
     const ast = ParseForwardRule('= 5 since 1');
     const rule = CreateRule(ast, current, env);
@@ -48,7 +48,7 @@ describe('Rule.reverse()', function() {
   });
 
   it('subst rule reverses to subst tactic', function() {
-    const env = new TopLevelEnv([], [], [], [ParseFormula('x = 3')]);
+    const env = new TopLevelEnv([], [], [ParseFormula('x = 3')]);
     const current = ParseExpr('x + 1');
     const ast = ParseForwardRule('subst 1');
     const rule = CreateRule(ast, current, env);
@@ -57,7 +57,7 @@ describe('Rule.reverse()', function() {
   });
 
   it('defof rule reverses to defof tactic', function() {
-    const env = new TopLevelEnv([listType], [lenFunc], [], []);
+    const env = new TopLevelEnv([listType], [lenFunc]);
     const current = Call.of('len', Variable.of('nil'));
     const ast = ParseForwardRule('defof len_1');
     const rule = CreateRule(ast, current, env);
@@ -70,7 +70,7 @@ describe('Rule.reverse()', function() {
 describe('Tactic.reverse()', function() {
 
   it('algebra tactic reverses to algebra rule', function() {
-    const env = new TopLevelEnv([], [], [], []);
+    const env = new TopLevelEnv([], []);
     const goal = ParseExpr('x + y');
     const ast = ParseBackwardRule('(y + x) =');
     const tactic = CreateTactic(ast, goal, env);
@@ -79,7 +79,7 @@ describe('Tactic.reverse()', function() {
   });
 
   it('subst tactic reverses to subst rule', function() {
-    const env = new TopLevelEnv([], [], [], [ParseFormula('x = 3')]);
+    const env = new TopLevelEnv([], [], [ParseFormula('x = 3')]);
     const goal = ParseExpr('3 + 1');
     const ast = ParseBackwardRule('subst 1');
     const tactic = CreateTactic(ast, goal, env);
@@ -88,7 +88,7 @@ describe('Tactic.reverse()', function() {
   });
 
   it('undef tactic reverses to undef rule', function() {
-    const env = new TopLevelEnv([listType], [lenFunc], [], []);
+    const env = new TopLevelEnv([listType], [lenFunc]);
     const goal = Call.of('len', Variable.of('nil'));
     const ast = ParseBackwardRule('undef len_1');
     const tactic = CreateTactic(ast, goal, env);
@@ -297,7 +297,8 @@ const leavesFunc = new FuncAst('leaves', new TypeAst(['Tree'], 'Int'), [
 
 describe('testAllSplits: len_zero_add.prf', function() {
 
-  const env = new TopLevelEnv([listType], [lenFunc], [['xs', 'List']], []);
+  const topEnv = new TopLevelEnv([listType], [lenFunc]);
+  const env = new NestedEnv(topEnv, [['xs', 'List']]);
 
   it('nil case', function() {
     testAllSplits(env,
@@ -319,7 +320,8 @@ describe('testAllSplits: len_zero_add.prf', function() {
 
 describe('testAllSplits: len_echo.prf', function() {
 
-  const env = new TopLevelEnv([listType], [lenFunc, echoFunc], [['xs', 'List']], []);
+  const topEnv = new TopLevelEnv([listType], [lenFunc, echoFunc]);
+  const env = new NestedEnv(topEnv, [['xs', 'List']]);
 
   it('nil case', function() {
     testAllSplits(env,
@@ -341,13 +343,14 @@ describe('testAllSplits: len_echo.prf', function() {
 
 describe('testAllSplits: tree_size.prf', function() {
 
-  const env = new TopLevelEnv([treeType], [sizeFunc, leavesFunc], [['T', 'Tree']], []);
+  const topEnv = new TopLevelEnv([treeType], [sizeFunc, leavesFunc]);
+  const env = new NestedEnv(topEnv, [['T', 'Tree']]);
 
   it('leaf case', function() {
     testAllSplits(env,
         ParseFormula('size(leaf) = 2 * leaves(leaf) - 1'),
         ['defof size_1'],
-        ['undef leaves_1', '(1) =']);
+        ['undef leaves_1', '1 =']);
   });
 
   it('node case', function() {
@@ -365,7 +368,8 @@ describe('testAllSplits: tree_size.prf', function() {
 
 describe('testAllSplits: sum_positives.prf', function() {
 
-  const env = new TopLevelEnv([listType], [sumFunc, positivesFunc], [['S', 'List']], []);
+  const topEnv = new TopLevelEnv([listType], [sumFunc, positivesFunc]);
+  const env = new NestedEnv(topEnv, [['S', 'List']]);
 
   it('nil case', function() {
     testAllSplits(env,

@@ -3,16 +3,17 @@
 import { Expression } from '../facts/exprs';
 import { Formula, FormulaOp, OP_EQUAL, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
 import { Environment } from '../types/env';
-import { EquationRewriter, InequalityRewriter, DefinitionRewriter } from './rewriter';
+import { EquationRewriter, InequalityRewriter, DefinitionRewriter, TheoremEquationRewriter, TheoremInequalityRewriter } from './rewriter';
 import { lookupDefinition } from './rules';
 import { IsEquationImplied } from '../decision/equation';
 import { IsInequalityImplied } from '../decision/inequality';
 import { UserError } from '../facts/user_error';
-import { RuleAst, AlgebraAst, SubstituteAst, DefinitionAst } from './rules_ast';
+import { RuleAst, AlgebraAst, SubstituteAst, DefinitionAst, ApplyAst } from './rules_ast';
 
 export const TACTIC_ALGEBRA = 2;
 export const TACTIC_SUBSTITUTE = 3;
 export const TACTIC_DEFINITION = 4;
+export const TACTIC_APPLY = 5;
 
 export abstract class Tactic {
   variety: number;
@@ -169,5 +170,66 @@ export class DefinitionTactic extends Tactic {
 
   reverse(): RuleAst {
     return new DefinitionAst(this.name, this.right);
+  }
+}
+
+/**
+ * Backward apply rule.
+ *
+ * apply name (right = true): forward replaces left→right, so backward
+ *   replaces right→left in the goal (undoing a forward apply).
+ * unapp name (right = false): forward replaces right→left, so backward
+ *   replaces left→right in the goal (undoing a forward unapp).
+ */
+export class ApplyTactic extends Tactic {
+  name: string;
+  right: boolean;
+  _resultFormula: Formula;
+
+  constructor(env: Environment, goal: Expression, name: string, right: boolean,
+      knowns: number[] = [], premise?: Expression) {
+    super(TACTIC_APPLY, goal);
+    this.name = name;
+    this.right = right;
+
+    if (!env.hasTheorem(name))
+      throw new UserError(`apply/unapp: unknown theorem "${name}"`);
+    const theorem = env.getTheorem(name);
+    const knownFacts = knowns.map(i => env.getFact(i));
+
+    if (theorem.premise && knowns.length === 0)
+      throw new UserError(
+          `apply/unapp: "${name}" has a premise; known facts must be provided`);
+    if (!theorem.premise && knowns.length > 0)
+      throw new UserError(
+          `apply/unapp: "${name}" has no premise; known facts must not be provided`);
+
+    // Backward is opposite direction from forward
+    if (theorem.conclusion.op === OP_EQUAL) {
+      const rewriter = new TheoremEquationRewriter(
+          'apply/unapp', env, goal, theorem.conclusion, !right,
+          theorem.premise, knownFacts);
+      this._resultFormula = new Formula(rewriter.rewrite(premise), OP_EQUAL, goal);
+    } else {
+      const rewriter = new TheoremInequalityRewriter(
+          'apply/unapp', env, goal, theorem.conclusion, !right,
+          theorem.premise, knownFacts);
+      rewriter.rewrite(premise);
+      if (rewriter.positive) {
+        this._resultFormula = new Formula(rewriter.result, theorem.conclusion.op, goal);
+      } else {
+        const flippedOp: FormulaOp =
+            theorem.conclusion.op === OP_LESS_THAN ? OP_LESS_EQUAL : OP_LESS_THAN;
+        this._resultFormula = new Formula(goal, flippedOp, rewriter.result);
+      }
+    }
+  }
+
+  apply(): Formula {
+    return this._resultFormula;
+  }
+
+  reverse(): RuleAst {
+    return new ApplyAst(this.name, this.right);
   }
 }

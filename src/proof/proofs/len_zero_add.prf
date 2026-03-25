@@ -6,9 +6,10 @@ def len : (List) -> Int
 | len(nil) => 0
 | len(cons(a, L)) => 1 + len(L)
 
-var xs : List
+theorem len_zero_add (xs : List)
+| 0 + len(xs) = len(xs)
 
-prove 0 + len(xs) = len(xs) by induction on xs (n, ys)
+prove len_zero_add by induction on xs (n, ys)
 
 case nil:
   prove 0 + len(nil) = len(nil) by calculation

@@ -2,11 +2,12 @@
 import * as assert from 'assert';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
 import { FuncAst, TypeAst, CaseAst, ExprBody, ParamVar } from '../lang/func_ast';
+import { TheoremAst } from '../lang/theorem_ast';
 import { Constant, Variable, Call } from '../facts/exprs';
 import { Formula, OP_EQUAL } from '../facts/formula';
 import { ParseFormula } from '../facts/formula_parser';
 import { TopLevelEnv, NestedEnv, DuplicateError, ShadowError } from './env';
-import { UnknownTypeError, UnknownNameError } from './checker';
+import { UnknownTypeError, UnknownNameError, TypeMismatchError } from './checker';
 
 
 const listType = new TypeDeclAst('List', [
@@ -24,19 +25,19 @@ const lenFunc = new FuncAst('len', new TypeAst(['List'], 'Int'), [
 describe('Environment', function() {
 
   it('has Int as a built-in type', function() {
-    const env = new TopLevelEnv([], [], []);
+    const env = new TopLevelEnv([], []);
     assert.ok(env.hasType('Int'));
     assert.equal(env.getTypeDecl('Int'), null);
   });
 
   it('stores user-defined types', function() {
-    const env = new TopLevelEnv([listType], [], []);
+    const env = new TopLevelEnv([listType], []);
     assert.ok(env.hasType('List'));
     assert.equal(env.getTypeDecl('List'), listType);
   });
 
   it('stores constructors with types', function() {
-    const env = new TopLevelEnv([listType], [], []);
+    const env = new TopLevelEnv([listType], []);
     assert.ok(env.hasConstructor('nil'));
     assert.ok(env.hasConstructor('cons'));
     assert.equal(env.getConstructorType('nil').kind, 'named');
@@ -46,22 +47,14 @@ describe('Environment', function() {
   });
 
   it('stores functions with types', function() {
-    const env = new TopLevelEnv([listType], [lenFunc], []);
+    const env = new TopLevelEnv([listType], [lenFunc]);
     assert.ok(env.hasFunction('len'));
     assert.equal(env.getFunctionType('len').kind, 'function');
     assert.equal(env.getFunctionDecl('len'), lenFunc);
   });
 
-  it('stores variables with types', function() {
-    const env = new TopLevelEnv([listType], [], [['x', 'Int'], ['y', 'List']]);
-    assert.ok(env.hasVariable('x'));
-    assert.equal(env.getVariable('x').kind, 'named');
-    assert.ok(env.hasVariable('y'));
-    assert.equal(env.getVariable('y').kind, 'named');
-  });
-
   it('has returns false for undefined names', function() {
-    const env = new TopLevelEnv([], [], []);
+    const env = new TopLevelEnv([], []);
     assert.ok(!env.hasType('List'));
     assert.ok(!env.hasFunction('len'));
     assert.ok(!env.hasVariable('x'));
@@ -69,7 +62,7 @@ describe('Environment', function() {
   });
 
   it('get throws for undefined names', function() {
-    const env = new TopLevelEnv([], [], []);
+    const env = new TopLevelEnv([], []);
     assert.throws(() => env.getTypeDecl('List'), Error);
     assert.throws(() => env.getFunctionDecl('len'), Error);
     assert.throws(() => env.getVariable('x'), Error);
@@ -78,26 +71,20 @@ describe('Environment', function() {
 
   it('throws DuplicateError for duplicate type', function() {
     assert.throws(
-        () => new TopLevelEnv([listType, listType], [], []),
+        () => new TopLevelEnv([listType, listType], []),
         DuplicateError);
   });
 
   it('throws DuplicateError for type named Int', function() {
     const intType = new TypeDeclAst('Int', []);
     assert.throws(
-        () => new TopLevelEnv([intType], [], []),
+        () => new TopLevelEnv([intType], []),
         DuplicateError);
   });
 
   it('throws DuplicateError for duplicate function', function() {
     assert.throws(
-        () => new TopLevelEnv([listType], [lenFunc, lenFunc], []),
-        DuplicateError);
-  });
-
-  it('throws DuplicateError for duplicate variable', function() {
-    assert.throws(
-        () => new TopLevelEnv([], [], [['x', 'Int'], ['x', 'List']]),
+        () => new TopLevelEnv([listType], [lenFunc, lenFunc]),
         DuplicateError);
   });
 
@@ -106,7 +93,7 @@ describe('Environment', function() {
       new CaseAst([new ParamVar('x')], new ExprBody(Variable.of('x'))),
     ]);
     assert.throws(
-        () => new TopLevelEnv([listType], [nilFunc], []),
+        () => new TopLevelEnv([listType], [nilFunc]),
         ShadowError);
   });
 
@@ -116,7 +103,7 @@ describe('Environment', function() {
       new ConstructorAst('a', [], 'Foo'),
     ]);
     assert.throws(
-        () => new TopLevelEnv([badType], [], []),
+        () => new TopLevelEnv([badType], []),
         DuplicateError);
   });
 
@@ -125,7 +112,7 @@ describe('Environment', function() {
       new ConstructorAst('nil', [], 'Other'),
     ]);
     assert.throws(
-        () => new TopLevelEnv([listType, otherType], [], []),
+        () => new TopLevelEnv([listType, otherType], []),
         DuplicateError);
   });
 
@@ -134,7 +121,7 @@ describe('Environment', function() {
       new ConstructorAst('wrap', ['Unknown'], 'Wrapper'),
     ]);
     assert.throws(
-        () => new TopLevelEnv([badType], [], []),
+        () => new TopLevelEnv([badType], []),
         UnknownTypeError);
   });
 
@@ -143,13 +130,7 @@ describe('Environment', function() {
       new CaseAst([new ParamVar('x')], new ExprBody(Variable.of('x'))),
     ]);
     assert.throws(
-        () => new TopLevelEnv([], [badFunc], []),
-        UnknownTypeError);
-  });
-
-  it('throws UnknownTypeError for variable with unknown type', function() {
-    assert.throws(
-        () => new TopLevelEnv([], [], [['x', 'Unknown']]),
+        () => new TopLevelEnv([], [badFunc]),
         UnknownTypeError);
   });
 
@@ -158,7 +139,7 @@ describe('Environment', function() {
 
 describe('NestedEnv', function() {
 
-  const top = new TopLevelEnv([listType], [lenFunc], [['x', 'Int']]);
+  const top = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['x', 'Int']]);
 
   it('local variables are visible', function() {
     const nested = new NestedEnv(top, [['a', 'Int'], ['b', 'List']]);
@@ -207,44 +188,44 @@ describe('NestedEnv', function() {
 describe('TopLevelEnv facts', function() {
 
   it('numFacts returns correct count', function() {
-    const env = new TopLevelEnv([], [], [], [
+    const env = new TopLevelEnv([], [], [
       ParseFormula('x + y = 5'), ParseFormula('x = 3'),
     ]);
     assert.equal(env.numFacts(), 2);
   });
 
   it('numFacts is 0 when no facts', function() {
-    const env = new TopLevelEnv([], [], []);
+    const env = new TopLevelEnv([], []);
     assert.equal(env.numFacts(), 0);
   });
 
   it('getFact returns 1-indexed facts', function() {
     const f1 = ParseFormula('x = 3');
     const f2 = ParseFormula('y = 5');
-    const env = new TopLevelEnv([], [], [], [f1, f2]);
+    const env = new TopLevelEnv([], [], [f1, f2]);
     assert.equal(env.getFact(1), f1);
     assert.equal(env.getFact(2), f2);
   });
 
   it('getFact throws for index 0', function() {
-    const env = new TopLevelEnv([], [], [], [ParseFormula('x = 1')]);
+    const env = new TopLevelEnv([], [], [ParseFormula('x = 1')]);
     assert.throws(() => env.getFact(0));
   });
 
   it('getFact throws for out of range', function() {
-    const env = new TopLevelEnv([], [], [], [ParseFormula('x = 1')]);
+    const env = new TopLevelEnv([], [], [ParseFormula('x = 1')]);
     assert.throws(() => env.getFact(2));
   });
 
   it('check succeeds for well-typed facts', function() {
-    const env = new TopLevelEnv([], [], [['x', 'Int'], ['y', 'Int']], [
+    const env = new NestedEnv(new TopLevelEnv([], []), [['x', 'Int'], ['y', 'Int']], [
       ParseFormula('x + y = 5'),
     ]);
     env.check();
   });
 
   it('check throws for fact with unknown variable', function() {
-    const env = new TopLevelEnv([], [], [], [
+    const env = new TopLevelEnv([], [], [
       ParseFormula('z = 1'),
     ]);
     assert.throws(() => env.check(), UnknownNameError);
@@ -255,7 +236,7 @@ describe('TopLevelEnv facts', function() {
 
 describe('NestedEnv facts', function() {
 
-  const parent = new TopLevelEnv([], [], [['x', 'Int']], [
+  const parent = new NestedEnv(new TopLevelEnv([], []), [['x', 'Int']], [
     ParseFormula('x = 3'),
     ParseFormula('x + 1 = 4'),
   ]);
@@ -293,6 +274,90 @@ describe('NestedEnv facts', function() {
     const badFact = new Formula(Variable.of('unknown'), OP_EQUAL, Constant.of(1n));
     const nested = new NestedEnv(parent, [], [badFact]);
     assert.throws(() => nested.check(), UnknownNameError);
+  });
+
+});
+
+
+describe('TopLevelEnv theorems', function() {
+
+  it('hasTheorem and getTheorem work', function() {
+    const thm = new TheoremAst('comm', [['x', 'Int'], ['y', 'Int']],
+        undefined, ParseFormula('x + y = y + x'));
+    const env = new TopLevelEnv([], [], [], [thm]);
+    assert.ok(env.hasTheorem('comm'));
+    assert.strictEqual(env.getTheorem('comm'), thm);
+    assert.ok(!env.hasTheorem('other'));
+  });
+
+  it('check succeeds for well-typed theorem', function() {
+    const thm = new TheoremAst('comm', [['x', 'Int'], ['y', 'Int']],
+        undefined, ParseFormula('x + y = y + x'));
+    const env = new TopLevelEnv([], [], [], [thm]);
+    env.check();
+  });
+
+  it('check succeeds for theorem with premise', function() {
+    const thm = new TheoremAst('foo', [['x', 'Int']],
+        ParseFormula('x < 0'), ParseFormula('x * x = x * x'));
+    const env = new TopLevelEnv([], [], [], [thm]);
+    env.check();
+  });
+
+  it('check throws for theorem with unknown variable in conclusion', function() {
+    const thm = new TheoremAst('bad', [['x', 'Int']],
+        undefined, ParseFormula('x + z = 0'));
+    const env = new TopLevelEnv([], [], [], [thm]);
+    assert.throws(() => env.check(), UnknownNameError);
+  });
+
+  it('check throws for theorem with unknown variable in premise', function() {
+    const thm = new TheoremAst('bad', [['x', 'Int']],
+        ParseFormula('z < 0'), ParseFormula('x = x'));
+    const env = new TopLevelEnv([], [], [], [thm]);
+    assert.throws(() => env.check(), UnknownNameError);
+  });
+
+  it('rejects duplicate theorem names', function() {
+    const thm = new TheoremAst('foo', [['x', 'Int']],
+        undefined, ParseFormula('x = x'));
+    assert.throws(
+        () => new TopLevelEnv([], [], [], [thm, thm]),
+        DuplicateError);
+  });
+
+  it('rejects theorem name conflicting with function', function() {
+    const func = new FuncAst('foo', new TypeAst(['Int'], 'Int'), [
+      new CaseAst([new ParamVar('x')], new ExprBody(Variable.of('x'))),
+    ]);
+    const thm = new TheoremAst('foo', [['x', 'Int']],
+        undefined, ParseFormula('x = x'));
+    assert.throws(
+        () => new TopLevelEnv([], [func], [], [thm]),
+        DuplicateError);
+  });
+
+  it('rejects theorem with unknown param type', function() {
+    const thm = new TheoremAst('bad', [['x', 'Unknown']],
+        undefined, ParseFormula('x = x'));
+    assert.throws(
+        () => new TopLevelEnv([], [], [], [thm]),
+        UnknownTypeError);
+  });
+
+  it('check throws for theorem with type mismatch in conclusion', function() {
+    // L is List, 0 is Int — can't be equal
+    const thm = new TheoremAst('bad', [['L', 'List']],
+        undefined, ParseFormula('L = 0'));
+    const env = new TopLevelEnv([listType], [], [], [thm]);
+    assert.throws(() => env.check(), TypeMismatchError);
+  });
+
+  it('theorem params scope correctly with user types', function() {
+    const thm = new TheoremAst('nil_eq', [['L', 'List']],
+        undefined, ParseFormula('L = L'));
+    const env = new TopLevelEnv([listType], [], [], [thm]);
+    env.check();
   });
 
 });

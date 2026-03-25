@@ -10,9 +10,10 @@ def concat : (List, List) -> List
 | concat(nil, R) => R
 | concat(cons(a, L), R) => cons(a, concat(L, R))
 
-var S : List
+theorem concat_nil (S : List)
+| concat(S, nil) = S
 
-prove concat(S, nil) = S by induction on S (a, L)
+prove concat_nil by induction on S (a, L)
 
 case nil:
   prove concat(nil, nil) = nil by calculation
