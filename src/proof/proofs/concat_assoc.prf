@@ -1,0 +1,38 @@
+type List
+| nil : List
+| cons : (Int, List) -> List
+
+def len : (List) -> Int
+| len(nil) => 0
+| len(cons(a, L)) => 1 + len(L)
+
+def concat : (List, List) -> List
+| concat(nil, R) => R
+| concat(cons(a, L), R) => cons(a, concat(L, R))
+
+var R : List
+var S : List
+var T : List
+
+prove concat(concat(R, S), T) = concat(R, concat(S, T)) by induction on R (a, L)
+
+case nil:
+  prove concat(concat(nil, S), T) = concat(nil, concat(S, T)) by calculation
+
+  concat(concat(nil, S), T)
+  defof concat_1 = concat(S, T)
+  ---
+  concat(nil, concat(S, T))
+  undef concat_1 = concat(S, T)
+
+case cons(a, L):
+  given 1. concat(concat(L, S), T) = concat(L, concat(S, T))
+  prove concat(concat(cons(a, L), S), T) = concat(cons(a, L), concat(S, T)) by calculation
+
+  concat(concat(cons(a, L), S), T)
+  defof concat_2 (concat(cons(a, concat(L, S)), T)) = concat(cons(a, concat(L, S)), T)
+  defof concat_2 (cons(a, concat(concat(L, S), T))) = cons(a, concat(concat(L, S), T))
+  subst 1 = cons(a, concat(L, concat(S, T)))
+  ---
+  concat(cons(a, L), concat(S, T))
+  undef concat_2 (cons(a, concat(L, concat(S, T)))) = cons(a, concat(L, concat(S, T)))

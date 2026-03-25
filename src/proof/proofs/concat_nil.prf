@@ -1,0 +1,33 @@
+type List
+| nil : List
+| cons : (Int, List) -> List
+
+def len : (List) -> Int
+| len(nil) => 0
+| len(cons(a, L)) => 1 + len(L)
+
+def concat : (List, List) -> List
+| concat(nil, R) => R
+| concat(cons(a, L), R) => cons(a, concat(L, R))
+
+var S : List
+
+prove concat(S, nil) = S by induction on S (a, L)
+
+case nil:
+  prove concat(nil, nil) = nil by calculation
+
+  concat(nil, nil)
+  defof concat_1 = nil
+  ---
+  nil
+
+case cons(a, L):
+  given 1. concat(L, nil) = L
+  prove concat(cons(a, L), nil) = cons(a, L) by calculation
+
+  concat(cons(a, L), nil)
+  defof concat_2 = cons(a, concat(L, nil))
+  subst 1 = cons(a, L)
+  ---
+  cons(a, L)
