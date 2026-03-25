@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Proof Methods &mdash; Comfy Docs</title>
+  <link rel="stylesheet" href="docs.css">
+</head>
+<body>
+
+<div class="titlebar">
+  <img src="../img/comfy-logo.png" alt="Comfy" class="logo" width="36" height="36">
+  <h1><a href="index.html">Comfy Docs</a></h1>
+  <nav>
+    <a href="../index.html">Launch App</a>
+    <a href="index.html">Docs Home</a>
+  </nav>
+</div>
+
+<div class="content">
+
+  <div class="breadcrumb"><a href="index.html">Docs</a> &rsaquo; Proof Methods</div>
+
+  <h2>Proof Methods</h2>
+
+  <p>
+    After clicking Start on the setup screen, you enter the proof view. The goal
+    is displayed with a text input below it where you choose a
+    <strong>proof method</strong>. There are three methods:
+  </p>
+
+  <ul>
+    <li><code>calculation</code></li>
+    <li><code>induction on &lt;variable&gt;</code></li>
+    <li><code>cases on &lt;inequality&gt;</code></li>
+  </ul>
+
+  <p>
+    Type the method name and press <strong>Enter</strong> to confirm.
+    The input supports <strong>Tab-completion</strong> &mdash; press Tab to
+    autocomplete the method name, including available induction variables.
+  </p>
+
+  <img src="img/method-autocomplete.png" alt="Proof method input showing autocomplete suggestions" class="screenshot">
+
+  <h2>Calculation</h2>
+
+  <p>
+    Type <code>calculation</code> and press Enter. This is the most common
+    method and is used when you can directly transform the left side and right
+    side of the goal until they meet in the middle.
+  </p>
+
+  <p>
+    See <a href="calculation.html">Calculation Proofs</a> for full details on
+    how calculation chains work.
+  </p>
+
+  <div class="tip">
+    Use <code>calculation</code> for straightforward algebraic proofs, for
+    base cases in induction, and wherever you don't need structural induction or
+    case analysis.
+  </div>
+
+  <h2>Induction</h2>
+
+  <p>
+    Type <code>induction on <em>varName</em></code> and press Enter. This
+    starts a proof by <strong>structural induction</strong> on the named
+    variable.
+  </p>
+
+  <h3>Requirements</h3>
+
+  <ul>
+    <li>The variable must be declared with <code>var</code> in the declarations.</li>
+    <li>The variable's type must be an inductively defined type (not <code>Int</code>).</li>
+    <li>The variable must appear in the goal formula.</li>
+  </ul>
+
+  <h3>Optional: Naming Induction Arguments</h3>
+
+  <p>
+    You can optionally provide names for the constructor arguments:
+  </p>
+  <pre><code>induction on xs (a, L)</code></pre>
+  <p>
+    This names the arguments used in the inductive case (e.g., for
+    <code>cons(a, L)</code>). If omitted, default names are chosen
+    automatically.
+  </p>
+
+  <h3>What Happens</h3>
+
+  <p>
+    The proof splits into one <strong>case per constructor</strong> of the
+    induction variable's type. For a <code>List</code> with constructors
+    <code>nil</code> and <code>cons</code>, you get:
+  </p>
+
+  <img src="img/induction-proof.png" alt="Induction proof with base case (nil) and inductive case (cons)" class="screenshot">
+
+  <h4>Base Case</h4>
+  <p>
+    For constructors with no recursive arguments (like <code>nil</code>), the
+    goal is the original formula with the induction variable replaced by the
+    constructor. No induction hypotheses are available.
+  </p>
+
+  <h4>Inductive Case</h4>
+  <p>
+    For constructors with recursive arguments (like <code>cons(a, L)</code>),
+    the goal has the variable replaced by the constructor applied to fresh
+    variables. You also get <strong>induction hypotheses</strong> &mdash; the
+    original goal formula applied to each recursive sub-part &mdash; as
+    additional numbered facts.
+  </p>
+
+  <p>For example, proving <code>P(xs)</code> by induction on <code>xs : List</code>:</p>
+  <table>
+    <thead>
+      <tr><th>Case</th><th>Goal</th><th>Induction Hypotheses</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>nil</code></td>
+        <td><code>P(nil)</code></td>
+        <td>(none)</td>
+      </tr>
+      <tr>
+        <td><code>cons(a, L)</code></td>
+        <td><code>P(cons(a, L))</code></td>
+        <td><code>P(L)</code> &mdash; as a numbered fact</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>
+    Each case requires its own sub-proof. You choose a method for each case
+    (usually <code>calculation</code>) and prove it independently.
+  </p>
+
+  <h3>Tree Example</h3>
+
+  <p>For a <code>Tree</code> with <code>leaf</code> and <code>node(L, R)</code>:</p>
+  <table>
+    <thead>
+      <tr><th>Case</th><th>Goal</th><th>Induction Hypotheses</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>leaf</code></td>
+        <td><code>P(leaf)</code></td>
+        <td>(none)</td>
+      </tr>
+      <tr>
+        <td><code>node(L, R)</code></td>
+        <td><code>P(node(L, R))</code></td>
+        <td><code>P(L)</code> and <code>P(R)</code> &mdash; two numbered facts</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Proof by Cases</h2>
+
+  <p>
+    Type <code>cases on <em>inequality</em></code> and press Enter. This starts
+    a <strong>proof by cases</strong> that splits on whether an inequality
+    holds.
+  </p>
+
+  <h3>Requirements</h3>
+
+  <ul>
+    <li>The condition must be an inequality using <code>&lt;</code> or <code>&lt;=</code>.</li>
+    <li>You cannot use <code>=</code> as a cases condition.</li>
+  </ul>
+
+  <h3>Example</h3>
+
+  <pre><code>cases on a &lt; 0</code></pre>
+
+  <p>This creates two sub-proofs:</p>
+
+  <table>
+    <thead>
+      <tr><th>Case</th><th>Additional Known Fact</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Case <code>a &lt; 0</code></td>
+        <td><code>a &lt; 0</code></td>
+      </tr>
+      <tr>
+        <td>Case <code>0 &lt;= a</code></td>
+        <td><code>0 &lt;= a</code> (the negation)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <img src="img/cases-proof.png" alt="Proof by cases showing both cases" class="screenshot">
+
+  <p>
+    The negation of <code>a &lt; b</code> is <code>b &lt;= a</code>, and
+    the negation of <code>a &lt;= b</code> is <code>b &lt; a</code>.
+  </p>
+
+  <p>
+    Each case gets the condition (or its negation) as an additional numbered
+    fact, which can be cited in proof rules. Each case requires its own
+    sub-proof with its own proof method.
+  </p>
+
+  <h2>Nesting Proof Methods</h2>
+
+  <p>
+    Sub-proofs can use any proof method. This means you can nest:
+  </p>
+
+  <ul>
+    <li>Induction with calculation cases</li>
+    <li>Induction with cases-on analysis inside an inductive case</li>
+    <li>Cases with calculation in each branch</li>
+  </ul>
+
+  <p>
+    A common pattern is: <strong>induction</strong> at the top level, with
+    <strong>cases on</strong> inside the inductive step (to handle conditional
+    function definitions), and <strong>calculation</strong> at the leaves.
+  </p>
+
+  <div class="note">
+    See <a href="examples.html">Worked Examples</a> for full proofs that
+    demonstrate nested methods.
+  </div>
+
+</div>
+
+<div class="footer">
+  <a href="declarations.html">&larr; Declarations Language</a> &nbsp;|&nbsp;
+  <a href="index.html">Docs Home</a> &nbsp;|&nbsp;
+  <a href="calculation.html">Calculation Proofs &rarr;</a>
+</div>
+
+</body>
+</html>

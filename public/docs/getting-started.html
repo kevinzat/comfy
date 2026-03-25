@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Getting Started &mdash; Comfy Docs</title>
+  <link rel="stylesheet" href="docs.css">
+</head>
+<body>
+
+<div class="titlebar">
+  <img src="../img/comfy-logo.png" alt="Comfy" class="logo" width="36" height="36">
+  <h1><a href="index.html">Comfy Docs</a></h1>
+  <nav>
+    <a href="../index.html">Launch App</a>
+    <a href="index.html">Docs Home</a>
+  </nav>
+</div>
+
+<div class="content">
+
+  <div class="breadcrumb"><a href="index.html">Docs</a> &rsaquo; Getting Started</div>
+
+  <h2>Getting Started</h2>
+
+  <p>
+    When you open Comfy, you see the <strong>setup screen</strong>. This is where
+    you describe the problem you want to prove. There are three sections:
+    Declarations, Givens, and the goal (Prove).
+  </p>
+
+  <img src="img/setup-screen.png" alt="Setup screen with Declarations, Givens, and Prove fields" class="screenshot">
+
+  <h3>1. Declarations (optional)</h3>
+
+  <p>
+    The <strong>Declarations</strong> textarea is where you define the types,
+    functions, and variables used in your proof. This uses a small language
+    described fully on the <a href="declarations.html">Declarations Language</a>
+    page.
+  </p>
+
+  <p>
+    If you are proving a fact about plain integers (like
+    <code>x^2 + 2*x*y + y^2 = (x + y)^2</code>), you can leave this field
+    empty &mdash; integer variables are available by default.
+  </p>
+
+  <p>The placeholder text shows an example:</p>
+  <pre><code><span class="kw">type</span> <span class="type-name">List</span>
+  | <span class="ctor">nil</span> : <span class="type-name">List</span>
+  | <span class="ctor">cons</span> : (<span class="type-name">Int</span>, <span class="type-name">List</span>) -> <span class="type-name">List</span>
+
+<span class="kw">def</span> <span class="func-name">len</span> : (<span class="type-name">List</span>) -> <span class="type-name">Int</span>
+  | len(nil) => 0
+  | len(cons(a, L)) => 1 + len(L)
+
+<span class="kw">var</span> x : <span class="type-name">Int</span></code></pre>
+
+  <p>
+    The textarea highlights syntax errors as you type, with a red border and an
+    error message showing where the problem was found.
+  </p>
+
+  <h3>2. Givens (optional)</h3>
+
+  <p>
+    <strong>Givens</strong> are formulas that you assume to be true. Click the
+    <code>+</code> button to add a given, and type a formula (equation or
+    inequality) into the input field. Click <code>&times;</code> to remove one.
+  </p>
+
+  <p>
+    Each given becomes a <em>numbered fact</em> that you can reference in your
+    proof. For example, if you add two givens:
+  </p>
+  <ol>
+    <li><code>x + y = 5</code></li>
+    <li><code>x &lt; 10</code></li>
+  </ol>
+  <p>
+    then you can cite fact 1 or fact 2 in your proof rules (e.g.,
+    <code>= 5 1</code> to cite the first given).
+  </p>
+
+  <p>
+    The input field turns red if the formula has a syntax error.
+  </p>
+
+  <h3>3. Prove (required)</h3>
+
+  <p>
+    The <strong>Prove</strong> field is where you state the goal formula &mdash; the
+    equation or inequality you want to prove. This is required.
+  </p>
+
+  <p>Examples:</p>
+  <ul>
+    <li><code>x^2 + 2*x*y + y^2 = (x + y)^2</code></li>
+    <li><code>len(echo(xs)) = 2 * len(xs)</code></li>
+    <li><code>sum(S) &lt;= sum(positives(S))</code></li>
+  </ul>
+
+  <h3>Formulas</h3>
+
+  <p>Formulas used in Givens and the Prove field have this syntax:</p>
+  <ul>
+    <li><strong>Operators:</strong> <code>=</code>, <code>&lt;</code>, <code>&lt;=</code></li>
+    <li><strong>Arithmetic:</strong> <code>+</code>, <code>-</code>, <code>*</code>, <code>^</code> (exponentiation)</li>
+    <li><strong>Variables:</strong> lowercase letters like <code>x</code>, <code>y</code>, or names like <code>xs</code></li>
+    <li><strong>Function calls:</strong> <code>len(xs)</code>, <code>cons(a, L)</code></li>
+    <li><strong>Constants:</strong> integer literals like <code>0</code>, <code>1</code>, <code>42</code></li>
+    <li><strong>Parentheses</strong> for grouping: <code>(x + y)^2</code></li>
+  </ul>
+
+  <h3>4. Check and Start</h3>
+
+  <p>
+    Once you have entered valid declarations (if any), givens, and a goal
+    formula, click <strong>Check</strong>. This type-checks everything &mdash; it
+    verifies that all referenced types exist, function bodies are well-typed,
+    and the formulas use correctly typed expressions.
+  </p>
+
+  <p>
+    If the check succeeds, the button changes to <strong>Start</strong>. Click it
+    to enter the proof view.
+  </p>
+
+  <div class="note">
+    If type checking fails, an error message appears below the button explaining
+    the problem (e.g., "unknown type" or "wrong number of arguments").
+  </div>
+
+  <h3>The Proof View</h3>
+
+  <p>
+    After clicking Start, you move to the <strong>proof view</strong>. This
+    shows:
+  </p>
+  <ul>
+    <li>Your <strong>declarations</strong> displayed at the top (formatted with syntax highlighting)</li>
+    <li>Your <strong>givens</strong> as numbered facts</li>
+    <li>The <strong>goal</strong> you need to prove, with a method input below it</li>
+  </ul>
+
+  <img src="img/proof-view.png" alt="Proof view showing declarations, givens, and the proof method input" class="screenshot">
+
+  <p>
+    You then choose a <a href="proof-methods.html">proof method</a> and build
+    your proof step by step. There is a <strong>Show Text / Show HTML</strong>
+    toggle at the bottom that switches between formatted display and plain text.
+  </p>
+
+  <p>
+    When the proof is complete, a <strong>Complete!</strong> message appears.
+  </p>
+
+</div>
+
+<div class="footer">
+  <a href="index.html">&larr; Back to Docs Home</a> &nbsp;|&nbsp;
+  Next: <a href="declarations.html">Declarations Language &rarr;</a>
+</div>
+
+</body>
+</html>

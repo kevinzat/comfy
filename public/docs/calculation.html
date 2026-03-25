@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calculation Proofs &mdash; Comfy Docs</title>
+  <link rel="stylesheet" href="docs.css">
+</head>
+<body>
+
+<div class="titlebar">
+  <img src="../img/comfy-logo.png" alt="Comfy" class="logo" width="36" height="36">
+  <h1><a href="index.html">Comfy Docs</a></h1>
+  <nav>
+    <a href="../index.html">Launch App</a>
+    <a href="index.html">Docs Home</a>
+  </nav>
+</div>
+
+<div class="content">
+
+  <div class="breadcrumb"><a href="index.html">Docs</a> &rsaquo; Calculation Proofs</div>
+
+  <h2>Calculation Proofs</h2>
+
+  <p>
+    A calculation proof works by transforming both sides of the goal formula
+    until they meet in the middle. You build a <strong>chain of
+    equalities</strong> (or inequalities) from the left side going forward, and
+    from the right side going backward.
+  </p>
+
+  <h3>The Proof Chain</h3>
+
+  <p>
+    When you choose <code>calculation</code>, the proof view shows a chain that
+    starts with the left-hand side (LHS) of the goal at the top, and the
+    right-hand side (RHS) at the bottom:
+  </p>
+
+  <img src="img/calculation-chain.png" alt="Initial calculation chain showing LHS at top, RHS at bottom, with input fields" class="screenshot">
+
+  <pre><code>  LHS
+= ...        <span class="comment">&larr; top input (forward rules)</span>
+
+= ...        <span class="comment">&larr; bottom input (backward tactics)</span>
+  RHS</code></pre>
+
+  <p>There are two input fields:</p>
+  <ul>
+    <li>The <strong>top input</strong> &mdash; for <strong>forward rules</strong> that
+      transform from the top (LHS) downward.</li>
+    <li>The <strong>bottom input</strong> &mdash; for <strong>backward tactics</strong>
+      that transform from the bottom (RHS) upward.</li>
+  </ul>
+
+  <h3>Applying Rules</h3>
+
+  <p>
+    Type a rule into either input field and press <strong>Enter</strong> to apply
+    it. If the rule is valid, a new line appears in the chain showing the result.
+    If there's an error, a red message explains what went wrong.
+  </p>
+
+  <p>
+    Each input supports <strong>Tab-completion</strong>: start typing a rule name
+    and press Tab to autocomplete. A dropdown of suggestions appears as you type.
+  </p>
+
+  <h3>How the Chain Works</h3>
+
+  <p>Suppose you want to prove <code>A = D</code>. You might build this chain:</p>
+
+  <pre><code>  A
+= B          <span class="comment">forward rule: transforms A to B</span>
+= C          <span class="comment">forward rule: transforms B to C</span>
+
+= C          <span class="comment">backward tactic: transforms D to C (working upward)</span>
+  D</code></pre>
+
+  <p>
+    The proof is <strong>complete</strong> when the bottom of the forward chain
+    equals the top of the backward chain. In this example, both reach
+    <code>C</code>.
+  </p>
+
+  <div class="tip">
+    You don't have to use both directions. You can solve everything with forward
+    rules, everything with backward tactics, or a mix of both.
+  </div>
+
+  <h3>Completion and Collapse</h3>
+
+  <p>
+    When the forward and backward chains meet:
+  </p>
+  <ul>
+    <li>The proof automatically <strong>collapses</strong>, hiding the input fields and
+      showing just the clean chain.</li>
+    <li>If the overall proof is done, a <strong>Complete!</strong> message appears.</li>
+    <li>Click <strong>Edit</strong> to re-expand the chain and make changes.</li>
+    <li>Click <strong>Done</strong> to manually collapse a complete chain.</li>
+  </ul>
+
+  <h3>Undoing Steps</h3>
+
+  <p>
+    Each input field has an <strong>&times;</strong> button that removes the last
+    applied rule and puts the rule text back into the input, so you can edit and
+    re-apply it.
+  </p>
+
+  <h3>Inequality Chains</h3>
+
+  <p>
+    Calculation proofs also work for goals with <code>&lt;</code> or
+    <code>&lt;=</code>. In this case, each step can use <code>=</code>,
+    <code>&lt;</code>, or <code>&lt;=</code>. The chain is valid if the combined
+    operators produce a relationship at least as strong as the goal:
+  </p>
+
+  <ul>
+    <li>A chain of all <code>=</code> steps proves <code>=</code>, <code>&lt;=</code>, or <code>&lt;</code>.</li>
+    <li>A chain with at least one <code>&lt;</code> and the rest <code>=</code> or <code>&lt;=</code> proves <code>&lt;</code>.</li>
+    <li>A chain with <code>&lt;=</code> (and no <code>&lt;</code>) proves <code>&lt;=</code>.</li>
+  </ul>
+
+  <div class="warning">
+    If the chain's combined operator is weaker than the goal (e.g., the chain
+    shows <code>&lt;=</code> but the goal is <code>&lt;</code>), a validity
+    error is displayed even though the chain connects.
+  </div>
+
+  <h3>Forward vs. Backward Rule Syntax</h3>
+
+  <p>Forward and backward rules use slightly different syntax:</p>
+
+  <table>
+    <thead>
+      <tr><th>Rule Type</th><th>Forward (top input)</th><th>Backward (bottom input)</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Algebra</td>
+        <td><code>= expr</code></td>
+        <td><code>expr =</code></td>
+      </tr>
+      <tr>
+        <td>Algebra (citing facts)</td>
+        <td><code>= expr 1 2</code></td>
+        <td><code>expr = 1 2</code></td>
+      </tr>
+      <tr>
+        <td>Substitution</td>
+        <td><code>subst N</code></td>
+        <td><code>subst N</code></td>
+      </tr>
+      <tr>
+        <td>Reverse substitution</td>
+        <td><code>unsub N</code></td>
+        <td><code>unsub N</code></td>
+      </tr>
+      <tr>
+        <td>Apply definition</td>
+        <td><code>defof name</code></td>
+        <td><code>defof name</code></td>
+      </tr>
+      <tr>
+        <td>Reverse definition</td>
+        <td><code>undef name</code></td>
+        <td><code>undef name</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>
+    The key difference is for <strong>algebra rules</strong>: forward rules have
+    the operator before the expression (<code>= expr</code>), while backward
+    tactics have the expression before the operator (<code>expr =</code>).
+  </p>
+
+  <p>
+    For the full list of rules and their detailed behavior, see the
+    <a href="rules.html">Rules Reference</a>.
+  </p>
+
+  <h3>Example: Pure Algebra</h3>
+
+  <p>Prove: <code>x^2 + 2*x*y + y^2 = (x + y)^2</code></p>
+
+  <pre><code>  x^2 + 2*x*y + y^2
+                             <span class="comment">(no forward steps needed)</span>
+= x^2 + 2*x*y + y^2         <span class="comment">(x^2 + 2*x*y + y^2) =</span>
+  (x + y)^2</code></pre>
+
+  <p>
+    Here the algebra decision procedure handles the expansion automatically,
+    so a single backward step <code>(x^2 + 2*x*y + y^2) =</code> suffices.
+  </p>
+
+  <h3>Example: With Definitions</h3>
+
+  <p>Prove: <code>len(echo(nil)) = 2 * len(nil)</code></p>
+
+  <pre><code>  len(echo(nil))
+= len(nil)                   <span class="comment">defof echo_1</span>
+= 0                          <span class="comment">defof len_1</span>
+= 2*0                        <span class="comment">= 2*0</span>
+
+= 2*0                        <span class="comment">undef len_1</span>
+  2 * len(nil)</code></pre>
+
+  <p>
+    Forward: unfold <code>echo</code> and <code>len</code> on the left side.
+    Backward: unfold <code>len</code> on the right side. They meet at
+    <code>2*0</code>.
+  </p>
+
+</div>
+
+<div class="footer">
+  <a href="proof-methods.html">&larr; Proof Methods</a> &nbsp;|&nbsp;
+  <a href="index.html">Docs Home</a> &nbsp;|&nbsp;
+  <a href="rules.html">Rules Reference &rarr;</a>
+</div>
+
+</body>
+</html>

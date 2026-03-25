@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Declarations Language &mdash; Comfy Docs</title>
+  <link rel="stylesheet" href="docs.css">
+</head>
+<body>
+
+<div class="titlebar">
+  <img src="../img/comfy-logo.png" alt="Comfy" class="logo" width="36" height="36">
+  <h1><a href="index.html">Comfy Docs</a></h1>
+  <nav>
+    <a href="../index.html">Launch App</a>
+    <a href="index.html">Docs Home</a>
+  </nav>
+</div>
+
+<div class="content">
+
+  <div class="breadcrumb"><a href="index.html">Docs</a> &rsaquo; Declarations Language</div>
+
+  <h2>Declarations Language</h2>
+
+  <p>
+    The Declarations textarea on the setup screen accepts three kinds of
+    declarations: <strong>type declarations</strong>, <strong>function
+    definitions</strong>, and <strong>variable declarations</strong>. You can
+    include any number of each, in any order.
+  </p>
+
+  <h3>Built-in Type: Int</h3>
+
+  <p>
+    <code>Int</code> is a built-in type representing integers. You do not need to
+    declare it. Lowercase variables (like <code>x</code>, <code>y</code>,
+    <code>n</code>) are automatically available as integer variables when no
+    declarations are present.
+  </p>
+
+  <h2>Type Declarations</h2>
+
+  <p>
+    A type declaration defines an <strong>inductively defined data type</strong>
+    with one or more constructors.
+  </p>
+
+  <h3>Syntax</h3>
+
+  <pre><code><span class="kw">type</span> <span class="type-name">TypeName</span>
+  | <span class="ctor">CtorName</span> : <span class="type-name">TypeName</span>
+  | <span class="ctor">CtorName</span> : (<span class="type-name">ParamType1</span>, <span class="type-name">ParamType2</span>) -> <span class="type-name">TypeName</span></code></pre>
+
+  <p>Rules:</p>
+  <ul>
+    <li>Type names must start with an <strong>uppercase letter</strong> (e.g., <code>List</code>, <code>Tree</code>).</li>
+    <li>Constructor names also start with a <strong>lowercase letter</strong> (e.g., <code>nil</code>, <code>cons</code>, <code>leaf</code>, <code>node</code>).</li>
+    <li>Each constructor line starts with <code>|</code>.</li>
+    <li>A constructor with no parameters just has a return type: <code>nil : List</code>.</li>
+    <li>A constructor with parameters uses arrow syntax: <code>cons : (Int, List) -> List</code>.</li>
+    <li>Parameter types can be <code>Int</code> or any declared type name.</li>
+    <li>All constructors of a type must return that type.</li>
+  </ul>
+
+  <h3>Examples</h3>
+
+  <h4>A linked list of integers</h4>
+  <pre><code><span class="kw">type</span> <span class="type-name">List</span>
+  | <span class="ctor">nil</span> : <span class="type-name">List</span>
+  | <span class="ctor">cons</span> : (<span class="type-name">Int</span>, <span class="type-name">List</span>) -> <span class="type-name">List</span></code></pre>
+  <p>
+    This defines a <code>List</code> type with two constructors: <code>nil</code>
+    (the empty list) and <code>cons</code> (which takes an integer and a list to
+    produce a longer list).
+  </p>
+
+  <h4>A binary tree</h4>
+  <pre><code><span class="kw">type</span> <span class="type-name">Tree</span>
+  | <span class="ctor">leaf</span> : <span class="type-name">Tree</span>
+  | <span class="ctor">node</span> : (<span class="type-name">Tree</span>, <span class="type-name">Tree</span>) -> <span class="type-name">Tree</span></code></pre>
+
+  <h2>Function Definitions</h2>
+
+  <p>
+    A function definition declares a <strong>recursive function</strong> by
+    pattern matching on its arguments.
+  </p>
+
+  <h3>Syntax</h3>
+
+  <pre><code><span class="kw">def</span> <span class="func-name">funcName</span> : (<span class="type-name">ParamType1</span>, <span class="type-name">ParamType2</span>) -> <span class="type-name">ReturnType</span>
+  | funcName(<span class="ctor">pattern1</span>) => <span class="op">body1</span>
+  | funcName(<span class="ctor">pattern2</span>) => <span class="op">body2</span></code></pre>
+
+  <p>Rules:</p>
+  <ul>
+    <li>The first line is the <strong>type signature</strong>: parameter types and return type.</li>
+    <li>Each case starts with <code>|</code> and shows the function applied to a pattern.</li>
+    <li>Patterns can be:
+      <ul>
+        <li><strong>Variables:</strong> <code>a</code>, <code>L</code>, <code>n</code> &mdash; match anything</li>
+        <li><strong>Constructors:</strong> <code>nil</code>, <code>cons(a, L)</code>, <code>node(L, R)</code> &mdash; destructure values</li>
+      </ul>
+    </li>
+    <li>The body after <code>=></code> is an arithmetic expression that can use:
+      <ul>
+        <li>Variables from the pattern</li>
+        <li>Recursive calls to any defined function</li>
+        <li>Constructors as function calls (e.g., <code>cons(a, L)</code>)</li>
+        <li>Arithmetic: <code>+</code>, <code>-</code>, <code>*</code>, <code>^</code></li>
+      </ul>
+    </li>
+  </ul>
+
+  <h3>Examples</h3>
+
+  <h4>List length</h4>
+  <pre><code><span class="kw">def</span> <span class="func-name">len</span> : (<span class="type-name">List</span>) -> <span class="type-name">Int</span>
+  | len(<span class="ctor">nil</span>) => <span class="num">0</span>
+  | len(<span class="ctor">cons</span>(a, L)) => <span class="num">1</span> + len(L)</code></pre>
+
+  <h4>Tree size (number of nodes)</h4>
+  <pre><code><span class="kw">def</span> <span class="func-name">size</span> : (<span class="type-name">Tree</span>) -> <span class="type-name">Int</span>
+  | size(<span class="ctor">leaf</span>) => <span class="num">1</span>
+  | size(<span class="ctor">node</span>(L, R)) => <span class="num">1</span> + size(L) + size(R)</code></pre>
+
+  <h4>Filter positive elements</h4>
+  <pre><code><span class="kw">def</span> <span class="func-name">positives</span> : (<span class="type-name">List</span>) -> <span class="type-name">List</span>
+  | positives(<span class="ctor">nil</span>) => <span class="ctor">nil</span>
+  | positives(<span class="ctor">cons</span>(a, L)) => <span class="kw">if</span> a &lt; <span class="num">0</span> <span class="kw">then</span> positives(L) <span class="kw">else</span> <span class="ctor">cons</span>(a, positives(L))</code></pre>
+
+  <h3>Functions with If-Else (Conditional Definitions)</h3>
+
+  <p>
+    A case body can use an <code>if ... then ... else ...</code> expression. The
+    condition must be an inequality using <code>&lt;</code> or <code>&lt;=</code>.
+  </p>
+
+  <pre><code>| funcName(pattern) => <span class="kw">if</span> condition <span class="kw">then</span> expr1 <span class="kw">else</span> expr2</code></pre>
+
+  <p>
+    When a case uses <code>if-else</code>, it generates <strong>two
+    definitions</strong> instead of one. For example, if <code>positives</code>
+    has case 2 with an <code>if</code>:
+  </p>
+  <ul>
+    <li><code>positives_2a</code>: <code>positives(cons(a, L)) = positives(L)</code> &mdash; when <code>a &lt; 0</code></li>
+    <li><code>positives_2b</code>: <code>positives(cons(a, L)) = cons(a, positives(L))</code> &mdash; when <code>0 &lt;= a</code></li>
+  </ul>
+
+  <p>
+    See the <a href="rules.html">Rules Reference</a> for how to use these
+    conditional definitions in proofs.
+  </p>
+
+  <h3>Definition Naming</h3>
+
+  <p>
+    Each function case is automatically assigned a name used in proof rules:
+  </p>
+
+  <table>
+    <thead>
+      <tr><th>Case</th><th>Name</th><th>Example</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Simple case <em>i</em></td>
+        <td><code>funcName_i</code></td>
+        <td><code>len_1</code>, <code>len_2</code></td>
+      </tr>
+      <tr>
+        <td>If-else case <em>i</em>, then branch</td>
+        <td><code>funcName_ia</code></td>
+        <td><code>positives_2a</code></td>
+      </tr>
+      <tr>
+        <td>If-else case <em>i</em>, else branch</td>
+        <td><code>funcName_ib</code></td>
+        <td><code>positives_2b</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>
+    These names are used with the <code>defof</code> and <code>undef</code> rules.
+    See <a href="rules.html">Rules Reference</a>.
+  </p>
+
+  <h2>Variable Declarations</h2>
+
+  <p>
+    A variable declaration introduces a named variable of a specific type.
+    This is needed for variables of user-defined types (since lowercase
+    names default to <code>Int</code>).
+  </p>
+
+  <h3>Syntax</h3>
+
+  <pre><code><span class="kw">var</span> <span class="func-name">varName</span> : <span class="type-name">TypeName</span></code></pre>
+
+  <h3>Examples</h3>
+
+  <pre><code><span class="kw">var</span> xs : <span class="type-name">List</span>
+<span class="kw">var</span> T : <span class="type-name">Tree</span>
+<span class="kw">var</span> n : <span class="type-name">Int</span></code></pre>
+
+  <div class="note">
+    You must declare a variable with <code>var</code> if you want to do
+    <strong>induction</strong> on it. Induction is only available on variables of
+    inductively defined types (not <code>Int</code>).
+  </div>
+
+  <h2>Putting It All Together</h2>
+
+  <p>A complete declarations block:</p>
+
+  <pre><code><span class="kw">type</span> <span class="type-name">List</span>
+  | <span class="ctor">nil</span> : <span class="type-name">List</span>
+  | <span class="ctor">cons</span> : (<span class="type-name">Int</span>, <span class="type-name">List</span>) -> <span class="type-name">List</span>
+
+<span class="kw">def</span> <span class="func-name">len</span> : (<span class="type-name">List</span>) -> <span class="type-name">Int</span>
+  | len(<span class="ctor">nil</span>) => <span class="num">0</span>
+  | len(<span class="ctor">cons</span>(a, L)) => <span class="num">1</span> + len(L)
+
+<span class="kw">def</span> <span class="func-name">echo</span> : (<span class="type-name">List</span>) -> <span class="type-name">List</span>
+  | echo(<span class="ctor">nil</span>) => <span class="ctor">nil</span>
+  | echo(<span class="ctor">cons</span>(a, L)) => <span class="ctor">cons</span>(a, <span class="ctor">cons</span>(a, echo(L)))
+
+<span class="kw">var</span> xs : <span class="type-name">List</span></code></pre>
+
+  <p>
+    This declares a <code>List</code> type, two functions (<code>len</code> and
+    <code>echo</code>), and a variable <code>xs</code> of type
+    <code>List</code> for use in proofs.
+  </p>
+
+</div>
+
+<div class="footer">
+  <a href="getting-started.html">&larr; Getting Started</a> &nbsp;|&nbsp;
+  <a href="index.html">Docs Home</a> &nbsp;|&nbsp;
+  <a href="proof-methods.html">Proof Methods &rarr;</a>
+</div>
+
+</body>
+</html>
