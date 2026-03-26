@@ -111,9 +111,9 @@
   <p>
     For constructors with recursive arguments (like <code>cons(a, L)</code>),
     the goal has the variable replaced by the constructor applied to fresh
-    variables. You also get <strong>induction hypotheses</strong> &mdash; the
-    original goal formula applied to each recursive sub-part &mdash; as
-    additional numbered facts.
+    variables. You also get <strong>induction hypotheses (IH)</strong> &mdash;
+    the original goal formula applied to each recursive sub-part &mdash; as
+    named theorems.
   </p>
 
   <p>For example, proving <code>P(xs)</code> by induction on <code>xs : List</code>:</p>
@@ -130,10 +130,18 @@
       <tr>
         <td><code>cons(a, L)</code></td>
         <td><code>P(cons(a, L))</code></td>
-        <td><code>P(L)</code> &mdash; as a numbered fact</td>
+        <td><code>IH : P(L)</code> &mdash; available via <code>apply IH</code></td>
       </tr>
     </tbody>
   </table>
+
+  <p>
+    The IH is displayed as a named theorem (<code>given IH : ...</code>) rather
+    than a numbered fact. Use <code>apply IH</code> (or <code>apply IH =&gt; expr</code>
+    with an explicit result) to apply it in a calculation step. If the theorem
+    being proved has extra parameters beyond the induction variable, the IH will
+    also have those parameters: <code>given IH (T : List) : ...</code>.
+  </p>
 
   <p>
     Each case requires its own sub-proof. You choose a method for each case
@@ -156,7 +164,7 @@
       <tr>
         <td><code>node(L, R)</code></td>
         <td><code>P(node(L, R))</code></td>
-        <td><code>P(L)</code> and <code>P(R)</code> &mdash; two numbered facts</td>
+        <td><code>IH_L : P(L)</code> and <code>IH_R : P(R)</code> &mdash; two named theorems</td>
       </tr>
     </tbody>
   </table>
