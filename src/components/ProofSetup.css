@@ -2,7 +2,8 @@ TD.setup-label { font-family: Helvetica, sans-serif; font-weight: bold; vertical
 
 INPUT.setup-input { padding: 5px; width: 320px; }
 
-TEXTAREA.setup-decls-input { padding: 5px; width: 480px; height: 200px; font-family: monospace; font-size: 13px; resize: vertical; border: 1px solid #c0c0c0; }
+TEXTAREA.setup-decls-input { padding: 5px; width: 480px; height: 320px; font-family: monospace; font-size: 13px; resize: vertical; border: 1px solid #c0c0c0; }
+TEXTAREA.setup-decls-input.setup-theorem { height: 64px; }
 TEXTAREA.setup-decls-input.func-error { border: 2px solid #c45050; }
 
 DIV.func-error-msg { color: #a34040; font-size: 12px; font-family: monospace; margin-top: 3px; max-width: 480px; }

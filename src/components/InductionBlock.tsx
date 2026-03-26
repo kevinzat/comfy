@@ -3,6 +3,7 @@ import { Formula } from '../facts/formula';
 import { TheoremAst } from '../lang/theorem_ast';
 import { Environment } from '../types/env';
 import { CaseInfo, buildCases } from '../proof/induction';
+import { InductionProofNode, CaseBlock, IHLine } from '../proof/proof_file';
 import { ExprToHtml, OpToHtml } from './ProofElements';
 import ProofBlock from './ProofBlock';
 import './InductionBlock.css';
@@ -31,13 +32,36 @@ export default class InductionBlock
     extends React.Component<InductionBlockProps, InductionBlockState> {
 
   private cases: CaseInfo[];
+  private proofBlockRefs: React.RefObject<ProofBlock>[];
 
   constructor(props: InductionBlockProps) {
     super(props);
     this.cases = buildCases(props.formula, props.env, props.varName, props.argNames, props.premise);
+    this.proofBlockRefs = this.cases.map(() => React.createRef<ProofBlock>());
     this.state = {
       caseComplete: this.cases.map(() => false),
     };
+  }
+
+  getProofNode(): InductionProofNode | null {
+    const caseBlocks: CaseBlock[] = [];
+    for (let i = 0; i < this.cases.length; i++) {
+      const c = this.cases[i];
+      const subProof = this.proofBlockRefs[i].current?.getProofNode() ?? null;
+      if (!subProof) return null;
+      const label = c.argNames.length === 0
+        ? c.ctor.name
+        : `${c.ctor.name}(${c.argNames.join(', ')})`;
+      const ihTheorems: IHLine[] = c.ihTheorems.map((thm: TheoremAst) => ({
+        name: thm.name,
+        params: thm.params,
+        premise: thm.premise ? thm.premise.to_string() : undefined,
+        formula: thm.conclusion.to_string(),
+        line: 0,
+      }));
+      caseBlocks.push({ label, ihTheorems, givens: [], goal: c.goal.to_string(), goalLine: 0, proof: subProof });
+    }
+    return { kind: 'induction', varName: this.props.varName, argNames: this.props.argNames, cases: caseBlocks };
   }
 
   private handleCaseComplete(index: number, complete: boolean) {
@@ -115,9 +139,10 @@ export default class InductionBlock
                 </div>
               )}
               <ProofBlock
+                ref={this.proofBlockRefs[idx]}
                 formula={c.goal}
                 env={c.env}
-                defNames={this.props.defNames}
+                defNames={this.props.defNames ?? []}
                 showHtml={showHtml}
                 onComplete={(complete) => this.handleCaseComplete(idx, complete)}
               />

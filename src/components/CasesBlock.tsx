@@ -2,6 +2,7 @@ import React from 'react';
 import { Formula } from '../facts/formula';
 import { Environment } from '../types/env';
 import { NestedEnv } from '../types/env';
+import { CasesProofNode, CaseBlock } from '../proof/proof_file';
 import { ExprToHtml, OpToHtml } from './ProofElements';
 import { buildCasesOnCondition } from '../proof/cases';
 import ProofBlock from './ProofBlock';
@@ -27,6 +28,8 @@ export default class CasesBlock
   private negated: Formula;
   private thenEnv: NestedEnv;
   private elseEnv: NestedEnv;
+  private thenRef = React.createRef<ProofBlock>();
+  private elseRef = React.createRef<ProofBlock>();
 
   constructor(props: CasesBlockProps) {
     super(props);
@@ -35,6 +38,23 @@ export default class CasesBlock
     this.thenEnv = info.thenEnv;
     this.elseEnv = info.elseEnv;
     this.state = { caseComplete: [false, false] };
+  }
+
+  getProofNode(): CasesProofNode | null {
+    const thenProof = this.thenRef.current?.getProofNode() ?? null;
+    const elseProof = this.elseRef.current?.getProofNode() ?? null;
+    if (!thenProof || !elseProof) return null;
+    const goal = this.props.formula.to_string();
+    const condStr = this.props.condition.to_string();
+    const makeCase = (proof: typeof thenProof): CaseBlock =>
+      ({ label: '', ihTheorems: [], givens: [], goal, goalLine: 0, proof });
+    return {
+      kind: 'cases',
+      condition: condStr,
+      conditionLine: 0,
+      thenCase: makeCase(thenProof),
+      elseCase: makeCase(elseProof),
+    };
   }
 
   private handleCaseComplete(index: 0 | 1, complete: boolean) {
@@ -81,7 +101,7 @@ export default class CasesBlock
               </tbody>
             </table>
           </div>
-          <ProofBlock formula={formula} env={this.thenEnv}
+          <ProofBlock ref={this.thenRef} formula={formula} env={this.thenEnv}
               defNames={defNames} showHtml={showHtml}
               onComplete={(c) => this.handleCaseComplete(0, c)} />
         </div>
@@ -104,7 +124,7 @@ export default class CasesBlock
               </tbody>
             </table>
           </div>
-          <ProofBlock formula={formula} env={this.elseEnv}
+          <ProofBlock ref={this.elseRef} formula={formula} env={this.elseEnv}
               defNames={defNames} showHtml={showHtml}
               onComplete={(c) => this.handleCaseComplete(1, c)} />
         </div>

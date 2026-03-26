@@ -347,7 +347,7 @@ export function parseProofFile(source: string): ProofFile {
   const preamble = rawLines.slice(0, proveIdx).join('\n').trim();
   let decls: DeclsAst;
   if (preamble.length === 0) {
-    decls = new DeclsAst([], [], [], []);
+    decls = new DeclsAst([], [], []);
   } else {
     const declsResult = ParseDecls(preamble);
     if (declsResult.error) {

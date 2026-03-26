@@ -11,6 +11,7 @@ import { RuleAst } from '../rules/rules_ast';
 import { TacticAst } from '../rules/tactics_ast';
 import { Environment } from '../types/env';
 import { Step, applyForwardRule, applyBackwardRule, topFrontier, botFrontier, isComplete, checkValidity } from '../proof/calc_proof';
+import { CalcProofNode } from '../proof/proof_file';
 import { ExprToHtml, OpToHtml, RuleToHtml, TacticToHtml } from './ProofElements';
 import './CalcBlock.css';
 
@@ -66,6 +67,16 @@ export default class CalcBlock
     extends React.Component<CalcBlockProps, CalcBlockState> {
 
   botInputRef = React.createRef<HTMLInputElement>();
+
+  getCalcProofNode(): CalcProofNode {
+    return {
+      kind: 'calculate',
+      forwardStart: null,
+      forwardSteps: this.state.topLines.map(l => ({ ruleText: l.ruleText, line: 0 })),
+      backwardStart: null,
+      backwardSteps: this.state.bottomLines.map(l => ({ ruleText: l.ruleText, line: 0 })),
+    };
+  }
 
   constructor(props: CalcBlockProps) {
     super(props);

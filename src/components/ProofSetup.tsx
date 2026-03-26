@@ -86,7 +86,7 @@ export default class ProofSetup
 
   handleCheck() {
     try {
-      const decls = this.state.declsResult.ast ?? new DeclsAst([], [], [], []);
+      const decls = this.state.declsResult.ast ?? new DeclsAst([], [], []);
       const theorem = this.getTheorem()!;
 
       const env = new TopLevelEnv(decls.types, decls.functions,
@@ -127,7 +127,7 @@ export default class ProofSetup
       <tr key="theorem">
         <td className="setup-label">Prove</td>
         <td>
-            <textarea className={`setup-decls-input${theoremHasError ? ' func-error' : ''}`}
+            <textarea className={`setup-decls-input setup-theorem${theoremHasError ? ' func-error' : ''}`}
                 ref={this.theoremRef}
                 value={this.state.theoremText}
                 placeholder={"e.g., theorem comm (x, y : Int)\n  | x + y = y + x"}
@@ -156,7 +156,7 @@ export default class ProofSetup
           ) : (
             <button className="btn-start"
                 onClick={() => this.props.onStart(
-                  this.state.declsResult.ast ?? new DeclsAst([], [], [], []),
+                  this.state.declsResult.ast ?? new DeclsAst([], [], []),
                   this.getTheorem()!)}>
               Start
             </button>

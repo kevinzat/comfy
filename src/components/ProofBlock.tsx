@@ -3,6 +3,7 @@ import { Formula, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
 import { ParseFormula } from '../facts/formula_parser';
 import { Environment } from '../types/env';
 import { defaultArgNames } from '../proof/induction';
+import { ProofNode } from '../proof/proof_file';
 import { Match, LongestCommonPrefix } from '../rules/infer_complete';
 import { ExprToHtml, OpToHtml } from './ProofElements';
 import { RuleSuggest } from './RuleSuggest';
@@ -213,6 +214,23 @@ export default class ProofBlock
     extends React.Component<ProofBlockProps, ProofBlockState> {
 
   private inductVars: InductVar[];
+  private calcRef = React.createRef<CalcBlock>();
+  private inductionRef = React.createRef<InductionBlock>();
+  private casesRef = React.createRef<CasesBlock>();
+
+  getProofNode(): ProofNode | null {
+    const { method } = this.state;
+    if (method.kind === 'calculate') {
+      return this.calcRef.current?.getCalcProofNode() ?? null;
+    }
+    if (method.kind === 'induction') {
+      return this.inductionRef.current?.getProofNode() ?? null;
+    }
+    if (method.kind === 'cases') {
+      return this.casesRef.current?.getProofNode() ?? null;
+    }
+    return null;
+  }
 
   constructor(props: ProofBlockProps) {
     super(props);
@@ -327,16 +345,16 @@ export default class ProofBlock
           </span>
         </div>
         {method.kind === 'calculate' &&
-          <CalcBlock env={env} givens={[]} goal={goalStr}
+          <CalcBlock ref={this.calcRef} env={env} givens={[]} goal={goalStr}
               defNames={defNames} showHtml={showHtml} onComplete={onComplete} />
         }
         {method.kind === 'induction' &&
-          <InductionBlock formula={formula} env={env} varName={method.varName}
+          <InductionBlock ref={this.inductionRef} formula={formula} env={env} varName={method.varName}
               argNames={method.argNames} premise={this.props.premise}
               defNames={defNames} showHtml={showHtml} onComplete={onComplete} />
         }
         {method.kind === 'cases' &&
-          <CasesBlock formula={formula} condition={method.condition} env={env}
+          <CasesBlock ref={this.casesRef} formula={formula} condition={method.condition} env={env}
               defNames={defNames} showHtml={showHtml} onComplete={onComplete} />
         }
       </div>

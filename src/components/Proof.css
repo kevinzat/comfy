@@ -28,3 +28,8 @@ DIV.proof-goal { margin-left: 20px; margin-bottom: 15px; font-family: Lucida Gra
 SPAN.proof-goal-title { font-family: Helvetica, sans-serif; font-weight: bold; }
 
 DIV.proof-toggle { margin-left: 20px; margin-top: 10px; }
+
+DIV.proof-lean { margin: 12px 20px 0; }
+DIV.proof-lean-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+SPAN.proof-lean-title { font-family: Helvetica, sans-serif; font-weight: bold; font-size: 13px; color: #555; }
+PRE.proof-lean-text { background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; padding: 12px; font-size: 13px; overflow-x: auto; margin: 0; }

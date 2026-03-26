@@ -5,6 +5,8 @@ import { TheoremAst } from '../lang/theorem_ast';
 import { TypeDeclAst } from '../lang/type_ast';
 import { FuncAst, Param, ParamConstructor, funcToDefinitions } from '../lang/func_ast';
 import { TopLevelEnv, NestedEnv } from '../types/env';
+import { ProofFile } from '../proof/proof_file';
+import { toLean } from '../proof/lean';
 import { ExprToHtml, OpToHtml } from './ProofElements';
 import ProofBlock from './ProofBlock';
 import './Proof.css';
@@ -18,6 +20,7 @@ export interface ProofProps {
 interface ProofState {
   showHtml: boolean;
   complete: boolean;
+  showLean: boolean;
 }
 
 function paramToString(param: Param): string {
@@ -89,9 +92,31 @@ function renderFuncDecl(func: FuncAst, showHtml: boolean): JSX.Element {
 }
 
 export default class Proof extends React.Component<ProofProps, ProofState> {
+  private proofBlockRef = React.createRef<ProofBlock>();
+
   constructor(props: ProofProps) {
     super(props);
-    this.state = { showHtml: true, complete: false };
+    this.state = { showHtml: true, complete: false, showLean: false };
+  }
+
+  private getLeanText(): string {
+    const proofNode = this.proofBlockRef.current?.getProofNode() ?? null;
+    if (!proofNode) return '';
+    const { decls, theorem } = this.props;
+    const fullDecls = new DeclsAst(decls.types, decls.functions, [...decls.theorems, theorem]);
+    const pf: ProofFile = {
+      decls: fullDecls,
+      theoremName: theorem.name,
+      theoremLine: 0,
+      givens: [],
+      proof: proofNode,
+    };
+    return toLean(pf);
+  }
+
+  private copyLean() {
+    const text = this.getLeanText();
+    if (text) navigator.clipboard.writeText(text).catch(() => {});
   }
 
   render() {
@@ -136,7 +161,7 @@ export default class Proof extends React.Component<ProofProps, ProofState> {
             </table>
           </div>
         }
-        <ProofBlock formula={goal} env={proofEnv} premise={theorem.premise}
+        <ProofBlock ref={this.proofBlockRef} formula={goal} env={proofEnv} premise={theorem.premise}
             defNames={decls.functions.flatMap(f => funcToDefinitions(f).map(d => d.name))}
             showHtml={this.state.showHtml}
             onComplete={(c) => this.setState({ complete: c })} />
@@ -145,9 +170,24 @@ export default class Proof extends React.Component<ProofProps, ProofState> {
               onClick={() => this.setState({ showHtml: !this.state.showHtml })}>
             {this.state.showHtml ? 'Show Text' : 'Show HTML'}
           </span>
+          {this.state.complete &&
+            <span className="btn-edit-chain"
+                onClick={() => this.setState(s => ({ showLean: !s.showLean }))}>
+              {this.state.showLean ? 'Hide Lean' : 'Show Lean'}
+            </span>
+          }
           {this.state.complete ?
             <span className="complete-msg">Complete!</span> : ''}
         </div>
+        {this.state.showLean && this.state.complete &&
+          <div className="proof-lean">
+            <div className="proof-lean-header">
+              <span className="proof-lean-title">Lean 4</span>
+              <button className="btn-start" onClick={() => this.copyLean()}>Copy</button>
+            </div>
+            <pre className="proof-lean-text">{this.getLeanText()}</pre>
+          </div>
+        }
       </div>
     );
   }
