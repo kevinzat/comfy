@@ -38,8 +38,7 @@
   <h3>Setup</h3>
   <ul>
     <li><strong>Declarations:</strong> (empty)</li>
-    <li><strong>Givens:</strong> (none)</li>
-    <li><strong>Prove:</strong> <code>x^2 + 2*x*y + y^2 = (x + y)^2</code></li>
+    <li><strong>Prove:</strong> <code>theorem square_expand (x, y : Int) | x^2 + 2*x*y + y^2 = (x + y)^2</code></li>
   </ul>
 
   <h3>Proof</h3>
@@ -72,11 +71,11 @@
 
 <span class="kw">def</span> <span class="func-name">len</span> : (<span class="type-name">List</span>) -> <span class="type-name">Int</span>
   | len(<span class="ctor">nil</span>) => <span class="num">0</span>
-  | len(<span class="ctor">cons</span>(a, L)) => <span class="num">1</span> + len(L)
+  | len(<span class="ctor">cons</span>(a, L)) => <span class="num">1</span> + len(L)</code></pre>
 
-<span class="kw">var</span> xs : <span class="type-name">List</span></code></pre>
-
-  <p><strong>Prove:</strong> <code>0 + len(xs) = len(xs)</code></p>
+  <p><strong>Prove:</strong></p>
+  <pre><code><span class="kw">theorem</span> <span class="func-name">zero_plus_len</span> (xs : <span class="type-name">List</span>)
+  | 0 + len(xs) = len(xs)</code></pre>
 
   <h3>Proof</h3>
   <p>Method: <code>induction on xs</code></p>
@@ -86,10 +85,10 @@
   <p>Method: <code>calculation</code></p>
 
   <pre><code>  0 + len(nil)
-= 0 + 0             <span class="comment">defof len_1 (0 + 0)    &mdash; unfold len(nil) = 0, giving 0 + 0</span>
-= 0                  <span class="comment">= 0                    &mdash; algebra: 0 + 0 = 0</span>
+= 0 + 0             <span class="comment">defof len_1 => 0 + 0    &mdash; unfold len(nil) = 0</span>
+= 0                  <span class="comment">= 0                     &mdash; algebra: 0 + 0 = 0</span>
 
-= 0                  <span class="comment">undef len_1            &mdash; fold 0 back to len(nil)</span>
+= 0                  <span class="comment">undef len_1             &mdash; fold 0 back to len(nil)</span>
   len(nil)</code></pre>
 
   <p>
@@ -99,20 +98,22 @@
   </p>
 
   <h4>Inductive Case: xs = cons(a, L)</h4>
-  <p>Known fact 1 (IH): <code>0 + len(L) = len(L)</code></p>
+  <p>IH (named theorem): <code>IH : 0 + len(L) = len(L)</code></p>
   <p>Goal: <code>0 + len(cons(a, L)) = len(cons(a, L))</code></p>
   <p>Method: <code>calculation</code></p>
 
   <pre><code>  0 + len(cons(a, L))
-= 0 + (1 + len(L))  <span class="comment">defof len_2            &mdash; unfold len(cons(a, L)) = 1 + len(L)</span>
-= 1 + len(L)         <span class="comment">= 1 + len(L) 1        &mdash; algebra citing IH: 0 + (1 + len(L)) = 1 + len(L)</span>
+= 0 + (1 + len(L))  <span class="comment">defof len_2             &mdash; unfold len(cons(a, L)) = 1 + len(L)</span>
+= 1 + len(L)         <span class="comment">apply IH                &mdash; apply IH: 0 + len(L) = len(L)</span>
 
-= 1 + len(L)         <span class="comment">undef len_2            &mdash; fold back to len(cons(a, L))</span>
+= 1 + len(L)         <span class="comment">undef len_2             &mdash; fold back to len(cons(a, L))</span>
   len(cons(a, L))</code></pre>
 
   <p>
-    The key step is <code>= 1 + len(L) 1</code> which uses the induction
-    hypothesis (fact 1: <code>0 + len(L) = len(L)</code>) to simplify.
+    The key step is <code>apply IH</code>, which applies the induction hypothesis
+    (<code>0 + len(L) = len(L)</code>) to replace <code>0 + len(L)</code> with
+    <code>len(L)</code>. Note that the IH is a named theorem, not a numbered
+    fact &mdash; you use <code>apply IH</code> rather than citing a fact number.
   </p>
 
 

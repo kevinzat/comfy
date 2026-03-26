@@ -26,7 +26,7 @@
   <p>
     The Declarations textarea on the setup screen accepts three kinds of
     declarations: <strong>type declarations</strong>, <strong>function
-    definitions</strong>, and <strong>variable declarations</strong>. You can
+    definitions</strong>, and <strong>theorem declarations</strong>. You can
     include any number of each, in any order.
   </p>
 
@@ -188,28 +188,71 @@
     See <a href="rules.html">Rules Reference</a>.
   </p>
 
-  <h2>Variable Declarations</h2>
+  <h2>Theorem Declarations</h2>
 
   <p>
-    A variable declaration introduces a named variable of a specific type.
-    This is needed for variables of user-defined types (since lowercase
-    names default to <code>Int</code>).
+    A theorem declaration states a named result that you have already proved (or
+    that you intend to use as a lemma). Declared theorems can be applied in later
+    proofs using the <code>apply</code> rule.
   </p>
 
   <h3>Syntax</h3>
 
-  <pre><code><span class="kw">var</span> <span class="func-name">varName</span> : <span class="type-name">TypeName</span></code></pre>
+  <pre><code><span class="kw">theorem</span> <span class="func-name">thmName</span> (<span class="func-name">param1</span>, <span class="func-name">param2</span> : <span class="type-name">Type</span>)
+  | conclusion</code></pre>
+
+  <p>Or, for a theorem with a premise (an implication):</p>
+
+  <pre><code><span class="kw">theorem</span> <span class="func-name">thmName</span> (<span class="func-name">param1</span>, <span class="func-name">param2</span> : <span class="type-name">Type</span>)
+  | premise =&gt; conclusion</code></pre>
+
+  <p>Rules:</p>
+  <ul>
+    <li>Theorem names start with a <strong>lowercase letter</strong> (e.g., <code>len_concat</code>).</li>
+    <li>Parameters are grouped by type: <code>(x, y : Int)</code> or <code>(S, T : List)</code>.</li>
+    <li>The body after <code>|</code> is a formula (equation or inequality).</li>
+    <li>If the theorem has a premise, write <code>| premise =&gt; conclusion</code>. When using it in a proof, you must cite a known fact that establishes the premise.</li>
+  </ul>
 
   <h3>Examples</h3>
 
-  <pre><code><span class="kw">var</span> xs : <span class="type-name">List</span>
-<span class="kw">var</span> T : <span class="type-name">Tree</span>
-<span class="kw">var</span> n : <span class="type-name">Int</span></code></pre>
+  <h4>A theorem about list length and concatenation</h4>
+  <pre><code><span class="kw">theorem</span> <span class="func-name">len_concat</span> (<span class="func-name">S</span>, <span class="func-name">T</span> : <span class="type-name">List</span>)
+  | len(concat(S, T)) = len(S) + len(T)</code></pre>
+
+  <p>
+    This declares that <code>len_concat</code> is a known result. In another
+    proof, you can use <code>apply len_concat</code> to replace
+    <code>len(concat(A, B))</code> with <code>len(A) + len(B)</code>.
+  </p>
 
   <div class="note">
-    You must declare a variable with <code>var</code> if you want to do
-    <strong>induction</strong> on it. Induction is only available on variables of
-    inductively defined types (not <code>Int</code>).
+    Theorem declarations in the Declarations area are lemmas you have
+    <em>already proved separately</em>. The tool treats them as axioms when
+    checking proofs that cite them. Prove them first by using each theorem as the
+    goal in its own proof session.
+  </div>
+
+  <h2>Variables</h2>
+
+  <p>
+    Variables are not declared in the Declarations area. Instead, they are
+    declared as <strong>parameters of a theorem</strong> in the Prove field:
+  </p>
+
+  <pre><code><span class="kw">theorem</span> <span class="func-name">thmName</span> (<span class="func-name">xs</span> : <span class="type-name">List</span>) (<span class="func-name">n</span> : <span class="type-name">Int</span>)
+  | formula</code></pre>
+
+  <p>
+    Lowercase variables default to <code>Int</code>. For variables of
+    user-defined types (like <code>List</code> or <code>Tree</code>), you must
+    declare the type explicitly in the theorem's parameter list.
+  </p>
+
+  <div class="note">
+    To do <strong>induction</strong> on a variable, it must have an inductively
+    defined type (not <code>Int</code>). Declare it as a theorem parameter with
+    the appropriate type.
   </div>
 
   <h2>Putting It All Together</h2>
@@ -228,12 +271,14 @@
   | echo(<span class="ctor">nil</span>) => <span class="ctor">nil</span>
   | echo(<span class="ctor">cons</span>(a, L)) => <span class="ctor">cons</span>(a, <span class="ctor">cons</span>(a, echo(L)))
 
-<span class="kw">var</span> xs : <span class="type-name">List</span></code></pre>
+<span class="kw">theorem</span> <span class="func-name">len_echo</span> (<span class="func-name">xs</span> : <span class="type-name">List</span>)
+  | len(echo(xs)) = <span class="num">2</span> * len(xs)</code></pre>
 
   <p>
     This declares a <code>List</code> type, two functions (<code>len</code> and
-    <code>echo</code>), and a variable <code>xs</code> of type
-    <code>List</code> for use in proofs.
+    <code>echo</code>), and a previously proved theorem <code>len_echo</code>.
+    Variables like <code>xs</code> are declared in the theorem statement itself,
+    not in the declarations area.
   </p>
 
 </div>

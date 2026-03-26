@@ -25,11 +25,11 @@
 
   <p>
     When you open Comfy, you see the <strong>setup screen</strong>. This is where
-    you describe the problem you want to prove. There are three sections:
-    Declarations, Givens, and the goal (Prove).
+    you describe the problem you want to prove. There are two fields:
+    Declarations and Prove.
   </p>
 
-  <img src="img/setup-screen.png" alt="Setup screen with Declarations, Givens, and Prove fields" class="screenshot">
+  <img src="img/setup-screen.png" alt="Setup screen with Declarations and Prove fields" class="screenshot">
 
   <h3>1. Declarations (optional)</h3>
 
@@ -53,57 +53,44 @@
 
 <span class="kw">def</span> <span class="func-name">len</span> : (<span class="type-name">List</span>) -> <span class="type-name">Int</span>
   | len(nil) => 0
-  | len(cons(a, L)) => 1 + len(L)
-
-<span class="kw">var</span> x : <span class="type-name">Int</span></code></pre>
+  | len(cons(a, L)) => 1 + len(L)</code></pre>
 
   <p>
     The textarea highlights syntax errors as you type, with a red border and an
     error message showing where the problem was found.
   </p>
 
-  <h3>2. Givens (optional)</h3>
+  <h3>2. Prove (required)</h3>
 
   <p>
-    <strong>Givens</strong> are formulas that you assume to be true. Click the
-    <code>+</code> button to add a given, and type a formula (equation or
-    inequality) into the input field. Click <code>&times;</code> to remove one.
+    The <strong>Prove</strong> field is where you state the theorem you want to
+    prove. Enter a <strong>theorem statement</strong> using this syntax:
   </p>
 
-  <p>
-    Each given becomes a <em>numbered fact</em> that you can reference in your
-    proof. For example, if you add two givens:
-  </p>
-  <ol>
-    <li><code>x + y = 5</code></li>
-    <li><code>x &lt; 10</code></li>
-  </ol>
-  <p>
-    then you can cite fact 1 or fact 2 in your proof rules (e.g.,
-    <code>= 5 1</code> to cite the first given).
-  </p>
-
-  <p>
-    The input field turns red if the formula has a syntax error.
-  </p>
-
-  <h3>3. Prove (required)</h3>
-
-  <p>
-    The <strong>Prove</strong> field is where you state the goal formula &mdash; the
-    equation or inequality you want to prove. This is required.
-  </p>
+  <pre><code><span class="kw">theorem</span> <span class="func-name">name</span> (<span class="func-name">param1</span>, <span class="func-name">param2</span> : <span class="type-name">Type</span>)
+  | formula</code></pre>
 
   <p>Examples:</p>
   <ul>
-    <li><code>x^2 + 2*x*y + y^2 = (x + y)^2</code></li>
-    <li><code>len(echo(xs)) = 2 * len(xs)</code></li>
-    <li><code>sum(S) &lt;= sum(positives(S))</code></li>
+    <li><code>theorem square_expand (x, y : Int) | x^2 + 2*x*y + y^2 = (x + y)^2</code></li>
+    <li><code>theorem len_echo (xs : List) | len(echo(xs)) = 2 * len(xs)</code></li>
+    <li><code>theorem sum_bound (S : List) | sum(S) &lt;= sum(positives(S))</code></li>
   </ul>
+
+  <p>
+    The theorem name is used to identify the proof and to reference it from other
+    proofs as a declared theorem. The parameters name the universally quantified
+    variables, with their types.
+  </p>
+
+  <p>
+    If the theorem has a premise (hypothesis), write <code>| premise =&gt; conclusion</code>.
+    The premise becomes a numbered given in the proof.
+  </p>
 
   <h3>Formulas</h3>
 
-  <p>Formulas used in Givens and the Prove field have this syntax:</p>
+  <p>Formulas used in the theorem and in Givens have this syntax:</p>
   <ul>
     <li><strong>Operators:</strong> <code>=</code>, <code>&lt;</code>, <code>&lt;=</code></li>
     <li><strong>Arithmetic:</strong> <code>+</code>, <code>-</code>, <code>*</code>, <code>^</code> (exponentiation)</li>
@@ -116,10 +103,10 @@
   <h3>4. Check and Start</h3>
 
   <p>
-    Once you have entered valid declarations (if any), givens, and a goal
-    formula, click <strong>Check</strong>. This type-checks everything &mdash; it
-    verifies that all referenced types exist, function bodies are well-typed,
-    and the formulas use correctly typed expressions.
+    Once you have entered valid declarations (if any) and a theorem statement,
+    click <strong>Check</strong>. This type-checks everything &mdash; it verifies
+    that all referenced types exist, function bodies are well-typed, and the
+    formulas use correctly typed expressions.
   </p>
 
   <p>
@@ -140,8 +127,8 @@
   </p>
   <ul>
     <li>Your <strong>declarations</strong> displayed at the top (formatted with syntax highlighting)</li>
-    <li>Your <strong>givens</strong> as numbered facts</li>
     <li>The <strong>goal</strong> you need to prove, with a method input below it</li>
+    <li>Any <strong>premise</strong> from your theorem (if it had <code>| premise =&gt; conclusion</code>) shown as a numbered given</li>
   </ul>
 
   <img src="img/proof-view.png" alt="Proof view showing declarations, givens, and the proof method input" class="screenshot">
@@ -154,7 +141,13 @@
 
   <p>
     When the proof is complete, a <strong>Complete!</strong> message appears.
+    Two additional buttons also appear:
   </p>
+  <ul>
+    <li><strong>Show Lean / Hide Lean</strong> &mdash; toggles a panel showing
+      the proof translated into <strong>Lean 4</strong> syntax.</li>
+    <li><strong>Copy</strong> &mdash; copies the Lean code to your clipboard.</li>
+  </ul>
 
 </div>
 
