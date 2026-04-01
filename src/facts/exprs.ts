@@ -12,11 +12,14 @@ export const FUNC_NEGATE = "_neg_";
 
 
 
+import { AstNode } from './ast';
+
 /** Base class for all types of expressions. */
-export abstract class Expression {
+export abstract class Expression extends AstNode {
   variety: number;
 
-  constructor(variety: number) {
+  constructor(variety: number, line: number = 0, col: number = 0) {
+    super(line, col);
     this.variety = variety;
   }
 
@@ -140,8 +143,8 @@ export abstract class Expression {
 export class Constant extends Expression {
   value: bigint;
 
-  constructor(value: bigint) {
-    super(EXPR_CONSTANT);
+  constructor(value: bigint, line: number = 0, col: number = 0) {
+    super(EXPR_CONSTANT, line, col);
     this.value = value;
   }
 
@@ -184,8 +187,8 @@ export class Constant extends Expression {
 export class Variable extends Expression {
   name: string;
 
-  constructor(name: string) {
-    super(EXPR_VARIABLE);
+  constructor(name: string, line: number = 0, col: number = 0) {
+    super(EXPR_VARIABLE, line, col);
     this.name = name;
   }
 
@@ -224,8 +227,8 @@ export class Call extends Expression {
   name: string;
   args: Expression[];
 
-  constructor(name: string, args: Expression[]) {
-    super(EXPR_FUNCTION);
+  constructor(name: string, args: Expression[], line: number = 0, col: number = 0) {
+    super(EXPR_FUNCTION, line, col);
     this.name = name;
     this.args = args.slice(0);
   }

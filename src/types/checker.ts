@@ -8,23 +8,28 @@ import { Type, NamedType, FunctionType } from './type';
 
 const INT_TYPE = new NamedType('Int');
 
+function loc(line: number, col: number): string {
+  return line > 0 ? ` at line ${line} col ${col}` : '';
+}
+
 export class UnknownTypeError extends UserError {
-  constructor(name: string) {
-    super(`unknown type "${name}"`);
+  constructor(name: string, line: number = 0, col: number = 0) {
+    super(`unknown type "${name}"${loc(line, col)}`);
     Object.setPrototypeOf(this, UnknownTypeError.prototype);
   }
 }
 
 export class UnknownNameError extends UserError {
-  constructor(name: string) {
-    super(`unknown name "${name}"`);
+  constructor(name: string, line: number = 0, col: number = 0) {
+    super(`unknown name "${name}"${loc(line, col)}`);
     Object.setPrototypeOf(this, UnknownNameError.prototype);
   }
 }
 
 export class ArityError extends UserError {
-  constructor(name: string, expected: number, actual: number) {
-    super(`"${name}" expects ${expected} arguments but got ${actual}`);
+  constructor(name: string, expected: number, actual: number,
+      line: number = 0, col: number = 0) {
+    super(`"${name}" expects ${expected} arguments but got ${actual}${loc(line, col)}`);
     Object.setPrototypeOf(this, ArityError.prototype);
   }
 }
@@ -41,13 +46,13 @@ export class TypeMismatchError extends UserError {
  * and a TypeAst resolves to a FunctionType.
  * @throws UnknownTypeError if any referenced type name is not defined in the environment.
  */
-export function getType(env: Environment, ref: string): NamedType;
+export function getType(env: Environment, ref: string, line?: number, col?: number): NamedType;
 export function getType(env: Environment, ref: TypeAst): FunctionType;
-export function getType(env: Environment, ref: string | TypeAst): Type;
-export function getType(env: Environment, ref: string | TypeAst): Type {
+export function getType(env: Environment, ref: string | TypeAst, line?: number, col?: number): Type;
+export function getType(env: Environment, ref: string | TypeAst, line: number = 0, col: number = 0): Type {
   if (typeof ref === 'string') {
     if (!env.hasType(ref))
-      throw new UnknownTypeError(ref);
+      throw new UnknownTypeError(ref, line, col);
     return new NamedType(ref);
   } else {
     const paramTypes = ref.paramTypes.map(name => {
@@ -72,17 +77,18 @@ export function checkExpr(env: Environment, expr: Expression): NamedType {
   if (expr.variety === EXPR_CONSTANT) {
     return INT_TYPE;
   } else if (expr.variety === EXPR_VARIABLE) {
-    const name = (expr as Variable).name;
-    if (env.hasVariable(name))
-      return env.getVariable(name);
+    const v = expr as Variable;
+    if (env.hasVariable(v.name))
+      return env.getVariable(v.name);
     // Zero-arg constructors parse as variables.
-    if (env.hasConstructor(name)) {
-      const ctorType = env.getConstructorType(name);
+    if (env.hasConstructor(v.name)) {
+      const ctorType = env.getConstructorType(v.name);
       if (ctorType.kind === 'named')
         return ctorType;
-      throw new ArityError(name, (ctorType as FunctionType).paramTypes.length, 0);
+      throw new ArityError(v.name, (ctorType as FunctionType).paramTypes.length, 0,
+          v.line, v.col);
     }
-    throw new UnknownNameError(name);
+    throw new UnknownNameError(v.name, v.line, v.col);
   } else {
     const call = expr as Call;
     // Built-in arithmetic operations require Int arguments and return Int.
@@ -91,7 +97,7 @@ export function checkExpr(env: Environment, expr: Expression): NamedType {
         const argType = checkExpr(env, call.args[i]);
         if (argType.name !== 'Int')
           throw new TypeMismatchError('Int', argType.name,
-              `argument ${i + 1} of built-in arithmetic`);
+              `argument ${i + 1} of built-in arithmetic at line ${call.line} col ${call.col}`);
       }
       return INT_TYPE;
     }
@@ -103,15 +109,16 @@ export function checkExpr(env: Environment, expr: Expression): NamedType {
     } else if (env.hasConstructor(call.name)) {
       callType = env.getConstructorType(call.name);
     } else {
-      throw new UnknownNameError(call.name);
+      throw new UnknownNameError(call.name, call.line, call.col);
     }
 
     if (callType.kind !== 'function')
-      throw new ArityError(call.name, 0, call.args.length);
+      throw new ArityError(call.name, 0, call.args.length, call.line, call.col);
 
     const funcType = callType as FunctionType;
     if (funcType.paramTypes.length !== call.args.length)
-      throw new ArityError(call.name, funcType.paramTypes.length, call.args.length);
+      throw new ArityError(call.name, funcType.paramTypes.length, call.args.length,
+          call.line, call.col);
 
     for (let i = 0; i < call.args.length; i++) {
       const argType = checkExpr(env, call.args[i]);
@@ -119,7 +126,7 @@ export function checkExpr(env: Environment, expr: Expression): NamedType {
       if (argType.name !== expectedType.name)
         throw new TypeMismatchError(
             expectedType.name, argType.name,
-            `argument ${i + 1} of "${call.name}"`);
+            `argument ${i + 1} of "${call.name}" at line ${call.line} col ${call.col}`);
     }
 
     return funcType.returnType;

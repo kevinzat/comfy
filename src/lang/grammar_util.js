@@ -37,6 +37,30 @@ export function makeLangLexer(moo) {
   });
 }
 
+export function makeCodeLexer(moo) {
+  return makeLexer(moo, {
+    WS: /[ \t\r]+/,
+    NL: { match: /\n/, lineBreaks: true },
+    equalequal: '==',
+    notequal: '!=',
+    lessequal: '<=',
+    greaterequal: '>=',
+    equal: '=',
+    lessthan: '<',
+    greaterthan: '>',
+    constant: /[0-9]+/,
+    typeName: /[A-Z][_a-zA-Z0-9]*/,
+    ident: { match: /[a-z][_a-zA-Z0-9]*/, type: moo.keywords({
+      kw_while: 'while', kw_if: 'if', kw_else: 'else', kw_pass: 'pass', kw_return: 'return'
+    }) },
+    lparen: '(', rparen: ')',
+    lbrace: '{', rbrace: '}',
+    semi: ';',
+    comma: ',',
+    exp: '^', times: '*', plus: '+', minus: '-'
+  });
+}
+
 export function list_to_array(a, rev) {
   const res = [];
   while (a instanceof Array && a.length == 2) {

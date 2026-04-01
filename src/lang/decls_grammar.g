@@ -82,6 +82,6 @@ Formula -> Expr %equal Expr
 @include "../facts/expr_rules.g"
 
 Primary -> %typeName
-      {% ([a]) => new exprs.Variable(a.text) %}
+      {% ([a]) => new exprs.Variable(a.text, a.line, a.col) %}
     | %typeName %lparen Exprs %rparen
-      {% ([a, b, c, d]) => new exprs.Call(a.text, list_to_array(c, true)) %}
+      {% ([a, b, c, d]) => new exprs.Call(a.text, list_to_array(c, true), a.line, a.col) %}
