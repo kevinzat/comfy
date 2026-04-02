@@ -12,8 +12,14 @@ var grammar = {
     Lexer: clexer,
     ParserRules: [
     {"name": "Main", "symbols": ["FuncDef"], "postprocess": ([a]) => a},
-    {"name": "FuncDef", "symbols": [(clexer.has("typeName") ? {type: "typeName"} : typeName), (clexer.has("ident") ? {type: "ident"} : ident), (clexer.has("lparen") ? {type: "lparen"} : lparen), "Params", (clexer.has("rparen") ? {type: "rparen"} : rparen), (clexer.has("lbrace") ? {type: "lbrace"} : lbrace), "Stmts", (clexer.has("rbrace") ? {type: "rbrace"} : rbrace)], "postprocess":  ([ret, name, _lp, params, _rp, _lb, stmts, _rb]) =>
-        new codeAst.FuncDef(ret.text, name.text, params, stmts, ret.line, ret.col) },
+    {"name": "FuncDef", "symbols": [(clexer.has("typeName") ? {type: "typeName"} : typeName), (clexer.has("ident") ? {type: "ident"} : ident), (clexer.has("lparen") ? {type: "lparen"} : lparen), "Params", (clexer.has("rparen") ? {type: "rparen"} : rparen), "RequiresClause", "EnsuresClause", (clexer.has("lbrace") ? {type: "lbrace"} : lbrace), "Stmts", (clexer.has("rbrace") ? {type: "rbrace"} : rbrace)], "postprocess":  ([ret, name, _lp, params, _rp, requires, ensures, _lb, stmts, _rb]) =>
+        new codeAst.FuncDef(ret.text, name.text, params, stmts, requires, ensures, ret.line, ret.col) },
+    {"name": "RequiresClause", "symbols": [], "postprocess": () => []},
+    {"name": "RequiresClause", "symbols": [(clexer.has("kw_requires") ? {type: "kw_requires"} : kw_requires), "CondList"], "postprocess": ([_kw, cs]) => cs},
+    {"name": "EnsuresClause", "symbols": [], "postprocess": () => []},
+    {"name": "EnsuresClause", "symbols": [(clexer.has("kw_ensures") ? {type: "kw_ensures"} : kw_ensures), "CondList"], "postprocess": ([_kw, cs]) => cs},
+    {"name": "CondList", "symbols": ["Cond"], "postprocess": ([c]) => [c]},
+    {"name": "CondList", "symbols": ["CondList", (clexer.has("comma") ? {type: "comma"} : comma), "Cond"], "postprocess": ([cs, _c, c]) => [...cs, c]},
     {"name": "Params", "symbols": [], "postprocess": () => []},
     {"name": "Params", "symbols": ["ParamList"], "postprocess": ([a]) => a},
     {"name": "ParamList", "symbols": ["Param"], "postprocess": ([p]) => [p]},

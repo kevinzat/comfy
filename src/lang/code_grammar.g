@@ -11,9 +11,18 @@ const list_to_array = util.list_to_array;
 
 Main -> FuncDef {% ([a]) => a %}
 
-FuncDef -> %typeName %ident %lparen Params %rparen %lbrace Stmts %rbrace
-  {% ([ret, name, _lp, params, _rp, _lb, stmts, _rb]) =>
-      new codeAst.FuncDef(ret.text, name.text, params, stmts, ret.line, ret.col) %}
+FuncDef -> %typeName %ident %lparen Params %rparen RequiresClause EnsuresClause %lbrace Stmts %rbrace
+  {% ([ret, name, _lp, params, _rp, requires, ensures, _lb, stmts, _rb]) =>
+      new codeAst.FuncDef(ret.text, name.text, params, stmts, requires, ensures, ret.line, ret.col) %}
+
+RequiresClause -> null {% () => [] %}
+               | %kw_requires CondList {% ([_kw, cs]) => cs %}
+
+EnsuresClause -> null {% () => [] %}
+              | %kw_ensures CondList {% ([_kw, cs]) => cs %}
+
+CondList -> Cond {% ([c]) => [c] %}
+          | CondList %comma Cond {% ([cs, _c, c]) => [...cs, c] %}
 
 Params -> null {% () => [] %}
         | ParamList {% ([a]) => a %}

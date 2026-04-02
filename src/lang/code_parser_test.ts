@@ -242,4 +242,48 @@ describe('code_parser', function() {
     assert.ok(error);
   });
 
+  it('parse function with empty requires and ensures defaults to empty arrays', function() {
+    const { ast } = ParseCode(`Int f(Int x) { return x; }`);
+    assert.ok(ast);
+    assert.deepEqual(ast.requires, []);
+    assert.deepEqual(ast.ensures, []);
+  });
+
+  it('parse function with requires clause', function() {
+    const { ast } = ParseCode(`Int f(Int x) requires x >= 0 { return x; }`);
+    assert.ok(ast);
+    assert.equal(ast.requires.length, 1);
+    assert.equal(ast.requires[0].op, '>=');
+    assert.ok(ast.requires[0].left.equals(Variable.of('x')));
+    assert.ok(ast.requires[0].right.equals(Constant.of(0n)));
+  });
+
+  it('parse function with ensures clause', function() {
+    const { ast } = ParseCode(`Int f(Int x) ensures x >= 0 { return x; }`);
+    assert.ok(ast);
+    assert.equal(ast.ensures.length, 1);
+    assert.equal(ast.ensures[0].op, '>=');
+  });
+
+  it('parse function with both requires and ensures', function() {
+    const { ast } = ParseCode(`Int f(Int x) requires x >= 0 ensures x >= 1 { return x; }`);
+    assert.ok(ast);
+    assert.equal(ast.requires.length, 1);
+    assert.equal(ast.ensures.length, 1);
+  });
+
+  it('parse function with multiple requires conditions', function() {
+    const { ast } = ParseCode(`Int f(Int x, Int y) requires x >= 0, y >= 0 ensures x >= 0 { return x; }`);
+    assert.ok(ast);
+    assert.equal(ast.requires.length, 2);
+    assert.equal(ast.requires[0].op, '>=');
+    assert.equal(ast.requires[1].op, '>=');
+  });
+
+  it('parse function with multiple ensures conditions', function() {
+    const { ast } = ParseCode(`Int f(Int x) requires x >= 0 ensures x >= 0, x >= 1 { return x; }`);
+    assert.ok(ast);
+    assert.equal(ast.ensures.length, 2);
+  });
+
 });

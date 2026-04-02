@@ -1,9 +1,13 @@
-import React, { ChangeEvent } from 'react';
+import React from 'react';
+import Editor from 'react-simple-code-editor';
 import { DeclsAst } from '../lang/decls_ast';
 import { TheoremAst } from '../lang/theorem_ast';
 import { ParseDecls, DeclsParseResult } from '../lang/decls_parser';
+import { ParseCode, CodeParseResult } from '../lang/code_parser';
 import { TopLevelEnv, NestedEnv } from '../types/env';
+import { checkFuncDef } from '../types/code_checker';
 import { UserError } from '../facts/user_error';
+import { highlightDecls, highlightTheorem, highlightCode } from './highlight';
 import './ProofSetup.css';
 
 function formatParseError(text: string, error: string): JSX.Element {
@@ -33,6 +37,8 @@ interface ProofSetupState {
   declsResult: DeclsParseResult;
   theoremText: string;
   theoremResult: DeclsParseResult;
+  codeText: string;
+  codeResult: CodeParseResult;
   checked: boolean;
   checkError: string | undefined;
 }
@@ -41,8 +47,6 @@ interface ProofSetupState {
 export default class ProofSetup
     extends React.Component<ProofSetupProps, ProofSetupState> {
 
-  theoremRef = React.createRef<HTMLTextAreaElement>();
-
   constructor(props: ProofSetupProps) {
     super(props);
     this.state = {
@@ -50,13 +54,11 @@ export default class ProofSetup
       declsResult: {},
       theoremText: '',
       theoremResult: {},
+      codeText: '',
+      codeResult: {},
       checked: false,
       checkError: undefined,
     };
-  }
-
-  componentDidMount() {
-    this.theoremRef.current?.focus();
   }
 
   getTheorem(): TheoremAst | undefined {
@@ -69,19 +71,24 @@ export default class ProofSetup
   isValid(): boolean {
     if (this.state.declsText.length > 0 && !this.state.declsResult.ast)
       return false;
+    if (this.state.codeText.length > 0 && !this.state.codeResult.ast)
+      return false;
     return this.getTheorem() !== undefined;
   }
 
-  handleDeclsChange(evt: ChangeEvent<HTMLTextAreaElement>) {
-    const text = evt.target.value;
+  handleDeclsChange(text: string) {
     const result = text.length > 0 ? ParseDecls(text) : {};
     this.setState({ declsText: text, declsResult: result, checked: false, checkError: undefined });
   }
 
-  handleTheoremChange(evt: ChangeEvent<HTMLTextAreaElement>) {
-    const text = evt.target.value;
+  handleTheoremChange(text: string) {
     const result = text.length > 0 ? ParseDecls(text) : {};
     this.setState({ theoremText: text, theoremResult: result, checked: false, checkError: undefined });
+  }
+
+  handleCodeChange(text: string) {
+    const result = text.length > 0 ? ParseCode(text) : {};
+    this.setState({ codeText: text, codeResult: result, checked: false, checkError: undefined });
   }
 
   handleCheck() {
@@ -95,6 +102,10 @@ export default class ProofSetup
           : [theorem.conclusion];
       const thmEnv = new NestedEnv(env, theorem.params, facts);
       thmEnv.check();
+
+      if (this.state.codeResult.ast) {
+        checkFuncDef(env, this.state.codeResult.ast);
+      }
 
       this.setState({ checked: true, checkError: undefined });
     } catch (e: any) {
@@ -111,10 +122,15 @@ export default class ProofSetup
       <tr key="decls">
         <td className="setup-label">Declarations</td>
         <td>
-            <textarea className={`setup-decls-input${declsHasError ? ' func-error' : ''}`}
+          <div className={`setup-editor-wrap${declsHasError ? ' func-error' : ''}`}>
+            <Editor
                 value={this.state.declsText}
+                onValueChange={this.handleDeclsChange.bind(this)}
+                highlight={highlightDecls}
+                padding={5}
                 placeholder={"e.g., type List\n  | nil : List\n  | cons : (Int, List) -> List\ndef len : (List) -> Int\n  | len(nil) => 0\n  | len(cons(a, L)) => 1 + len(L)"}
-                onChange={this.handleDeclsChange.bind(this)} />
+                style={{ fontFamily: 'monospace', fontSize: 13, height: '100%' }} />
+          </div>
           {declsHasError && this.state.declsResult.error &&
             formatParseError(this.state.declsText, this.state.declsResult.error)}
         </td>
@@ -127,13 +143,38 @@ export default class ProofSetup
       <tr key="theorem">
         <td className="setup-label">Prove</td>
         <td>
-            <textarea className={`setup-decls-input setup-theorem${theoremHasError ? ' func-error' : ''}`}
-                ref={this.theoremRef}
+          <div className={`setup-editor-wrap setup-theorem${theoremHasError ? ' func-error' : ''}`}>
+            <Editor
                 value={this.state.theoremText}
+                onValueChange={this.handleTheoremChange.bind(this)}
+                highlight={highlightTheorem}
+                padding={5}
+                autoFocus
                 placeholder={"e.g., theorem comm (x, y : Int)\n  | x + y = y + x"}
-                onChange={this.handleTheoremChange.bind(this)} />
+                style={{ fontFamily: 'monospace', fontSize: 13, height: '100%' }} />
+          </div>
           {theoremHasError && this.state.theoremResult.error &&
             formatParseError(this.state.theoremText, this.state.theoremResult.error)}
+        </td>
+      </tr>
+    );
+
+    const codeHasError = this.state.codeText.length > 0 && !this.state.codeResult.ast;
+    rows.push(
+      <tr key="code">
+        <td className="setup-label">Code</td>
+        <td>
+          <div className={`setup-editor-wrap${codeHasError ? ' func-error' : ''}`}>
+            <Editor
+                value={this.state.codeText}
+                onValueChange={this.handleCodeChange.bind(this)}
+                highlight={highlightCode}
+                padding={5}
+                placeholder={"e.g., Int double(Int x) {\n  return 2 * x;\n}"}
+                style={{ fontFamily: 'monospace', fontSize: 13, height: '100%' }} />
+          </div>
+          {codeHasError && this.state.codeResult.error &&
+            formatParseError(this.state.codeText, this.state.codeResult.error)}
         </td>
       </tr>
     );

@@ -6,14 +6,19 @@ export class FuncDef extends AstNode {
   name: string;
   params: Param[];
   body: Stmt[];
+  requires: Cond[];
+  ensures: Cond[];
 
   constructor(returnType: string, name: string, params: Param[], body: Stmt[],
+      requires: Cond[] = [], ensures: Cond[] = [],
       line: number = 0, col: number = 0) {
     super(line, col);
     this.returnType = returnType;
     this.name = name;
     this.params = params;
     this.body = body;
+    this.requires = requires;
+    this.ensures = ensures;
   }
 }
 
