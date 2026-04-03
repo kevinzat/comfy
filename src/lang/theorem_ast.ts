@@ -5,16 +5,19 @@ export class TheoremAst {
   params: [string, string][];  // [name, typeName] pairs
   premise: Formula | undefined;
   conclusion: Formula;
+  line: number;
 
   constructor(
     name: string,
     params: [string, string][],
     premise: Formula | undefined,
     conclusion: Formula,
+    line: number = 0,
   ) {
     this.name = name;
     this.params = params;
     this.premise = premise;
     this.conclusion = conclusion;
+    this.line = line;
   }
 }

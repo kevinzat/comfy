@@ -40,8 +40,8 @@ Stmt -> %typeName %ident %equal Expr %semi
   {% ([t, n, _eq, e, _s]) => new codeAst.DeclStmt(t.text, n.text, e, t.line, t.col) %}
       | %ident %equal Expr %semi
   {% ([n, _eq, e, _s]) => new codeAst.AssignStmt(n.text, e, n.line, n.col) %}
-      | %kw_while %lparen Cond %rparen %lbrace Stmts %rbrace
-  {% ([kw, _lp, cond, _rp, _lb, stmts, _rb]) => new codeAst.WhileStmt(cond, stmts, kw.line, kw.col) %}
+      | %kw_while %lparen Cond %rparen %kw_invariant CondList %lbrace Stmts %rbrace
+  {% ([kw, _lp, cond, _rp, _ki, inv, _lb, stmts, _rb]) => new codeAst.WhileStmt(cond, inv, stmts, kw.line, kw.col) %}
       | %kw_if %lparen Cond %rparen %lbrace Stmts %rbrace %kw_else %lbrace Stmts %rbrace
   {% ([kw, _lp, cond, _rp, _lb, then_, _rb, _e, _lb2, else_, _rb2]) =>
       new codeAst.IfStmt(cond, then_, else_, kw.line, kw.col) %}

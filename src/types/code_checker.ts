@@ -11,6 +11,22 @@ export class UnknownVariableError extends UserError {
   }
 }
 
+export class ShadowedVariableError extends UserError {
+  constructor(name: string, line: number = 0, col: number = 0) {
+    const loc = line > 0 ? ` at line ${line} col ${col}` : '';
+    super(`variable declaration "${name}"${loc} shadows existing variable with the same name`);
+    Object.setPrototypeOf(this, ShadowedVariableError.prototype);
+  }
+}
+
+export class ReadOnlyVariableError extends UserError {
+  constructor(name: string, line: number = 0, col: number = 0) {
+    const loc = line > 0 ? ` at line ${line} col ${col}` : '';
+    super(`assignment to read-only variable "${name}"${loc}`);
+    Object.setPrototypeOf(this, ReadOnlyVariableError.prototype);
+  }
+}
+
 export class MissingReturnError extends UserError {
   constructor() {
     super('function body must end with a return statement or an if statement with returns in both branches');
@@ -40,6 +56,8 @@ function checkStmts(env: Environment, stmts: Stmt[], returnType: string): void {
   for (const stmt of stmts) {
     if (stmt.tag === 'decl') {
       getType(env, stmt.type, stmt.line, stmt.col);
+      if (env.hasVariable(stmt.name))
+        throw new ShadowedVariableError(stmt.name, stmt.line, stmt.col);
       const exprType = checkExpr(env, stmt.expr);
       if (exprType.name !== stmt.type)
         throw new TypeMismatchError(stmt.type, exprType.name,
@@ -48,6 +66,8 @@ function checkStmts(env: Environment, stmts: Stmt[], returnType: string): void {
     } else if (stmt.tag === 'assign') {
       if (!env.hasVariable(stmt.name))
         throw new UnknownVariableError(stmt.name, stmt.line, stmt.col);
+      if (env.isReadOnly(stmt.name))
+        throw new ReadOnlyVariableError(stmt.name, stmt.line, stmt.col);
       const varType = env.getVariable(stmt.name);
       const exprType = checkExpr(env, stmt.expr);
       if (exprType.name !== varType.name)
@@ -55,6 +75,9 @@ function checkStmts(env: Environment, stmts: Stmt[], returnType: string): void {
             `assignment to "${stmt.name}" at line ${stmt.line} col ${stmt.col}`);
     } else if (stmt.tag === 'while') {
       checkCond(env, stmt.cond);
+      for (const inv of stmt.invariant) {
+        checkCond(env, inv);
+      }
       checkStmts(env, stmt.body, returnType);
     } else if (stmt.tag === 'if') {
       checkCond(env, stmt.cond);
@@ -92,7 +115,8 @@ export function checkFuncDef(env: Environment, func: FuncDef): void {
     getType(env, param.type, param.line, param.col);
   }
   const vars: [string, string][] = func.params.map(p => [p.name, p.type]);
-  const bodyEnv = new NestedEnv(env, vars);
+  const paramNames = new Set(func.params.map(p => p.name));
+  const bodyEnv = new NestedEnv(env, vars, [], [], paramNames);
   for (const cond of func.requires) {
     checkCond(bodyEnv, cond);
   }

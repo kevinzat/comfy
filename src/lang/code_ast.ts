@@ -1,5 +1,6 @@
-import { Expression } from '../facts/exprs';
+import { Expression, Variable } from '../facts/exprs';
 import { AstNode } from '../facts/ast';
+import { Formula } from '../facts/formula';
 
 export class FuncDef extends AstNode {
   returnType: string;
@@ -65,11 +66,13 @@ export class AssignStmt extends AstNode {
 export class WhileStmt extends AstNode {
   tag: 'while' = 'while';
   cond: Cond;
+  invariant: Cond[];
   body: Stmt[];
 
-  constructor(cond: Cond, body: Stmt[], line: number = 0, col: number = 0) {
+  constructor(cond: Cond, invariant: Cond[], body: Stmt[], line: number = 0, col: number = 0) {
     super(line, col);
     this.cond = cond;
+    this.invariant = invariant;
     this.body = body;
   }
 }
@@ -109,6 +112,12 @@ export class ReturnStmt extends AstNode {
 
 export type CondOp = '==' | '!=' | '<' | '<=' | '>' | '>=';
 
+const NEG_OP: Record<CondOp, CondOp> = {
+  '==': '!=', '!=': '==',
+  '<': '>=', '<=': '>',
+  '>': '<=', '>=': '<',
+};
+
 export class Cond extends AstNode {
   left: Expression;
   op: CondOp;
@@ -120,5 +129,43 @@ export class Cond extends AstNode {
     this.left = left;
     this.op = op;
     this.right = right;
+  }
+}
+
+export function negCond(cond: Cond): Cond {
+  return new Cond(cond.left, NEG_OP[cond.op], cond.right, cond.line, cond.col);
+}
+
+export function substCond(cond: Cond, name: string, expr: Expression): Cond {
+  const v = Variable.of(name);
+  return new Cond(
+    cond.left.subst(v, expr),
+    cond.op,
+    cond.right.subst(v, expr),
+    cond.line,
+    cond.col,
+  );
+}
+
+const FORMULA_TO_COND_OP: Record<'=' | '<' | '<=', CondOp> = {
+  '=': '==', '<': '<', '<=': '<=',
+};
+
+export function formulaToCond(f: Formula): Cond {
+  return new Cond(f.left, FORMULA_TO_COND_OP[f.op], f.right);
+}
+
+/**
+ * Converts a Cond to a Formula. Swaps sides for > and >= (to produce < and <=).
+ * Throws for !=, which has no Formula equivalent.
+ */
+export function condToFormula(c: Cond): Formula {
+  switch (c.op) {
+    case '==': return new Formula(c.left, '=', c.right);
+    case '<':  return new Formula(c.left, '<', c.right);
+    case '<=': return new Formula(c.left, '<=', c.right);
+    case '>':  return new Formula(c.right, '<', c.left);
+    case '>=': return new Formula(c.right, '<=', c.left);
+    case '!=': throw new Error('Cannot convert != condition to a Formula');
   }
 }

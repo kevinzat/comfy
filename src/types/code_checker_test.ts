@@ -4,7 +4,7 @@ import { Constant, Variable } from '../facts/exprs';
 import { FuncDef, Param, DeclStmt, AssignStmt, ReturnStmt, WhileStmt, PassStmt, Cond } from '../lang/code_ast';
 import { TopLevelEnv, NestedEnv } from './env';
 import { UnknownTypeError, TypeMismatchError, UnknownNameError } from './checker';
-import { checkFuncDef, UnknownVariableError, MissingReturnError } from './code_checker';
+import { checkFuncDef, UnknownVariableError, MissingReturnError, ShadowedVariableError, ReadOnlyVariableError } from './code_checker';
 import { ParseCode } from '../lang/code_parser';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
 
@@ -84,7 +84,32 @@ describe('checkFuncDef', function() {
 
   it('accepts assignment to declared variable', function() {
     const env = makeEnv();
-    assert.doesNotThrow(() => checkFuncDef(env, parse(`Int f(Int x) { x = 5; return x; }`)));
+    assert.doesNotThrow(() => checkFuncDef(env, parse(`Int f() { Int x = 1; x = 5; return x; }`)));
+  });
+
+  it('throws ReadOnlyVariableError when assigning to a parameter', function() {
+    const env = makeEnv();
+    assert.throws(
+        () => checkFuncDef(env, parse(`Int f(Int x) { x = 5; return x; }`)),
+        ReadOnlyVariableError);
+  });
+
+  it('error message includes variable name for parameter assignment', function() {
+    const env = makeEnv();
+    let err: Error | undefined;
+    try { checkFuncDef(env, parse(`Int f(Int x) { x = 5; return x; }`)); }
+    catch (e: any) { err = e; }
+    assert.ok(err);
+    assert.ok(err.message.includes('"x"'), `expected '"x"' in: ${err.message}`);
+  });
+
+  it('error message includes line number for parameter assignment', function() {
+    const env = makeEnv();
+    const func = parse(`Int f(Int x) {\n  x = 5;\n  return x;\n}`);
+    let err: Error | undefined;
+    try { checkFuncDef(env, func); } catch (e: any) { err = e; }
+    assert.ok(err);
+    assert.ok(err.message.includes('line 2'), `expected "line 2" in: ${err.message}`);
   });
 
   it('decl variable is in scope for subsequent statements', function() {
@@ -114,31 +139,65 @@ describe('checkFuncDef', function() {
   it('accepts while loop with valid condition and body', function() {
     const env = makeEnv();
     assert.doesNotThrow(() =>
-        checkFuncDef(env, parse(`Int f(Int n) { while (n != 0) { n = n - 1; } return n; }`)));
+        checkFuncDef(env, parse(`Int f(Int n) { Int i = n; while (i != 0) invariant i >= 0 { i = i - 1; } return i; }`)));
   });
 
   it('accepts while with < condition on Int operands', function() {
     const env = makeEnv();
     assert.doesNotThrow(() =>
-        checkFuncDef(env, parse(`Int f(Int n) { while (n < 10) { n = n + 1; } return n; }`)));
+        checkFuncDef(env, parse(`Int f(Int n) { Int i = n; while (i < 10) invariant i >= 0 { i = i + 1; } return i; }`)));
   });
 
   it('accepts while with <= condition on Int operands', function() {
     const env = makeEnv();
     assert.doesNotThrow(() =>
-        checkFuncDef(env, parse(`Int f(Int n) { while (n <= 10) { n = n + 1; } return n; }`)));
+        checkFuncDef(env, parse(`Int f(Int n) { Int i = n; while (i <= 10) invariant i >= 0 { i = i + 1; } return i; }`)));
   });
 
   it('accepts while with > condition on Int operands', function() {
     const env = makeEnv();
     assert.doesNotThrow(() =>
-        checkFuncDef(env, parse(`Int f(Int n) { while (n > 0) { n = n - 1; } return n; }`)));
+        checkFuncDef(env, parse(`Int f(Int n) { Int i = n; while (i > 0) invariant i >= 0 { i = i - 1; } return i; }`)));
   });
 
   it('accepts while with >= condition on Int operands', function() {
     const env = makeEnv();
     assert.doesNotThrow(() =>
-        checkFuncDef(env, parse(`Int f(Int n) { while (n >= 0) { n = n - 1; } return n; }`)));
+        checkFuncDef(env, parse(`Int f(Int n) { Int i = n; while (i >= 0) invariant i >= 0 { i = i - 1; } return i; }`)));
+  });
+
+  it('accepts while loop with valid invariant', function() {
+    const env = makeEnv();
+    assert.doesNotThrow(() =>
+        checkFuncDef(env, parse(`Int f(Int n) { Int i = n; while (i != 0) invariant i >= 0 { i = i - 1; } return i; }`)));
+  });
+
+  it('accepts while loop with multiple invariants', function() {
+    const env = makeEnv();
+    assert.doesNotThrow(() =>
+        checkFuncDef(env, parse(`Int f(Int n) { Int i = n; while (i != 0) invariant i >= 0, i <= n { i = i - 1; } return i; }`)));
+  });
+
+  it('throws TypeMismatchError for invariant with non-Int operand in < comparison', function() {
+    const env = makeEnvWithList();
+    const func = new FuncDef('Int', 'f', [new Param('List', 'xs')], [
+      new WhileStmt(new Cond(Constant.of(0n), '!=', Constant.of(0n)),
+          [new Cond(Variable.of('xs'), '<', Constant.of(0n))],
+          [new PassStmt()]),
+      new PassStmt(),
+    ]);
+    assert.throws(() => checkFuncDef(env, func), TypeMismatchError);
+  });
+
+  it('throws UnknownNameError for invariant referencing unknown variable', function() {
+    const env = makeEnv();
+    const func = new FuncDef('Int', 'f', [], [
+      new WhileStmt(new Cond(Constant.of(0n), '!=', Constant.of(0n)),
+          [new Cond(Variable.of('z'), '>=', Constant.of(0n))],
+          [new PassStmt()]),
+      new PassStmt(),
+    ]);
+    assert.throws(() => checkFuncDef(env, func), UnknownNameError);
   });
 
   it('accepts if statement with valid condition and branches', function() {
@@ -156,8 +215,9 @@ describe('checkFuncDef', function() {
   it('throws TypeMismatchError for < when both operands are non-Int', function() {
     const env = makeEnvWithList();
     // Both sides are List — currently passes the type-equality check but must fail the Int check
+    const inv = [new Cond(Constant.of(0n), '>=', Constant.of(0n))];
     const func = new FuncDef('Int', 'f', [new Param('List', 'xs'), new Param('List', 'ys')], [
-      new WhileStmt(new Cond(Variable.of('xs'), '<', Variable.of('ys')), [new PassStmt()]),
+      new WhileStmt(new Cond(Variable.of('xs'), '<', Variable.of('ys')), inv, [new PassStmt()]),
       new PassStmt(),
     ]);
     assert.throws(() => checkFuncDef(env, func), TypeMismatchError);
@@ -166,8 +226,9 @@ describe('checkFuncDef', function() {
   it('throws TypeMismatchError for < with non-Int left operand', function() {
     const env = makeEnvWithList();
     // Param "xs" has type List; using it with < should require Int
+    const inv = [new Cond(Constant.of(0n), '>=', Constant.of(0n))];
     const func = new FuncDef('Int', 'f', [new Param('List', 'xs')], [
-      new WhileStmt(new Cond(Variable.of('xs'), '<', Constant.of(0n)), [new PassStmt()]),
+      new WhileStmt(new Cond(Variable.of('xs'), '<', Constant.of(0n)), inv, [new PassStmt()]),
       new PassStmt(),
     ]);
     assert.throws(() => checkFuncDef(env, func), TypeMismatchError);
@@ -175,8 +236,9 @@ describe('checkFuncDef', function() {
 
   it('throws TypeMismatchError for < with non-Int right operand', function() {
     const env = makeEnvWithList();
+    const inv = [new Cond(Constant.of(0n), '>=', Constant.of(0n))];
     const func = new FuncDef('Int', 'f', [new Param('List', 'xs')], [
-      new WhileStmt(new Cond(Constant.of(0n), '<', Variable.of('xs')), [new PassStmt()]),
+      new WhileStmt(new Cond(Constant.of(0n), '<', Variable.of('xs')), inv, [new PassStmt()]),
       new PassStmt(),
     ]);
     assert.throws(() => checkFuncDef(env, func), TypeMismatchError);
@@ -184,8 +246,9 @@ describe('checkFuncDef', function() {
 
   it('throws TypeMismatchError for <= with non-Int operand', function() {
     const env = makeEnvWithList();
+    const inv = [new Cond(Constant.of(0n), '>=', Constant.of(0n))];
     const func = new FuncDef('Int', 'f', [new Param('List', 'xs')], [
-      new WhileStmt(new Cond(Variable.of('xs'), '<=', Constant.of(0n)), [new PassStmt()]),
+      new WhileStmt(new Cond(Variable.of('xs'), '<=', Constant.of(0n)), inv, [new PassStmt()]),
       new PassStmt(),
     ]);
     assert.throws(() => checkFuncDef(env, func), TypeMismatchError);
@@ -193,8 +256,9 @@ describe('checkFuncDef', function() {
 
   it('throws TypeMismatchError for > with non-Int operand', function() {
     const env = makeEnvWithList();
+    const inv = [new Cond(Constant.of(0n), '>=', Constant.of(0n))];
     const func = new FuncDef('Int', 'f', [new Param('List', 'xs')], [
-      new WhileStmt(new Cond(Variable.of('xs'), '>', Constant.of(0n)), [new PassStmt()]),
+      new WhileStmt(new Cond(Variable.of('xs'), '>', Constant.of(0n)), inv, [new PassStmt()]),
       new PassStmt(),
     ]);
     assert.throws(() => checkFuncDef(env, func), TypeMismatchError);
@@ -202,8 +266,9 @@ describe('checkFuncDef', function() {
 
   it('throws TypeMismatchError for >= with non-Int operand', function() {
     const env = makeEnvWithList();
+    const inv = [new Cond(Constant.of(0n), '>=', Constant.of(0n))];
     const func = new FuncDef('Int', 'f', [new Param('List', 'xs')], [
-      new WhileStmt(new Cond(Variable.of('xs'), '>=', Constant.of(0n)), [new PassStmt()]),
+      new WhileStmt(new Cond(Variable.of('xs'), '>=', Constant.of(0n)), inv, [new PassStmt()]),
       new PassStmt(),
     ]);
     assert.throws(() => checkFuncDef(env, func), TypeMismatchError);
@@ -212,7 +277,7 @@ describe('checkFuncDef', function() {
   it('outer variables are accessible inside while body', function() {
     const env = makeEnv();
     assert.doesNotThrow(() => checkFuncDef(env, parse(
-        `Int f(Int n) { Int x = 0; while (n != 0) { x = x + 1; n = n - 1; } return x; }`)));
+        `Int f(Int n) { Int x = 0; Int i = n; while (i != 0) invariant i >= 0 { x = x + 1; i = i - 1; } return x; }`)));
   });
 
   it('outer variables are accessible inside if branches', function() {
@@ -388,7 +453,7 @@ describe('checkFuncDef', function() {
   it('throws MissingReturnError for function body ending with while', function() {
     const env = makeEnv();
     assert.throws(
-        () => checkFuncDef(env, parse(`Int f(Int n) { while (n != 0) { n = n - 1; } }`)),
+        () => checkFuncDef(env, parse(`Int f(Int n) { Int i = n; while (i != 0) invariant i >= 0 { i = i - 1; } }`)),
         MissingReturnError);
   });
 
@@ -433,6 +498,25 @@ describe('checkFuncDef', function() {
         () => checkFuncDef(env, parse(
             `Int f(Int x) { if (x == 0) { return 0; } else { if (x == 1) { return 1; } else { pass; } } }`)),
         MissingReturnError);
+  });
+
+  it('throws ShadowedVariableError when decl shadows a parameter', function() {
+    const env = makeEnv();
+    assert.throws(
+        () => checkFuncDef(env, parse(`Int f(Int x) { Int x = 1; return x; }`)),
+        ShadowedVariableError);
+  });
+
+  it('throws ShadowedVariableError when decl shadows a previous decl', function() {
+    const env = makeEnv();
+    assert.throws(
+        () => checkFuncDef(env, parse(`Int f() { Int x = 1; Int x = 2; return x; }`)),
+        ShadowedVariableError);
+  });
+
+  it('accepts decl of a name not previously declared', function() {
+    const env = makeEnv();
+    assert.doesNotThrow(() => checkFuncDef(env, parse(`Int f(Int x) { Int y = 1; return y; }`)));
   });
 
 });

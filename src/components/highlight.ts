@@ -76,3 +76,51 @@ export function highlightTheorem(code: string): string {
 export function highlightCode(code: string): string {
   return scan(code, CODE_PATTERNS);
 }
+
+/** Returns the Unicode circled digit for n (1–20), or "(n)" for larger values. */
+function circledNum(n: number): string {
+  if (n >= 1 && n <= 20) return String.fromCodePoint(0x245F + n);
+  return `(${n})`;
+}
+
+const BADGE_STYLE =
+  'background:#b06000;color:white;font-weight:bold;font-size:0.75em;' +
+  'border-radius:3px;padding:1px 3px;vertical-align:super;margin-left:4px';
+
+/**
+ * Highlights code with small superscript obligation-number badges injected at
+ * the end of specific lines. lineBadges maps 1-indexed line numbers to a list
+ * of obligation numbers (multiple obligations may share a line).
+ */
+export function highlightCodeWithBadges(
+  code: string,
+  lineBadges: Map<number, number[]>,
+): string {
+  return code.split('\n').map((line, i) => {
+    const highlighted = scan(line, CODE_PATTERNS);
+    const nums = lineBadges.get(i + 1);
+    if (nums && nums.length > 0) {
+      return highlighted +
+        `<span style="${BADGE_STYLE}">${nums.map(circledNum).join('')}</span>`;
+    }
+    return highlighted;
+  }).join('\n');
+}
+
+/**
+ * Like highlightCodeWithBadges but uses the theorem/decls patterns.
+ */
+export function highlightTheoremWithBadges(
+  code: string,
+  lineBadges: Map<number, number[]>,
+): string {
+  return code.split('\n').map((line, i) => {
+    const highlighted = scan(line, THEOREM_PATTERNS);
+    const nums = lineBadges.get(i + 1);
+    if (nums && nums.length > 0) {
+      return highlighted +
+        `<span style="${BADGE_STYLE}">${nums.map(circledNum).join('')}</span>`;
+    }
+    return highlighted;
+  }).join('\n');
+}

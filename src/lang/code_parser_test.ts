@@ -61,7 +61,7 @@ describe('code_parser', function() {
   });
 
   it('parse while loop', function() {
-    const { ast } = ParseCode(`Int f(Int n) { while (n != 0) { n = n - 1; } }`);
+    const { ast } = ParseCode(`Int f(Int n) { while (n != 0) invariant n >= 0 { n = n - 1; } }`);
     assert.ok(ast);
     assert.equal(ast.body.length, 1);
     const stmt = ast.body[0];
@@ -71,6 +71,25 @@ describe('code_parser', function() {
     assert.ok(stmt.cond.left.equals(Variable.of('n')));
     assert.ok(stmt.cond.right.equals(Constant.of(0n)));
     assert.equal(stmt.body.length, 1);
+  });
+
+  it('parse while loop invariant', function() {
+    const { ast } = ParseCode(`Int f(Int n) { while (n != 0) invariant n >= 0 { n = n - 1; } }`);
+    assert.ok(ast);
+    const stmt = ast.body[0] as WhileStmt;
+    assert.equal(stmt.invariant.length, 1);
+    assert.equal(stmt.invariant[0].op, '>=');
+    assert.ok(stmt.invariant[0].left.equals(Variable.of('n')));
+    assert.ok(stmt.invariant[0].right.equals(Constant.of(0n)));
+  });
+
+  it('parse while loop with multiple invariants', function() {
+    const { ast } = ParseCode(`Int f(Int n) { while (n != 0) invariant n >= 0, n <= 10 { n = n - 1; } }`);
+    assert.ok(ast);
+    const stmt = ast.body[0] as WhileStmt;
+    assert.equal(stmt.invariant.length, 2);
+    assert.equal(stmt.invariant[0].op, '>=');
+    assert.equal(stmt.invariant[1].op, '<=');
   });
 
   it('parse if/else', function() {
@@ -107,7 +126,7 @@ describe('code_parser', function() {
   it('parse nested statements', function() {
     const { ast } = ParseCode(
         `Int gcd(Int a, Int b) {
-           while (b != 0) {
+           while (b != 0) invariant b >= 0 {
              Int t = b;
              b = a - b;
              a = t;
@@ -161,7 +180,7 @@ describe('code_parser', function() {
   });
 
   it('records line/col on WhileStmt', function() {
-    const { ast } = ParseCode(`Int f(Int n) { while (n != 0) { pass; } }`);
+    const { ast } = ParseCode(`Int f(Int n) { while (n != 0) invariant n >= 0 { pass; } }`);
     assert.ok(ast);
     assert.equal(ast.body[0].line, 1);
     assert.ok(ast.body[0].col > 0);
@@ -189,35 +208,35 @@ describe('code_parser', function() {
   });
 
   it('parse condition with <', function() {
-    const { ast } = ParseCode(`Int f(Int x) { while (x < 10) { pass; } }`);
+    const { ast } = ParseCode(`Int f(Int x) { while (x < 10) invariant x >= 0 { pass; } }`);
     assert.ok(ast);
     const loop = ast.body[0] as WhileStmt;
     assert.equal(loop.cond.op, '<');
   });
 
   it('parse condition with <=', function() {
-    const { ast } = ParseCode(`Int f(Int x) { while (x <= 10) { pass; } }`);
+    const { ast } = ParseCode(`Int f(Int x) { while (x <= 10) invariant x >= 0 { pass; } }`);
     assert.ok(ast);
     const loop = ast.body[0] as WhileStmt;
     assert.equal(loop.cond.op, '<=');
   });
 
   it('parse condition with >', function() {
-    const { ast } = ParseCode(`Int f(Int x) { while (x > 0) { pass; } }`);
+    const { ast } = ParseCode(`Int f(Int x) { while (x > 0) invariant x >= 0 { pass; } }`);
     assert.ok(ast);
     const loop = ast.body[0] as WhileStmt;
     assert.equal(loop.cond.op, '>');
   });
 
   it('parse condition with >=', function() {
-    const { ast } = ParseCode(`Int f(Int x) { while (x >= 0) { pass; } }`);
+    const { ast } = ParseCode(`Int f(Int x) { while (x >= 0) invariant x >= 0 { pass; } }`);
     assert.ok(ast);
     const loop = ast.body[0] as WhileStmt;
     assert.equal(loop.cond.op, '>=');
   });
 
   it('records line/col on Cond', function() {
-    const { ast } = ParseCode(`Int f(Int n) { while (n != 0) { pass; } }`);
+    const { ast } = ParseCode(`Int f(Int n) { while (n != 0) invariant n >= 0 { pass; } }`);
     assert.ok(ast);
     const loop = ast.body[0] as WhileStmt;
     assert.equal(loop.cond.line, 1);
@@ -225,7 +244,7 @@ describe('code_parser', function() {
   });
 
   it('records correct line for multiline function', function() {
-    const { ast } = ParseCode(`Int f(Int n) {\n  while (n != 0) {\n    pass;\n  }\n}`);
+    const { ast } = ParseCode(`Int f(Int n) {\n  while (n != 0) invariant n >= 0 {\n    pass;\n  }\n}`);
     assert.ok(ast);
     assert.equal(ast.body[0].line, 2);
   });

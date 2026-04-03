@@ -6,8 +6,10 @@ import { ParseFormula } from '../facts/formula_parser';
 import { TypeDeclAst } from '../lang/type_ast';
 import { FuncAst, Param, ParamVar, ParamConstructor } from '../lang/func_ast';
 import { TheoremAst } from '../lang/theorem_ast';
+import { condToFormula } from '../lang/code_ast';
 import { ProofFile, ProofNode, CalcProofNode, CaseBlock } from './proof_file';
 import { DeclsAst } from '../lang/decls_ast';
+import { ProofObligation } from '../program/obligations';
 
 
 function collectCtors(decls: DeclsAst): Set<string> {
@@ -254,6 +256,52 @@ function proofToLean(
   }
 
   throw new Error(`unknown proof kind`);
+}
+
+/**
+ * Convert a proof obligation and its completed proof to a Lean 4 source string.
+ * Premises with != are skipped (they have no Formula equivalent).
+ * Multiple premises become separate hypothesis parameters h_1, h_2, etc.
+ */
+export function oblToLean(
+  obl: ProofObligation,
+  decls: DeclsAst,
+  proof: ProofNode,
+): string {
+  const ctors = collectCtors(decls);
+  const lines: string[] = [];
+
+  lines.push('namespace Comfy');
+  lines.push('');
+
+  for (const type of decls.types) {
+    lines.push(typeToLean(type));
+    lines.push('');
+  }
+  for (const func of decls.functions) {
+    lines.push(funcToLean(func, ctors));
+    lines.push('');
+  }
+  for (const thm of decls.theorems) {
+    lines.push(axiomToLean(thm, ctors));
+    lines.push('');
+  }
+
+  const paramStr = paramsToLean(obl.params);
+  const provable = obl.premises.filter(c => c.op !== '!=');
+  const hyps = provable.map((c, i) =>
+    `(h_${i + 1} : ${formulaToLean(condToFormula(c), ctors)})`
+  ).join(' ');
+  const conclusion = formulaToLean(condToFormula(obl.goal), ctors);
+
+  const sig = ['obligation', paramStr, hyps].filter(Boolean).join(' ');
+  lines.push(`theorem ${sig} : ${conclusion} := by`);
+  lines.push(proofToLean(proof, ctors, '  ', []));
+  lines.push('');
+  lines.push('end Comfy');
+  lines.push('');
+
+  return lines.join('\n');
 }
 
 /** Convert a parsed proof file to a valid Lean 4 source string. */

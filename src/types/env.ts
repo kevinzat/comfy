@@ -63,6 +63,9 @@ export interface Environment {
    */
   getVariable(name: string): NamedType;
 
+  /** Returns true if the variable exists and is read-only (e.g. a function parameter). */
+  isReadOnly(name: string): boolean;
+
   /** Returns the number of known facts. */
   numFacts(): number;
   /**
@@ -231,6 +234,10 @@ export class TopLevelEnv implements Environment {
     throw new Error(`unknown variable: "${name}"`);
   }
 
+  isReadOnly(_name: string): boolean {
+    return false;
+  }
+
   numFacts(): number {
     return this.facts.length;
   }
@@ -252,6 +259,7 @@ export class TopLevelEnv implements Environment {
 export class NestedEnv implements Environment {
   private parent: Environment;
   private locals: Map<string, NamedType>;
+  private readOnly_: Set<string>;
   private localFacts: Formula[];
   private localTheorems: TheoremAst[];
 
@@ -262,9 +270,11 @@ export class NestedEnv implements Environment {
    * @throws UnknownTypeError if any variable references an unknown type.
    */
   constructor(parent: Environment, variables: [string, string][],
-      facts: Formula[] = [], theorems: TheoremAst[] = []) {
+      facts: Formula[] = [], theorems: TheoremAst[] = [],
+      readOnly: Set<string> = new Set()) {
     this.parent = parent;
     this.locals = new Map();
+    this.readOnly_ = readOnly;
     for (const [name, typeName] of variables) {
       this.locals.set(name, getType(parent, typeName));
     }
@@ -305,6 +315,12 @@ export class NestedEnv implements Environment {
     if (this.locals.has(name))
       return this.locals.get(name)!;
     return this.parent.getVariable(name);
+  }
+
+  isReadOnly(name: string): boolean {
+    if (this.locals.has(name))
+      return this.readOnly_.has(name);
+    return this.parent.isReadOnly(name);
   }
 
   numFacts(): number {

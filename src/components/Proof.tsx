@@ -1,12 +1,13 @@
 import React from 'react';
 import { Formula } from '../facts/formula';
 import { DeclsAst } from '../lang/decls_ast';
-import { TheoremAst } from '../lang/theorem_ast';
+import { condToFormula } from '../lang/code_ast';
 import { TypeDeclAst } from '../lang/type_ast';
 import { FuncAst, Param, ParamConstructor, funcToDefinitions } from '../lang/func_ast';
 import { TopLevelEnv, NestedEnv } from '../types/env';
-import { ProofFile } from '../proof/proof_file';
-import { toLean } from '../proof/lean';
+import { ProofObligation } from '../program/obligations';
+import { ProofNode } from '../proof/proof_file';
+import { oblToLean } from '../proof/lean';
 import { ExprToHtml, OpToHtml } from './ProofElements';
 import ProofBlock from './ProofBlock';
 import './Proof.css';
@@ -14,7 +15,8 @@ import './Proof.css';
 
 export interface ProofProps {
   decls: DeclsAst;
-  theorem: TheoremAst;
+  obligation: ProofObligation;
+  onBack: (proved: boolean) => void;
 }
 
 interface ProofState {
@@ -102,16 +104,7 @@ export default class Proof extends React.Component<ProofProps, ProofState> {
   private getLeanText(): string {
     const proofNode = this.proofBlockRef.current?.getProofNode() ?? null;
     if (!proofNode) return '';
-    const { decls, theorem } = this.props;
-    const fullDecls = new DeclsAst(decls.types, decls.functions, [...decls.theorems, theorem]);
-    const pf: ProofFile = {
-      decls: fullDecls,
-      theoremName: theorem.name,
-      theoremLine: 0,
-      givens: [],
-      proof: proofNode,
-    };
-    return toLean(pf);
+    return oblToLean(this.props.obligation, this.props.decls, proofNode);
   }
 
   private copyLean() {
@@ -120,16 +113,39 @@ export default class Proof extends React.Component<ProofProps, ProofState> {
   }
 
   render() {
-    const decls = this.props.decls;
-    const theorem = this.props.theorem;
-    const givens: Formula[] = theorem.premise ? [theorem.premise] : [];
-    const goal = theorem.conclusion;
-    const env = new TopLevelEnv(decls.types, decls.functions,
-        [], decls.theorems);
-    const proofEnv = new NestedEnv(env, theorem.params, givens);
+    const { decls, obligation, onBack } = this.props;
+
+    const backBtn = (
+      <span className="btn-edit-chain"
+          onClick={() => onBack(this.state.complete)}>← Back</span>
+    );
+
+    if (obligation.goal.op === '!=') {
+      const backBtnUnprovable = (
+        <span className="btn-edit-chain"
+            onClick={() => onBack(false)}>← Back</span>
+      );
+      return (
+        <div className="proof">
+          <div className="proof-toggle">{backBtnUnprovable}</div>
+          <div className="check-error-msg">
+            This obligation cannot be proven (goal involves ≠).
+          </div>
+        </div>
+      );
+    }
+
+    const goal: Formula = condToFormula(obligation.goal);
+    const provablePremises = obligation.premises.filter(c => c.op !== '!=');
+    const givens: Formula[] = provablePremises.map(condToFormula);
+
+    const env = new TopLevelEnv(decls.types, decls.functions, [], decls.theorems);
+    const proofEnv = new NestedEnv(env, obligation.params, givens);
+
+    // Pass a single premise to ProofBlock for induction hypothesis support.
+    const premise = givens.length === 1 ? givens[0] : undefined;
 
     const hasDecls = decls.types.length > 0 || decls.functions.length > 0;
-
 
     return (
       <div className="proof">
@@ -161,11 +177,12 @@ export default class Proof extends React.Component<ProofProps, ProofState> {
             </table>
           </div>
         }
-        <ProofBlock ref={this.proofBlockRef} formula={goal} env={proofEnv} premise={theorem.premise}
+        <ProofBlock ref={this.proofBlockRef} formula={goal} env={proofEnv} premise={premise}
             defNames={decls.functions.flatMap(f => funcToDefinitions(f).map(d => d.name))}
             showHtml={this.state.showHtml}
             onComplete={(c) => this.setState({ complete: c })} />
         <div className="proof-toggle">
+          {backBtn}
           <span className="btn-edit-chain"
               onClick={() => this.setState({ showHtml: !this.state.showHtml })}>
             {this.state.showHtml ? 'Show Text' : 'Show HTML'}
