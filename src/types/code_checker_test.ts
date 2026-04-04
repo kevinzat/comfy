@@ -1,7 +1,7 @@
 
 import * as assert from 'assert';
 import { Constant, Variable } from '../facts/exprs';
-import { FuncDef, Param, DeclStmt, AssignStmt, ReturnStmt, WhileStmt, PassStmt, Cond } from '../lang/code_ast';
+import { FuncDef, Param, DeclStmt, AssignStmt, ReturnStmt, WhileStmt, PassStmt, CondAst } from '../lang/code_ast';
 import { TopLevelEnv, NestedEnv } from './env';
 import { UnknownTypeError, TypeMismatchError, UnknownNameError } from './checker';
 import { checkFuncDef, UnknownVariableError, MissingReturnError, ShadowedVariableError, ReadOnlyVariableError } from './code_checker';
@@ -181,8 +181,8 @@ describe('checkFuncDef', function() {
   it('throws TypeMismatchError for invariant with non-Int operand in < comparison', function() {
     const env = makeEnvWithList();
     const func = new FuncDef('Int', 'f', [new Param('List', 'xs')], [
-      new WhileStmt(new Cond(Constant.of(0n), '!=', Constant.of(0n)),
-          [new Cond(Variable.of('xs'), '<', Constant.of(0n))],
+      new WhileStmt(new CondAst(Constant.of(0n), '!=', Constant.of(0n)),
+          [new CondAst(Variable.of('xs'), '<', Constant.of(0n))],
           [new PassStmt()]),
       new PassStmt(),
     ]);
@@ -192,8 +192,8 @@ describe('checkFuncDef', function() {
   it('throws UnknownNameError for invariant referencing unknown variable', function() {
     const env = makeEnv();
     const func = new FuncDef('Int', 'f', [], [
-      new WhileStmt(new Cond(Constant.of(0n), '!=', Constant.of(0n)),
-          [new Cond(Variable.of('z'), '>=', Constant.of(0n))],
+      new WhileStmt(new CondAst(Constant.of(0n), '!=', Constant.of(0n)),
+          [new CondAst(Variable.of('z'), '>=', Constant.of(0n))],
           [new PassStmt()]),
       new PassStmt(),
     ]);
@@ -215,9 +215,9 @@ describe('checkFuncDef', function() {
   it('throws TypeMismatchError for < when both operands are non-Int', function() {
     const env = makeEnvWithList();
     // Both sides are List — currently passes the type-equality check but must fail the Int check
-    const inv = [new Cond(Constant.of(0n), '>=', Constant.of(0n))];
+    const inv = [new CondAst(Constant.of(0n), '>=', Constant.of(0n))];
     const func = new FuncDef('Int', 'f', [new Param('List', 'xs'), new Param('List', 'ys')], [
-      new WhileStmt(new Cond(Variable.of('xs'), '<', Variable.of('ys')), inv, [new PassStmt()]),
+      new WhileStmt(new CondAst(Variable.of('xs'), '<', Variable.of('ys')), inv, [new PassStmt()]),
       new PassStmt(),
     ]);
     assert.throws(() => checkFuncDef(env, func), TypeMismatchError);
@@ -226,9 +226,9 @@ describe('checkFuncDef', function() {
   it('throws TypeMismatchError for < with non-Int left operand', function() {
     const env = makeEnvWithList();
     // Param "xs" has type List; using it with < should require Int
-    const inv = [new Cond(Constant.of(0n), '>=', Constant.of(0n))];
+    const inv = [new CondAst(Constant.of(0n), '>=', Constant.of(0n))];
     const func = new FuncDef('Int', 'f', [new Param('List', 'xs')], [
-      new WhileStmt(new Cond(Variable.of('xs'), '<', Constant.of(0n)), inv, [new PassStmt()]),
+      new WhileStmt(new CondAst(Variable.of('xs'), '<', Constant.of(0n)), inv, [new PassStmt()]),
       new PassStmt(),
     ]);
     assert.throws(() => checkFuncDef(env, func), TypeMismatchError);
@@ -236,9 +236,9 @@ describe('checkFuncDef', function() {
 
   it('throws TypeMismatchError for < with non-Int right operand', function() {
     const env = makeEnvWithList();
-    const inv = [new Cond(Constant.of(0n), '>=', Constant.of(0n))];
+    const inv = [new CondAst(Constant.of(0n), '>=', Constant.of(0n))];
     const func = new FuncDef('Int', 'f', [new Param('List', 'xs')], [
-      new WhileStmt(new Cond(Constant.of(0n), '<', Variable.of('xs')), inv, [new PassStmt()]),
+      new WhileStmt(new CondAst(Constant.of(0n), '<', Variable.of('xs')), inv, [new PassStmt()]),
       new PassStmt(),
     ]);
     assert.throws(() => checkFuncDef(env, func), TypeMismatchError);
@@ -246,9 +246,9 @@ describe('checkFuncDef', function() {
 
   it('throws TypeMismatchError for <= with non-Int operand', function() {
     const env = makeEnvWithList();
-    const inv = [new Cond(Constant.of(0n), '>=', Constant.of(0n))];
+    const inv = [new CondAst(Constant.of(0n), '>=', Constant.of(0n))];
     const func = new FuncDef('Int', 'f', [new Param('List', 'xs')], [
-      new WhileStmt(new Cond(Variable.of('xs'), '<=', Constant.of(0n)), inv, [new PassStmt()]),
+      new WhileStmt(new CondAst(Variable.of('xs'), '<=', Constant.of(0n)), inv, [new PassStmt()]),
       new PassStmt(),
     ]);
     assert.throws(() => checkFuncDef(env, func), TypeMismatchError);
@@ -256,9 +256,9 @@ describe('checkFuncDef', function() {
 
   it('throws TypeMismatchError for > with non-Int operand', function() {
     const env = makeEnvWithList();
-    const inv = [new Cond(Constant.of(0n), '>=', Constant.of(0n))];
+    const inv = [new CondAst(Constant.of(0n), '>=', Constant.of(0n))];
     const func = new FuncDef('Int', 'f', [new Param('List', 'xs')], [
-      new WhileStmt(new Cond(Variable.of('xs'), '>', Constant.of(0n)), inv, [new PassStmt()]),
+      new WhileStmt(new CondAst(Variable.of('xs'), '>', Constant.of(0n)), inv, [new PassStmt()]),
       new PassStmt(),
     ]);
     assert.throws(() => checkFuncDef(env, func), TypeMismatchError);
@@ -266,9 +266,9 @@ describe('checkFuncDef', function() {
 
   it('throws TypeMismatchError for >= with non-Int operand', function() {
     const env = makeEnvWithList();
-    const inv = [new Cond(Constant.of(0n), '>=', Constant.of(0n))];
+    const inv = [new CondAst(Constant.of(0n), '>=', Constant.of(0n))];
     const func = new FuncDef('Int', 'f', [new Param('List', 'xs')], [
-      new WhileStmt(new Cond(Variable.of('xs'), '>=', Constant.of(0n)), inv, [new PassStmt()]),
+      new WhileStmt(new CondAst(Variable.of('xs'), '>=', Constant.of(0n)), inv, [new PassStmt()]),
       new PassStmt(),
     ]);
     assert.throws(() => checkFuncDef(env, func), TypeMismatchError);
@@ -391,21 +391,21 @@ describe('checkFuncDef', function() {
   it('throws TypeMismatchError for requires condition with non-Int operand in < comparison', function() {
     const env = makeEnvWithList();
     const func = new FuncDef('Int', 'f', [new Param('List', 'xs')], [],
-        [new Cond(Variable.of('xs'), '<', Constant.of(0n))], []);
+        [new CondAst(Variable.of('xs'), '<', Constant.of(0n))], []);
     assert.throws(() => checkFuncDef(env, func), TypeMismatchError);
   });
 
   it('throws TypeMismatchError for ensures condition with non-Int operand in < comparison', function() {
     const env = makeEnvWithList();
     const func = new FuncDef('Int', 'f', [new Param('List', 'xs')], [],
-        [], [new Cond(Variable.of('xs'), '<', Constant.of(0n))]);
+        [], [new CondAst(Variable.of('xs'), '<', Constant.of(0n))]);
     assert.throws(() => checkFuncDef(env, func), TypeMismatchError);
   });
 
   it('throws UnknownNameError for requires condition referencing unknown variable', function() {
     const env = makeEnv();
     const func = new FuncDef('Int', 'f', [], [],
-        [new Cond(Variable.of('z'), '>=', Constant.of(0n))], []);
+        [new CondAst(Variable.of('z'), '>=', Constant.of(0n))], []);
     assert.throws(() => checkFuncDef(env, func), UnknownNameError);
   });
 
@@ -422,14 +422,14 @@ describe('checkFuncDef', function() {
         `List f(List xs) ensures rv == xs { return xs; }`)));
     // rv (type List) used with < should fail since < requires Int
     const func = new FuncDef('List', 'f', [new Param('List', 'xs')], [],
-        [], [new Cond(Variable.of('rv'), '<', Constant.of(0n))]);
+        [], [new CondAst(Variable.of('rv'), '<', Constant.of(0n))]);
     assert.throws(() => checkFuncDef(env, func), TypeMismatchError);
   });
 
   it('rv is not in scope in requires', function() {
     const env = makeEnv();
     const func = new FuncDef('Int', 'f', [], [],
-        [new Cond(Variable.of('rv'), '>=', Constant.of(0n))], []);
+        [new CondAst(Variable.of('rv'), '>=', Constant.of(0n))], []);
     assert.throws(() => checkFuncDef(env, func), UnknownNameError);
   });
 

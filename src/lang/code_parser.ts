@@ -22,12 +22,13 @@ function extractLineCol(msg: string): { line?: number, col?: number } {
 export function ParseCode(text: string): CodeParseResult {
   try {
     const parser =
-        new nearley.Parser(nearley.Grammar.fromCompiled(grammar as any));
+        new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
     parser.feed(text);
     if (parser.results.length > 1) {
       return { error: `ambiguous grammar` };
     } else if (parser.results.length == 1) {
-      return { ast: parser.results[0] as FuncDef };
+      const ast: FuncDef = parser.results[0];
+      return { ast };
     } else {
       return { error: `unexpected end of input` };
     }

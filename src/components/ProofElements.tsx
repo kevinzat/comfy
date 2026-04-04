@@ -23,65 +23,59 @@ export function ExprToHtml(expr: Expression): JSX.Element {
 function AddExprHtml(expr: Expression, parts: any[]): void {
   switch (expr.variety) {
     case EXPR_CONSTANT: {
-      const c = expr as Constant;
-      parts.push(<span className="expr-constant">{c.value.toString()}</span>);
+      parts.push(<span className="expr-constant">{expr.value.toString()}</span>);
       break;
     }
 
     case EXPR_VARIABLE: {
-      const v = expr as Variable;
-      parts.push(<i className="expr-variable">{v.name}</i>);
+      parts.push(<i className="expr-variable">{expr.name}</i>);
       break;
     }
 
     case EXPR_FUNCTION: {
-      const call = expr as Call;
-      const prec = call.precedence();
+      const prec = expr.precedence();
 
       if (Call.isNegation(expr)) {
         parts.push(<span className="expr-op">&minus;</span>);
-        AddWrappedExprHtml(call.args[0], prec, false, parts);
+        AddWrappedExprHtml(expr.args[0], prec, false, parts);
 
-      } else if (call.name === FUNC_EXPONENTIATE && call.args.length === 2) {
-        AddWrappedExprHtml(call.args[0], prec, true, parts);
-        parts.push(<sup>{ExprToHtml(call.args[1])}</sup>);
+      } else if (expr.name === FUNC_EXPONENTIATE && expr.args.length === 2) {
+        AddWrappedExprHtml(expr.args[0], prec, true, parts);
+        parts.push(<sup>{ExprToHtml(expr.args[1])}</sup>);
 
-      } else if (call.name === FUNC_ADD) {
-        AddWrappedExprHtml(call.args[0], prec, false, parts);
-        for (let i = 1; i < call.args.length; i++) {
+      } else if (expr.name === FUNC_ADD) {
+        AddWrappedExprHtml(expr.args[0], prec, false, parts);
+        for (let i = 1; i < expr.args.length; i++) {
           parts.push(" + ");
-          AddWrappedExprHtml(call.args[i], prec, true, parts);
+          AddWrappedExprHtml(expr.args[i], prec, true, parts);
         }
 
-      } else if (call.name === FUNC_SUBTRACT) {
-        AddWrappedExprHtml(call.args[0], prec, false, parts);
-        for (let i = 1; i < call.args.length; i++) {
+      } else if (expr.name === FUNC_SUBTRACT) {
+        AddWrappedExprHtml(expr.args[0], prec, false, parts);
+        for (let i = 1; i < expr.args.length; i++) {
           parts.push(" \u2212 ");
-          AddWrappedExprHtml(call.args[i], prec, true, parts);
+          AddWrappedExprHtml(expr.args[i], prec, true, parts);
         }
 
-      } else if (call.name === FUNC_MULTIPLY) {
-        AddWrappedExprHtml(call.args[0], prec, false, parts);
-        for (let i = 1; i < call.args.length; i++) {
+      } else if (expr.name === FUNC_MULTIPLY) {
+        AddWrappedExprHtml(expr.args[0], prec, false, parts);
+        for (let i = 1; i < expr.args.length; i++) {
           parts.push(<span className="expr-op">&middot;</span>);
-          AddWrappedExprHtml(call.args[i], prec, true, parts);
+          AddWrappedExprHtml(expr.args[i], prec, true, parts);
         }
 
       } else {
         // Generic function call: f(a, b, ...)
-        parts.push(<span className="expr-function">{call.name}</span>);
+        parts.push(<span className="expr-function">{expr.name}</span>);
         parts.push("(");
-        for (let i = 0; i < call.args.length; i++) {
+        for (let i = 0; i < expr.args.length; i++) {
           if (i > 0) parts.push(", ");
-          AddExprHtml(call.args[i], parts);
+          AddExprHtml(expr.args[i], parts);
         }
         parts.push(")");
       }
       break;
     }
-
-    default:
-      throw new Error(`unknown expression variety: ${expr.variety}`);
   }
 }
 
@@ -103,13 +97,10 @@ export function RuleToHtml(parsed: RuleAst): JSX.Element {
   switch (parsed.variety) {
     case RULE_ALGEBRA:
       return <span className="rule-display"></span>;
-    case RULE_SUBSTITUTE: {
-      const s = parsed as SubstituteAst;
-      return <span className="rule-display">by {s.index}</span>;
-    }
+    case RULE_SUBSTITUTE:
+      return <span className="rule-display">by {parsed.index}</span>;
     case RULE_DEFINITION: {
-      const d = parsed as DefinitionAst;
-      const funcName = d.name.replace(/_\d+$/, '');
+      const funcName = parsed.name.replace(/_\d+$/, '');
       return <span className="rule-display">Def of {funcName}</span>;
     }
     default:
@@ -122,13 +113,10 @@ export function TacticToHtml(parsed: TacticAst): JSX.Element {
   switch (parsed.variety) {
     case TACTIC_ALGEBRA:
       return <span className="rule-display"></span>;
-    case TACTIC_SUBSTITUTE: {
-      const s = parsed as SubstituteTacticAst;
-      return <span className="rule-display">by {s.index}</span>;
-    }
+    case TACTIC_SUBSTITUTE:
+      return <span className="rule-display">by {parsed.index}</span>;
     case TACTIC_DEFINITION: {
-      const d = parsed as DefinitionTacticAst;
-      const funcName = d.name.replace(/_\d+$/, '');
+      const funcName = parsed.name.replace(/_\d+$/, '');
       return <span className="rule-display">Def of {funcName}</span>;
     }
     default:

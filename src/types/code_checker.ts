@@ -1,5 +1,5 @@
 import { UserError } from '../facts/user_error';
-import { FuncDef, Stmt, Cond } from '../lang/code_ast';
+import { FuncDef, Stmt, CondAst, PropAst, AndPropAst, OrPropAst, NotPropAst } from '../lang/code_ast';
 import { Environment, NestedEnv } from './env';
 import { getType, checkExpr, TypeMismatchError } from './checker';
 
@@ -34,7 +34,7 @@ export class MissingReturnError extends UserError {
   }
 }
 
-function checkCond(env: Environment, cond: Cond): void {
+function checkCond(env: Environment, cond: CondAst): void {
   const leftType = checkExpr(env, cond.left);
   const rightType = checkExpr(env, cond.right);
   const loc = `line ${cond.line} col ${cond.col}`;
@@ -49,6 +49,17 @@ function checkCond(env: Environment, cond: Cond): void {
     if (leftType.name !== rightType.name)
       throw new TypeMismatchError(leftType.name, rightType.name,
           `sides of "${cond.op}" at ${loc}`);
+  }
+}
+
+function checkProp(env: Environment, prop: PropAst): void {
+  if (prop instanceof AndPropAst || prop instanceof OrPropAst) {
+    checkProp(env, prop.left);
+    checkProp(env, prop.right);
+  } else if (prop instanceof NotPropAst) {
+    checkProp(env, prop.prop);
+  } else {
+    checkCond(env, prop);
   }
 }
 
@@ -74,13 +85,13 @@ function checkStmts(env: Environment, stmts: Stmt[], returnType: string): void {
         throw new TypeMismatchError(varType.name, exprType.name,
             `assignment to "${stmt.name}" at line ${stmt.line} col ${stmt.col}`);
     } else if (stmt.tag === 'while') {
-      checkCond(env, stmt.cond);
+      checkProp(env, stmt.cond);
       for (const inv of stmt.invariant) {
-        checkCond(env, inv);
+        checkProp(env, inv);
       }
       checkStmts(env, stmt.body, returnType);
     } else if (stmt.tag === 'if') {
-      checkCond(env, stmt.cond);
+      checkProp(env, stmt.cond);
       checkStmts(env, stmt.thenBody, returnType);
       checkStmts(env, stmt.elseBody, returnType);
     } else if (stmt.tag === 'return') {
@@ -118,11 +129,11 @@ export function checkFuncDef(env: Environment, func: FuncDef): void {
   const paramNames = new Set(func.params.map(p => p.name));
   const bodyEnv = new NestedEnv(env, vars, [], [], paramNames);
   for (const cond of func.requires) {
-    checkCond(bodyEnv, cond);
+    checkProp(bodyEnv, cond);
   }
   const ensuresEnv = new NestedEnv(bodyEnv, [['rv', func.returnType]]);
   for (const cond of func.ensures) {
-    checkCond(ensuresEnv, cond);
+    checkProp(ensuresEnv, cond);
   }
   checkStmts(bodyEnv, func.body, func.returnType);
   if (!endsWithReturn(func.body)) throw new MissingReturnError();

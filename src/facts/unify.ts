@@ -75,25 +75,23 @@ function UnifyExprsHelper(
     allowed_vars: Set<string>,
     subst: Map<string, Expression>): boolean {
   if (expr1.variety === EXPR_VARIABLE &&
-      allowed_vars.has((expr1 as Variable).name)) {
-    return UnifyVar((expr1 as Variable).name, expr2, allowed_vars, subst);
+      allowed_vars.has(expr1.name)) {
+    return UnifyVar(expr1.name, expr2, allowed_vars, subst);
   } else if (expr2.variety === EXPR_VARIABLE &&
-      allowed_vars.has((expr2 as Variable).name)) {
-    return UnifyVar((expr2 as Variable).name, expr1, allowed_vars, subst);
+      allowed_vars.has(expr2.name)) {
+    return UnifyVar(expr2.name, expr1, allowed_vars, subst);
   } else if (expr1.variety === EXPR_VARIABLE &&
       expr2.variety === EXPR_VARIABLE) {
-    return (expr1 as Variable).name === (expr2 as Variable).name;
+    return expr1.name === expr2.name;
   } else if (expr1.variety === EXPR_CONSTANT &&
       expr2.variety === EXPR_CONSTANT) {
     return expr1.equals(expr2);
   } else if (expr1.variety === EXPR_FUNCTION &&
       expr2.variety === EXPR_FUNCTION) {
-    const func1 = expr1 as Call;
-    const func2 = expr2 as Call;
-    if (func1.name !== func2.name) return false;
-    if (func1.args.length !== func2.args.length) return false;
-    for (let i = 0; i < func1.args.length; i++) {
-      if (!UnifyExprsHelper(func1.args[i], func2.args[i], allowed_vars, subst))
+    if (expr1.name !== expr2.name) return false;
+    if (expr1.args.length !== expr2.args.length) return false;
+    for (let i = 0; i < expr1.args.length; i++) {
+      if (!UnifyExprsHelper(expr1.args[i], expr2.args[i], allowed_vars, subst))
         return false;
     }
     return true;
@@ -109,10 +107,8 @@ function UnifyVar(
     subst: Map<string, Expression>): boolean {
   if (subst.has(name)) {
     return UnifyExprsHelper(subst.get(name)!, expr, allowed_vars, subst);
-  } else if (expr.variety === EXPR_VARIABLE &&
-      subst.has((expr as Variable).name)) {
-    return UnifyVar(name, subst.get((expr as Variable).name)!,
-        allowed_vars, subst);
+  } else if (expr.variety === EXPR_VARIABLE && subst.has(expr.name)) {
+    return UnifyVar(name, subst.get(expr.name)!, allowed_vars, subst);
   } else if (OccursCheck(name, expr, subst)) {
     return false;
   } else {
@@ -126,13 +122,11 @@ function OccursCheck(
     expr: Expression,
     subst: Map<string, Expression>): boolean {
   if (expr.variety === EXPR_VARIABLE) {
-    const v = expr as Variable;
-    if (subst.has(v.name)) return OccursCheck(name, subst.get(v.name)!, subst);
-    return name === v.name;
+    if (subst.has(expr.name)) return OccursCheck(name, subst.get(expr.name)!, subst);
+    return name === expr.name;
   } else if (expr.variety === EXPR_FUNCTION) {
-    const func = expr as Call;
-    for (let i = 0; i < func.args.length; i++) {
-      if (OccursCheck(name, func.args[i], subst)) return true;
+    for (let i = 0; i < expr.args.length; i++) {
+      if (OccursCheck(name, expr.args[i], subst)) return true;
     }
     return false;
   } else {
@@ -164,11 +158,10 @@ export function EnumerateReplacements(
   if (expr.variety === EXPR_CONSTANT || expr.variety === EXPR_VARIABLE) {
     results.push(expr);
   } else if (expr.variety === EXPR_FUNCTION) {
-    const call = expr as Call;
     // Build arrays of possibilities for each child.
     const childPossibilities: Expression[][] = [];
-    for (let i = 0; i < call.args.length; i++) {
-      childPossibilities.push(EnumerateReplacements(call.args[i], tryReplace));
+    for (let i = 0; i < expr.args.length; i++) {
+      childPossibilities.push(EnumerateReplacements(expr.args[i], tryReplace));
     }
     // Take the cartesian product of all child possibilities.
     const combos: Expression[][] = [[]];
@@ -185,9 +178,9 @@ export function EnumerateReplacements(
     for (const combo of combos) {
       let same = true;
       for (let i = 0; i < combo.length; i++) {
-        if (combo[i] !== call.args[i]) { same = false; break; }
+        if (combo[i] !== expr.args[i]) { same = false; break; }
       }
-      results.push(same ? expr : new Call(call.name, combo));
+      results.push(same ? expr : new Call(expr.name, combo));
     }
   }
 
@@ -215,15 +208,14 @@ export function SubstAll(
     return ApplySubst(replSide, subst);
   }
   if (expr.variety === EXPR_FUNCTION) {
-    const call = expr as Call;
     let changed = false;
     const newArgs: Expression[] = [];
-    for (const arg of call.args) {
+    for (const arg of expr.args) {
       const newArg = SubstAll(arg, matchSide, replSide, freeVars);
       if (newArg !== arg) changed = true;
       newArgs.push(newArg);
     }
-    if (changed) return new Call(call.name, newArgs);
+    if (changed) return new Call(expr.name, newArgs);
   }
   return expr;
 }
@@ -242,15 +234,14 @@ export function SubstAllWithCheck(
     return ApplySubst(replSide, subst);
   }
   if (expr.variety === EXPR_FUNCTION) {
-    const call = expr as Call;
     let changed = false;
     const newArgs: Expression[] = [];
-    for (const arg of call.args) {
+    for (const arg of expr.args) {
       const newArg = SubstAllWithCheck(arg, matchSide, replSide, freeVars, onMatch);
       if (newArg !== arg) changed = true;
       newArgs.push(newArg);
     }
-    if (changed) return new Call(call.name, newArgs);
+    if (changed) return new Call(expr.name, newArgs);
   }
   return expr;
 }
@@ -273,43 +264,42 @@ function substWithPolarity(
     return positive ? to : expr;
   }
   if (expr.variety !== EXPR_FUNCTION) return expr;
-  const call = expr as Call;
 
-  if (call.name === FUNC_ADD) {
+  if (expr.name === FUNC_ADD) {
     let changed = false;
     const newArgs: Expression[] = [];
-    for (const arg of call.args) {
+    for (const arg of expr.args) {
       const newArg = substWithPolarity(arg, from, to, positive);
       if (newArg !== arg) changed = true;
       newArgs.push(newArg);
     }
-    return changed ? new Call(call.name, newArgs) : expr;
+    return changed ? new Call(expr.name, newArgs) : expr;
   }
 
-  if (call.name === FUNC_SUBTRACT && call.args.length === 2) {
-    const newLeft = substWithPolarity(call.args[0], from, to, positive);
-    const newRight = substWithPolarity(call.args[1], from, to, !positive);
-    if (newLeft !== call.args[0] || newRight !== call.args[1])
-      return new Call(call.name, [newLeft, newRight]);
+  if (expr.name === FUNC_SUBTRACT && expr.args.length === 2) {
+    const newLeft = substWithPolarity(expr.args[0], from, to, positive);
+    const newRight = substWithPolarity(expr.args[1], from, to, !positive);
+    if (newLeft !== expr.args[0] || newRight !== expr.args[1])
+      return new Call(expr.name, [newLeft, newRight]);
     return expr;
   }
 
-  if (call.name === FUNC_NEGATE && call.args.length === 1) {
-    const newArg = substWithPolarity(call.args[0], from, to, !positive);
-    return newArg !== call.args[0] ? new Call(call.name, [newArg]) : expr;
+  if (expr.name === FUNC_NEGATE && expr.args.length === 1) {
+    const newArg = substWithPolarity(expr.args[0], from, to, !positive);
+    return newArg !== expr.args[0] ? new Call(expr.name, [newArg]) : expr;
   }
 
-  if (call.name === FUNC_MULTIPLY && call.args.length === 2) {
-    const [a, b] = call.args;
+  if (expr.name === FUNC_MULTIPLY && expr.args.length === 2) {
+    const [a, b] = expr.args;
     if (a.variety === EXPR_CONSTANT) {
-      const childPositive = (a as Constant).value >= 0n ? positive : !positive;
+      const childPositive = a.value >= 0n ? positive : !positive;
       const newB = substWithPolarity(b, from, to, childPositive);
-      return newB !== b ? new Call(call.name, [a, newB]) : expr;
+      return newB !== b ? new Call(expr.name, [a, newB]) : expr;
     }
     if (b.variety === EXPR_CONSTANT) {
-      const childPositive = (b as Constant).value >= 0n ? positive : !positive;
+      const childPositive = b.value >= 0n ? positive : !positive;
       const newA = substWithPolarity(a, from, to, childPositive);
-      return newA !== a ? new Call(call.name, [newA, b]) : expr;
+      return newA !== a ? new Call(expr.name, [newA, b]) : expr;
     }
   }
 

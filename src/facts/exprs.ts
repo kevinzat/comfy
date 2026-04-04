@@ -14,13 +14,16 @@ export const FUNC_NEGATE = "_neg_";
 
 import { AstNode } from './ast';
 
-/** Base class for all types of expressions. */
-export abstract class Expression extends AstNode {
-  variety: number;
+// Forward declaration: Expression is the discriminated union of all expression types.
+// The full definition appears after all subclasses.
+export type Expression = Constant | Variable | Call;
 
-  constructor(variety: number, line: number = 0, col: number = 0) {
+/** Base class for all types of expressions. */
+export abstract class ExpressionBase extends AstNode {
+  abstract readonly variety: number;
+
+  constructor(line: number = 0, col: number = 0) {
     super(line, col);
-    this.variety = variety;
   }
 
   /** Returns a precedence number for the outer operator. */
@@ -57,8 +60,7 @@ export abstract class Expression extends AstNode {
    *  (3) arithmetic simplifications: 0x = 0, 1x = x, 0+x = x, -1*x = -x
    */
   simplify(): Expression {
-    let expr: Expression = this;
-    expr = expr.eval_constants();
+    let expr: Expression = this.eval_constants();
     expr = expr.remove_negation();
     expr = expr.associate();
     expr = expr.combine_arguments();
@@ -72,8 +74,7 @@ export abstract class Expression extends AstNode {
    * a product of unique, possibly exponentiated variables and function calls.
    */
   normalize(): Expression {
-    let expr: Expression = this;
-    expr = expr.eval_constants();
+    let expr: Expression = this.eval_constants();
     expr = expr.apply_identities();
     expr = expr.remove_exponents();
     expr = expr.remove_negation();
@@ -86,40 +87,40 @@ export abstract class Expression extends AstNode {
   }
 
   /** Returns this expression but evaluating any expressions with known values. */
-  eval_constants(): Expression { /* default version */ return this; }
+  abstract eval_constants(): Expression;
 
   /**
    * Returns an expression with no add of add or multiply of multiply. Instead,
    * those are turned into a single, many-argument add or multiply, resp.
    */
-  associate(): Expression { /* default version */ return this; }
+  abstract associate(): Expression;
 
   /**
    * Returns an expression with no subtraction or negation. These are replaced
    * by multiplication by negative one.
    */
-  remove_negation(): Expression { /* default version */ return this; }
+  abstract remove_negation(): Expression;
 
   /**
    * Returns an expression that replaces -1x by the negation of x and that uses
    * subtraction to lieu of x + (-y).
    */
-  add_negation(): Expression { /* default version */ return this; }
+  abstract add_negation(): Expression;
 
   /** Applies basic identities involving multiplication and addition by 0/1. */
-  apply_identities(): Expression { /* default version */ return this; }
+  abstract apply_identities(): Expression;
 
   /**
    * Combines common factors using exponents and terms using constants. The end
    * result is that each factor and term is unique.
    */
-  combine_arguments(): Expression { /* default version */ return this; }
+  abstract combine_arguments(): Expression;
 
   /** Replaces all (small) exponents of sums with multiplication. */
-  remove_exponents(): Expression { /* default version */ return this; }
+  abstract remove_exponents(): Expression;
 
   /** Distributes multiplication over addition. */
-  distribute(): Expression { /* default version */ return this; }
+  abstract distribute(): Expression;
 
   /** 
    * Returns to_string() wrapped by (..) if necessary.
@@ -140,11 +141,12 @@ export abstract class Expression extends AstNode {
 
 
 /** Represents an integer value. */
-export class Constant extends Expression {
+export class Constant extends ExpressionBase {
+  readonly variety = EXPR_CONSTANT;
   value: bigint;
 
   constructor(value: bigint, line: number = 0, col: number = 0) {
-    super(EXPR_CONSTANT, line, col);
+    super(line, col);
     this.value = value;
   }
 
@@ -169,8 +171,7 @@ export class Constant extends Expression {
     if (e.variety !== EXPR_CONSTANT)
       return false;
 
-    const c: Constant = e as Constant;
-    return c.value === this.value;
+    return e.value === this.value;
   }
 
   var_refs(): string[] {
@@ -180,15 +181,25 @@ export class Constant extends Expression {
   subst(expr: Expression, value: Expression): Expression {
     return this.equals(expr) ? value : this;
   }
+
+  eval_constants(): Expression { return this; }
+  associate(): Expression { return this; }
+  remove_negation(): Expression { return this; }
+  add_negation(): Expression { return this; }
+  apply_identities(): Expression { return this; }
+  combine_arguments(): Expression { return this; }
+  remove_exponents(): Expression { return this; }
+  distribute(): Expression { return this; }
 }
 
 
 /** Represents a variable. */
-export class Variable extends Expression {
+export class Variable extends ExpressionBase {
+  readonly variety = EXPR_VARIABLE;
   name: string;
 
   constructor(name: string, line: number = 0, col: number = 0) {
-    super(EXPR_VARIABLE, line, col);
+    super(line, col);
     this.name = name;
   }
 
@@ -209,8 +220,7 @@ export class Variable extends Expression {
     if (e.variety !== EXPR_VARIABLE)
       return false;
 
-    const c: Variable = e as Variable;
-    return c.name === this.name;
+    return e.name === this.name;
   }
 
   var_refs(): string[] {
@@ -220,15 +230,25 @@ export class Variable extends Expression {
   subst(expr: Expression, value: Expression): Expression {
     return this.equals(expr) ? value : this;
   }
+
+  eval_constants(): Expression { return this; }
+  associate(): Expression { return this; }
+  remove_negation(): Expression { return this; }
+  add_negation(): Expression { return this; }
+  apply_identities(): Expression { return this; }
+  combine_arguments(): Expression { return this; }
+  remove_exponents(): Expression { return this; }
+  distribute(): Expression { return this; }
 }
 
 /** Represents a function call, which can be a basic arithmetic operation. */
-export class Call extends Expression {
+export class Call extends ExpressionBase {
+  readonly variety = EXPR_FUNCTION;
   name: string;
   args: Expression[];
 
   constructor(name: string, args: Expression[], line: number = 0, col: number = 0) {
-    super(EXPR_FUNCTION, line, col);
+    super(line, col);
     this.name = name;
     this.args = args.slice(0);
   }
@@ -268,9 +288,8 @@ export class Call extends Expression {
    * a call to the negation function passing in a single argument.
    */
   static isNegation(expr: Expression): boolean {
-    return expr.variety == EXPR_FUNCTION &&
-           (expr as Call).name === FUNC_NEGATE &&
-           (expr as Call).args.length === 1;
+    if (expr.variety !== EXPR_FUNCTION) return false;
+    return expr.name === FUNC_NEGATE && expr.args.length === 1;
   }
 
   /**
@@ -279,10 +298,10 @@ export class Call extends Expression {
    * second of which is a constant.
    */
   static isExponentiation(expr: Expression): boolean {
-    return expr.variety == EXPR_FUNCTION &&
-           (expr as Call).name === FUNC_EXPONENTIATE &&
-           (expr as Call).args.length === 2 &&
-           (expr as Call).args[1].variety === EXPR_CONSTANT;
+    if (expr.variety !== EXPR_FUNCTION) return false;
+    return expr.name === FUNC_EXPONENTIATE &&
+           expr.args.length === 2 &&
+           expr.args[1].variety === EXPR_CONSTANT;
   }
 
   precedence(): number {
@@ -336,15 +355,14 @@ export class Call extends Expression {
     if (e.variety !== EXPR_FUNCTION)
       return false;
 
-    const c: Call = e as Call;
-    if (c.name !== this.name)
+    if (e.name !== this.name)
       return false;
 
-    if (c.args.length !== this.args.length)
+    if (e.args.length !== this.args.length)
       return false;
 
     for (let i = 0; i < this.args.length; i++) {
-      if (!this.args[i].equals(c.args[i]))
+      if (!this.args[i].equals(e.args[i]))
         return false;
     }
 
@@ -392,23 +410,23 @@ export class Call extends Expression {
 
     if (this.name === FUNC_NEGATE) {
       if (numConst === 1 && newArgs.length === 1) {
-        const val = (newArgs[0] as Constant).value;
-        return new Constant(-val);
+        const arg0 = newArgs[0];
+        if (arg0.variety !== EXPR_CONSTANT) throw new Error('unreachable');
+        return new Constant(-arg0.value);
       }
     } else if (this.name === FUNC_EXPONENTIATE) {
       if (numConst === 2 && newArgs.length === 2) {
-        const val1 = (newArgs[0] as Constant).value;
-        const val2 = (newArgs[1] as Constant).value;
-        return new Constant(val1 ** val2);
+        const arg0 = newArgs[0]; const arg1 = newArgs[1];
+        if (arg0.variety !== EXPR_CONSTANT || arg1.variety !== EXPR_CONSTANT) throw new Error('unreachable');
+        return new Constant(arg0.value ** arg1.value);
       }
     } else if (this.name === FUNC_SUBTRACT) {
       if (numConst === 2 && newArgs.length === 2) {
-        const val1 = (newArgs[0] as Constant).value;
-        const val2 = (newArgs[1] as Constant).value;
-        return new Constant(val1 - val2);
+        const arg0 = newArgs[0]; const arg1 = newArgs[1];
+        if (arg0.variety !== EXPR_CONSTANT || arg1.variety !== EXPR_CONSTANT) throw new Error('unreachable');
+        return new Constant(arg0.value - arg1.value);
       } else if (newArgs.length == 2 && newArgs[1].variety === EXPR_CONSTANT) {
-        return new Call(FUNC_ADD,
-            [newArgs[0], new Constant(-(newArgs[1] as Constant).value)]);
+        return new Call(FUNC_ADD, [newArgs[0], new Constant(-newArgs[1].value)]);
       }
     }
 
@@ -416,7 +434,8 @@ export class Call extends Expression {
       if (numConst === newArgs.length) {
         let val = 1n;
         for (const newArg of newArgs) {
-          val *= (newArg as Constant).value;
+          if (newArg.variety !== EXPR_CONSTANT) throw new Error('unreachable');
+          val *= newArg.value;
         }
         return new Constant(val);
       } else if (numConst > 0) {
@@ -424,7 +443,7 @@ export class Call extends Expression {
         let val = 1n;
         for (const newArg of newArgs) {
           if (newArg.variety === EXPR_CONSTANT) {
-            val *= (newArg as Constant).value;
+            val *= newArg.value;
           } else {
             args.push(newArg);
           }
@@ -436,7 +455,8 @@ export class Call extends Expression {
       if (numConst === newArgs.length) {
         let val = 0n;
         for (const newArg of newArgs) {
-          val += (newArg as Constant).value;
+          if (newArg.variety !== EXPR_CONSTANT) throw new Error('unreachable');
+          val += newArg.value;
         }
         return new Constant(val);
       } else if (numConst > 1) {
@@ -444,7 +464,7 @@ export class Call extends Expression {
         let val = 0n;
         for (const newArg of newArgs) {
           if (newArg.variety === EXPR_CONSTANT) {
-            val += (newArg as Constant).value;
+            val += newArg.value;
           } else {
             args.push(newArg);
           }
@@ -474,11 +494,11 @@ export class Call extends Expression {
    */
   add_arguments(args: Expression[]): void {
     for (let i = 0; i < this.args.length; i++) {
-      if (this.args[i].variety === EXPR_FUNCTION &&
-          (this.args[i] as Call).name === this.name) {
-        (this.args[i] as Call).add_arguments(args); 
+      const arg = this.args[i];
+      if (arg.variety === EXPR_FUNCTION && arg.name === this.name) {
+        arg.add_arguments(args);
       } else {
-        args.push(this.args[i]);
+        args.push(arg);
       }
     }
   }
@@ -507,13 +527,12 @@ export class Call extends Expression {
     } else if (this.name === FUNC_ADD) {
       const negArgs: Expression[] = [];
       for (let i = 1; i < newArgs.length; i++) {
-        if (newArgs[i].variety === EXPR_CONSTANT &&
-            (newArgs[i] as Constant).value < 0n) {
-          negArgs.push(new Constant(-(newArgs[i] as Constant).value));
-        } else if (newArgs[i].variety === EXPR_FUNCTION &&
-            (newArgs[i] as Call).name === FUNC_NEGATE &&
-            (newArgs[i] as Call).args.length === 1) {
-          negArgs.push((newArgs[i] as Call).args[0]);
+        const arg = newArgs[i];
+        if (arg.variety === EXPR_CONSTANT && arg.value < 0n) {
+          negArgs.push(new Constant(-arg.value));
+        } else if (arg.variety === EXPR_FUNCTION &&
+            arg.name === FUNC_NEGATE && arg.args.length === 1) {
+          negArgs.push(arg.args[0]);
         }
       }
 
@@ -544,12 +563,13 @@ export class Call extends Expression {
         }
       }
     } else if (Call.isExponentiation(this)) {
-      const val = (this.args[1] as Constant).value;
-      if (val === 0n) {
+      const exp = this.args[1];
+      if (exp.variety !== EXPR_CONSTANT) throw new Error('unreachable');
+      if (exp.value === 0n) {
         return Constant.ONE;
-      } else if (val === 1n) {
+      } else if (exp.value === 1n) {
         return this.args[0].apply_identities();
-      } 
+      }
     }
     return new Call(this.name, this.args.map((x) => x.apply_identities()));
   }
@@ -588,21 +608,21 @@ export class Call extends Expression {
       // Turn this argument into a constant factor times the rest.
       let val: bigint = 1n;
       let expr: Expression|null = arg;
-      if (arg.variety == EXPR_CONSTANT) {
-        val = (arg as Constant).value;
+      if (arg.variety === EXPR_CONSTANT) {
+        val = arg.value;
         expr = null;
-      } else if (arg.variety == EXPR_FUNCTION &&
-          (arg as Call).name === FUNC_MULTIPLY &&
-          (arg as Call).args.length > 0 &&
-          (arg as Call).args[0].variety === EXPR_CONSTANT) {
-        val = ((arg as Call).args[0] as Constant).value;
-        const numArgs = (arg as Call).args.length;
+      } else if (arg.variety === EXPR_FUNCTION &&
+          arg.name === FUNC_MULTIPLY &&
+          arg.args.length > 0 &&
+          arg.args[0].variety === EXPR_CONSTANT) {
+        val = arg.args[0].value;
+        const numArgs = arg.args.length;
         if (numArgs === 1) {
           expr = Constant.ONE;
         } else if (numArgs === 2) {
-          expr = (arg as Call).args[1];
+          expr = arg.args[1];
         } else {
-          expr = new Call(FUNC_MULTIPLY, (arg as Call).args.slice(1));
+          expr = new Call(FUNC_MULTIPLY, arg.args.slice(1));
         }
       }
 
@@ -627,10 +647,8 @@ export class Call extends Expression {
       const [expr, val] = count.get(key)!;
       if (expr === null) {
         newArgs.push(new Constant(val));
-      } else if (expr.variety === EXPR_FUNCTION &&
-          (expr as Call).name === FUNC_MULTIPLY) {
-        newArgs.push(new Call(FUNC_MULTIPLY,
-            [new Constant(val), ...(expr as Call).args]));
+      } else if (expr.variety === EXPR_FUNCTION && expr.name === FUNC_MULTIPLY) {
+        newArgs.push(new Call(FUNC_MULTIPLY, [new Constant(val), ...expr.args]));
       } else {
         newArgs.push(new Call(FUNC_MULTIPLY, [new Constant(val), expr]));
       }
@@ -653,14 +671,17 @@ export class Call extends Expression {
 
     for (const arg of args) {
       if (arg.variety === EXPR_CONSTANT) {
-        newConst *= (arg as Constant).value
+        newConst *= arg.value;
       } else {
         // Turn this argument into a factor and an exponent.
         let val: bigint = 1n;
         let expr: Expression = arg;
         if (Call.isExponentiation(arg)) {
-          expr = (arg as Call).args[0];
-          val = ((arg as Call).args[1] as Constant).value;
+          if (arg.variety !== EXPR_FUNCTION) throw new Error('unreachable');
+          const expArg = arg.args[1];
+          if (expArg.variety !== EXPR_CONSTANT) throw new Error('unreachable');
+          expr = arg.args[0];
+          val = expArg.value;
         }
 
         // Add the exponent of this factor into the sum.
@@ -692,15 +713,19 @@ export class Call extends Expression {
   remove_exponents(): Expression {
     if (Call.isExponentiation(this) &&
         this.args[0].variety === EXPR_FUNCTION) {
-      const arg = this.args[0] as Call;
-      const exp = (this.args[1] as Constant).value;
+      const arg = this.args[0];
+      const expArg = this.args[1];
+      if (expArg.variety !== EXPR_CONSTANT) throw new Error('unreachable');
+      const exp = expArg.value;
 
       // Replace exponentiation of exponentiation with a single exponentiation
       // and then remove that exponent.
       if (Call.isExponentiation(arg)) {
-        const exp2 = (arg.args[1] as Constant).value;
+        if (arg.variety !== EXPR_FUNCTION) throw new Error('unreachable');
+        const innerExp = arg.args[1];
+        if (innerExp.variety !== EXPR_CONSTANT) throw new Error('unreachable');
         return new Call(FUNC_EXPONENTIATE,
-            [arg.args[0], new Constant(exp * exp2)]).remove_exponents();
+            [arg.args[0], new Constant(exp * innerExp.value)]).remove_exponents();
 
       // If the argument is any other arithmetic operation, replace
       // exponentiation with a repeated product of the base.
@@ -744,9 +769,8 @@ export class Call extends Expression {
       terms: Expression[]) {
     if (index < rest.length) {
       const next = rest[index];
-      if (next.variety === EXPR_FUNCTION &&
-          (next as Call).name === FUNC_ADD) {
-        const args = (next as Call).args;
+      if (next.variety === EXPR_FUNCTION && next.name === FUNC_ADD) {
+        const args = next.args;
         for (let i = 0; i < args.length; i++) {
           factors.push(args[i]);
           Call.distribute_factors(factors, rest, index + 1, terms);

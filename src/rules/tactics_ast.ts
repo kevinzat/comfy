@@ -8,24 +8,22 @@ export const TACTIC_SUBSTITUTE = 3;
 export const TACTIC_DEFINITION = 4;
 export const TACTIC_APPLY = 5;
 
-export abstract class TacticAst {
-  variety: number;
-
-  constructor(variety: number) {
-    this.variety = variety;
-  }
-
+export abstract class TacticAstBase {
+  abstract readonly variety: number;
   abstract to_string(): string;
 }
 
+export type TacticAst = AlgebraTacticAst | SubstituteTacticAst | DefinitionTacticAst | ApplyTacticAst;
+
 /** Backward algebra: asserts Expr op Goal from cited facts; premise is Expr. */
-export class AlgebraTacticAst extends TacticAst {
+export class AlgebraTacticAst extends TacticAstBase {
+  readonly variety = TACTIC_ALGEBRA;
   readonly op: FormulaOp;
   readonly expr: Expression;
   readonly refs: number[];
 
   constructor(op: FormulaOp, expr: Expression, refs: number[]) {
-    super(TACTIC_ALGEBRA);
+    super();
     this.op = op;
     this.expr = expr;
     this.refs = refs;
@@ -45,13 +43,14 @@ export class AlgebraTacticAst extends TacticAst {
  * subst N: undoes a forward subst (replaces right with left in goal).
  * unsub N: undoes a forward unsub (replaces left with right in goal).
  */
-export class SubstituteTacticAst extends TacticAst {
+export class SubstituteTacticAst extends TacticAstBase {
+  readonly variety = TACTIC_SUBSTITUTE;
   readonly index: number;
   readonly right: boolean;
   readonly expr: Expression | undefined;
 
   constructor(index: number, right: boolean, expr?: Expression) {
-    super(TACTIC_SUBSTITUTE);
+    super();
     this.index = index;
     this.right = right;
     this.expr = expr;
@@ -68,14 +67,15 @@ export class SubstituteTacticAst extends TacticAst {
  * defof name: undoes a forward defof (replaces body with pattern in goal).
  * undef name: undoes a forward undef (replaces pattern with body in goal).
  */
-export class DefinitionTacticAst extends TacticAst {
+export class DefinitionTacticAst extends TacticAstBase {
+  readonly variety = TACTIC_DEFINITION;
   readonly name: string;
   readonly right: boolean;
   readonly refs: number[];
   readonly expr: Expression | undefined;
 
   constructor(name: string, right: boolean, refs: number[] = [], expr?: Expression) {
-    super(TACTIC_DEFINITION);
+    super();
     this.name = name;
     this.right = right;
     this.refs = refs;
@@ -95,14 +95,15 @@ export class DefinitionTacticAst extends TacticAst {
  * apply name: undoes a forward apply (replaces right with left in goal).
  * unapp name: undoes a forward unapp (replaces left with right in goal).
  */
-export class ApplyTacticAst extends TacticAst {
+export class ApplyTacticAst extends TacticAstBase {
+  readonly variety = TACTIC_APPLY;
   readonly name: string;
   readonly right: boolean;
   readonly refs: number[];
   readonly expr: Expression | undefined;
 
   constructor(name: string, right: boolean, refs: number[] = [], expr?: Expression) {
-    super(TACTIC_APPLY);
+    super();
     this.name = name;
     this.right = right;
     this.refs = refs;

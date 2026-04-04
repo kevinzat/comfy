@@ -12,7 +12,7 @@ import grammar from './rules_grammar';
 /** Parses a forward rule from user text. */
 export function ParseForwardRule(text: string): RuleAst {
   const parser =
-      new nearley.Parser(nearley.Grammar.fromCompiled(grammar as any));
+      new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
   try {
     parser.feed(text.trim());
   } catch (_e) {
@@ -21,7 +21,8 @@ export function ParseForwardRule(text: string): RuleAst {
   if (parser.results.length > 1) {
     throw new UserError(`ambiguous rule "${text}"`);
   } else if (parser.results.length === 1) {
-    return parser.results[0] as RuleAst;
+    const result: RuleAst = parser.results[0];
+    return result;
   } else {
     throw new UserError(`syntax error in rule "${text}"`);
   }
@@ -31,23 +32,17 @@ export function ParseForwardRule(text: string): RuleAst {
 export function CreateRule(ast: RuleAst, current: Expression, env: Environment): Rule {
   switch (ast.variety) {
     case RULE_ALGEBRA: {
-      const a = ast as AlgebraAst;
-      const formula = new Formula(current, a.op, a.expr);
-      return new AlgebraRule(env, formula, ...a.refs);
+      const formula = new Formula(current, ast.op, ast.expr);
+      return new AlgebraRule(env, formula, ...ast.refs);
     }
     case RULE_SUBSTITUTE: {
-      const s = ast as SubstituteAst;
-      return new SubstituteRule(env, current, s.index, s.right, s.expr);
+      return new SubstituteRule(env, current, ast.index, ast.right, ast.expr);
     }
     case RULE_DEFINITION: {
-      const d = ast as DefinitionAst;
-      return new DefinitionRule(env, current, d.name, d.right, d.refs, d.expr);
+      return new DefinitionRule(env, current, ast.name, ast.right, ast.refs, ast.expr);
     }
     case RULE_APPLY: {
-      const a = ast as ApplyAst;
-      return new ApplyRule(env, current, a.name, a.right, a.refs, a.expr);
+      return new ApplyRule(env, current, ast.name, ast.right, ast.refs, ast.expr);
     }
-    default:
-      throw new UserError(`unknown rule variety: ${ast.variety}`);
   }
 }

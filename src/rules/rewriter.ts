@@ -36,6 +36,10 @@ export interface PolarizedCandidate extends RewriteCandidate {
   positive: boolean;
 }
 
+function isPolarized(c: RewriteCandidate): c is PolarizedCandidate {
+  return 'positive' in c;
+}
+
 
 /**
  * Base class for rewriters. Subclasses implement tryMatch() and optionally
@@ -136,13 +140,12 @@ export abstract class Rewriter {
     }
 
     if (ex.variety === EXPR_FUNCTION) {
-      const call = ex as Call;
-      for (let i = 0; i < call.args.length; i++) {
-        for (const c of this.enumerateIn(call.args[i])) {
-          const newArgs = call.args.slice();
+      for (let i = 0; i < ex.args.length; i++) {
+        for (const c of this.enumerateIn(ex.args[i])) {
+          const newArgs = ex.args.slice();
           newArgs[i] = c.result;
           candidates.push({
-            result: new Call(call.name, newArgs),
+            result: new Call(ex.name, newArgs),
             conditions: c.conditions,
           });
         }
@@ -172,44 +175,43 @@ export abstract class Rewriter {
     }
 
     if (ex.variety !== EXPR_FUNCTION) return candidates;
-    const call = ex as Call;
 
-    if (call.name === FUNC_ADD) {
-      for (let i = 0; i < call.args.length; i++) {
-        for (const c of this.enumerateWithPolarity(call.args[i], positive)) {
-          const newArgs = call.args.slice();
+    if (ex.name === FUNC_ADD) {
+      for (let i = 0; i < ex.args.length; i++) {
+        for (const c of this.enumerateWithPolarity(ex.args[i], positive)) {
+          const newArgs = ex.args.slice();
           newArgs[i] = c.result;
-          candidates.push({ result: new Call(call.name, newArgs), positive: c.positive, conditions: c.conditions });
+          candidates.push({ result: new Call(ex.name, newArgs), positive: c.positive, conditions: c.conditions });
         }
       }
-    } else if (call.name === FUNC_SUBTRACT && call.args.length === 2) {
-      for (const c of this.enumerateWithPolarity(call.args[0], positive)) {
+    } else if (ex.name === FUNC_SUBTRACT && ex.args.length === 2) {
+      for (const c of this.enumerateWithPolarity(ex.args[0], positive)) {
         candidates.push({
-          result: new Call(call.name, [c.result, call.args[1]]),
+          result: new Call(ex.name, [c.result, ex.args[1]]),
           positive: c.positive, conditions: c.conditions,
         });
       }
-      for (const c of this.enumerateWithPolarity(call.args[1], !positive)) {
+      for (const c of this.enumerateWithPolarity(ex.args[1], !positive)) {
         candidates.push({
-          result: new Call(call.name, [call.args[0], c.result]),
+          result: new Call(ex.name, [ex.args[0], c.result]),
           positive: c.positive, conditions: c.conditions,
         });
       }
-    } else if (call.name === FUNC_NEGATE && call.args.length === 1) {
-      for (const c of this.enumerateWithPolarity(call.args[0], !positive)) {
-        candidates.push({ result: new Call(call.name, [c.result]), positive: c.positive, conditions: c.conditions });
+    } else if (ex.name === FUNC_NEGATE && ex.args.length === 1) {
+      for (const c of this.enumerateWithPolarity(ex.args[0], !positive)) {
+        candidates.push({ result: new Call(ex.name, [c.result]), positive: c.positive, conditions: c.conditions });
       }
-    } else if (call.name === FUNC_MULTIPLY && call.args.length === 2) {
-      const [a, b] = call.args;
+    } else if (ex.name === FUNC_MULTIPLY && ex.args.length === 2) {
+      const [a, b] = ex.args;
       if (a.variety === EXPR_CONSTANT) {
-        const childPositive = (a as Constant).value >= 0n ? positive : !positive;
+        const childPositive = a.value >= 0n ? positive : !positive;
         for (const c of this.enumerateWithPolarity(b, childPositive)) {
-          candidates.push({ result: new Call(call.name, [a, c.result]), positive: c.positive, conditions: c.conditions });
+          candidates.push({ result: new Call(ex.name, [a, c.result]), positive: c.positive, conditions: c.conditions });
         }
       } else if (b.variety === EXPR_CONSTANT) {
-        const childPositive = (b as Constant).value >= 0n ? positive : !positive;
+        const childPositive = b.value >= 0n ? positive : !positive;
         for (const c of this.enumerateWithPolarity(a, childPositive)) {
-          candidates.push({ result: new Call(call.name, [c.result, b]), positive: c.positive, conditions: c.conditions });
+          candidates.push({ result: new Call(ex.name, [c.result, b]), positive: c.positive, conditions: c.conditions });
         }
       }
     }
@@ -257,7 +259,8 @@ export class InequalityRewriter extends Rewriter {
 
   /** Whether the chosen match was at a positive position. */
   get positive(): boolean {
-    return (this._chosen as PolarizedCandidate).positive;
+    if (this._chosen === undefined || !isPolarized(this._chosen)) throw new Error('unreachable');
+    return this._chosen.positive;
   }
 
   enumerate(): PolarizedCandidate[] {
@@ -474,7 +477,8 @@ export class TheoremInequalityRewriter extends Rewriter {
 
   /** Whether the chosen match was at a positive position. */
   get positive(): boolean {
-    return (this._chosen as PolarizedCandidate).positive;
+    if (this._chosen === undefined || !isPolarized(this._chosen)) throw new Error('unreachable');
+    return this._chosen.positive;
   }
 
   enumerate(): PolarizedCandidate[] {

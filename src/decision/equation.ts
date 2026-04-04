@@ -137,18 +137,17 @@ export function _MakeEquation(
  */
 export function _GetTerms(expr: Expression): [bigint, string|undefined][] {
   // If this is not a sum, then turn it into one to reduce this to one case.
-  if (expr.variety !== EXPR_FUNCTION ||
-      (expr as Call).name !== FUNC_ADD) {
+  if (expr.variety !== EXPR_FUNCTION || expr.name !== FUNC_ADD) {
     expr = new Call(FUNC_ADD, [expr]);
   }
 
-  const call = expr as Call;
+  if (expr.variety !== EXPR_FUNCTION) throw new Error('unreachable');
   const terms: [bigint, string|undefined][] = [];
 
-  for (const arg of call.args) {
+  for (const arg of expr.args) {
     switch (arg.variety) {
       case EXPR_CONSTANT:
-        terms.push([(arg as Constant).value, undefined]);
+        terms.push([arg.value, undefined]);
         break;
 
       case EXPR_VARIABLE:
@@ -156,26 +155,22 @@ export function _GetTerms(expr: Expression): [bigint, string|undefined][] {
         break;
 
       case EXPR_FUNCTION:
-        const innerCall = arg as Call;
-        if (innerCall.name !== FUNC_MULTIPLY ||
-            innerCall.args.length < 2 ||
-            innerCall.args[0].variety !== EXPR_CONSTANT) {
+        if (arg.name !== FUNC_MULTIPLY ||
+            arg.args.length < 2 ||
+            arg.args[0].variety !== EXPR_CONSTANT) {
           terms.push([1n, arg.to_string()]);
 
         } else {
-          const factor = innerCall.args[0] as Constant;
-          if (innerCall.args.length === 2) {
-            terms.push([factor.value, innerCall.args[1].to_string()]);
+          const factor = arg.args[0];
+          if (arg.args.length === 2) {
+            terms.push([factor.value, arg.args[1].to_string()]);
 
           } else {  // > 2 arguments
-            const rest = new Call(FUNC_MULTIPLY, innerCall.args.slice(1));
+            const rest = new Call(FUNC_MULTIPLY, arg.args.slice(1));
             terms.push([factor.value, rest.to_string()]);
           }
         }
         break;
-
-      default:
-        throw new Error(`unknown expression variety: ${arg.variety}`);
     }
   }
   return terms;

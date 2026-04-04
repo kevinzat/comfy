@@ -1,7 +1,7 @@
 import React from 'react';
 import { Formula } from '../facts/formula';
+import { AtomProp } from '../facts/prop';
 import { DeclsAst } from '../lang/decls_ast';
-import { condToFormula } from '../lang/code_ast';
 import { TypeDeclAst } from '../lang/type_ast';
 import { FuncAst, Param, ParamConstructor, funcToDefinitions } from '../lang/func_ast';
 import { TopLevelEnv, NestedEnv } from '../types/env';
@@ -120,7 +120,7 @@ export default class Proof extends React.Component<ProofProps, ProofState> {
           onClick={() => onBack(this.state.complete)}>← Back</span>
     );
 
-    if (obligation.goal.op === '!=') {
+    if (!(obligation.goal instanceof AtomProp)) {
       const backBtnUnprovable = (
         <span className="btn-edit-chain"
             onClick={() => onBack(false)}>← Back</span>
@@ -135,9 +135,9 @@ export default class Proof extends React.Component<ProofProps, ProofState> {
       );
     }
 
-    const goal: Formula = condToFormula(obligation.goal);
-    const provablePremises = obligation.premises.filter(c => c.op !== '!=');
-    const givens: Formula[] = provablePremises.map(condToFormula);
+    const goal: Formula = obligation.goal.formula;
+    const givens: Formula[] = obligation.premises
+      .flatMap(p => p instanceof AtomProp ? [p.formula] : []);
 
     const env = new TopLevelEnv(decls.types, decls.functions, [], decls.theorems);
     const proofEnv = new NestedEnv(env, obligation.params, givens);

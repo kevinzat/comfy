@@ -36,7 +36,7 @@ export default class InductionBlock
 
   constructor(props: InductionBlockProps) {
     super(props);
-    this.cases = buildCases(props.formula, props.env, props.varName, props.argNames, props.premise);
+    this.cases = buildCases(props.formula, props.env, props.varName, props.argNames, props.premise ? [props.premise] : []);
     this.proofBlockRefs = this.cases.map(() => React.createRef<ProofBlock>());
     this.state = {
       caseComplete: this.cases.map(() => false),
@@ -55,7 +55,7 @@ export default class InductionBlock
       const ihTheorems: IHLine[] = c.ihTheorems.map((thm: TheoremAst) => ({
         name: thm.name,
         params: thm.params,
-        premise: thm.premise ? thm.premise.to_string() : undefined,
+        premises: thm.premises,
         formula: thm.conclusion.to_string(),
         line: 0,
       }));

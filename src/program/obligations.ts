@@ -1,15 +1,17 @@
-import { FuncDef, Stmt, Cond, negCond, substCond, formulaToCond } from "../lang/code_ast";
-import { Expression } from "../facts/exprs";
+import { FuncDef, Stmt, propAstToProps, NotPropAst } from "../lang/code_ast";
+import { Expression, Variable } from "../facts/exprs";
+import { Formula } from "../facts/formula";
+import { AtomProp, NotProp, OrProp, Literal, Prop } from "../facts/prop";
 import { DeclsAst } from "../lang/decls_ast";
 import { TheoremAst } from "../lang/theorem_ast";
 
 export class ProofObligation {
-  premises: Cond[];
-  goal: Cond;
+  premises: Prop[];
+  goal: Prop;
   line: number;
   params: [string, string][];
 
-  constructor(premises: Cond[], goal: Cond, line: number, params: [string, string][] = []) {
+  constructor(premises: Prop[], goal: Prop, line: number, params: [string, string][] = []) {
     this.premises = premises;
     this.goal = goal;
     this.line = line;
@@ -17,28 +19,58 @@ export class ProofObligation {
   }
 }
 
+function propStr(p: Prop): string {
+  if (p.tag === 'atom') {
+    return `${p.formula.left.to_string()}${p.formula.op}${p.formula.right.to_string()}`;
+  }
+  if (p.tag === 'not') {
+    return `!${p.formula.left.to_string()}${p.formula.op}${p.formula.right.to_string()}`;
+  }
+  return `(${p.disjuncts.map(propStr).join('|')})`;
+}
+
 /** Returns a stable string key identifying an obligation by its premises and goal. */
 export function oblKey(obl: ProofObligation): string {
-  const premStr = obl.premises
-    .map(c => `${c.left.to_string()}${c.op}${c.right.to_string()}`)
-    .join(',');
-  const goalStr = `${obl.goal.left.to_string()}${obl.goal.op}${obl.goal.right.to_string()}`;
-  return `${premStr}|${goalStr}`;
+  const premStr = obl.premises.map(propStr).join(',');
+  return `${premStr}|${propStr(obl.goal)}`;
 }
 
-function condVars(c: Cond): Set<string> {
-  return new Set([...c.left.vars(), ...c.right.vars()]);
-}
-
-function oblVars(obl: ProofObligation): Set<string> {
-  const vars = condVars(obl.goal);
-  for (const p of obl.premises) condVars(p).forEach(v => vars.add(v));
+function propVars(p: Prop): Set<string> {
+  if (p.tag === 'atom' || p.tag === 'not') {
+    return new Set([...p.formula.left.vars(), ...p.formula.right.vars()]);
+  }
+  const vars = new Set<string>();
+  for (const lit of p.disjuncts) {
+    for (const v of propVars(lit)) vars.add(v);
+  }
   return vars;
 }
 
+function oblVars(obl: ProofObligation): Set<string> {
+  const vars = propVars(obl.goal);
+  for (const p of obl.premises) propVars(p).forEach(v => vars.add(v));
+  return vars;
+}
+
+function substFormula(f: Formula, name: string, expr: Expression): Formula {
+  const v = Variable.of(name);
+  return new Formula(f.left.subst(v, expr), f.op, f.right.subst(v, expr));
+}
+
+function substLiteral(p: Literal, name: string, expr: Expression): Literal {
+  if (p.tag === 'atom') return new AtomProp(substFormula(p.formula, name, expr));
+  return new NotProp(substFormula(p.formula, name, expr));
+}
+
+function substProp(p: Prop, name: string, expr: Expression): Prop {
+  if (p.tag === 'atom') return new AtomProp(substFormula(p.formula, name, expr));
+  if (p.tag === 'not') return new NotProp(substFormula(p.formula, name, expr));
+  return new OrProp(p.disjuncts.map(lit => substLiteral(lit, name, expr)));
+}
+
 interface PartialObligation {
-  premises: Cond[];
-  goals: Cond[];
+  premises: Prop[];
+  goals: Prop[];
 }
 
 function substPartial(
@@ -47,15 +79,15 @@ function substPartial(
   expr: Expression,
 ): PartialObligation {
   return {
-    premises: p.premises.map((c) => substCond(c, name, expr)),
-    goals: p.goals.map((c) => substCond(c, name, expr)),
+    premises: p.premises.map((prop) => substProp(prop, name, expr)),
+    goals: p.goals.map((prop) => substProp(prop, name, expr)),
   };
 }
 
 /** Converts each partial obligation into proof obligations by adding extra premises. */
 function partialsToObls(
   partials: PartialObligation[],
-  extraPremises: Cond[],
+  extraPremises: Prop[],
   line: number,
 ): ProofObligation[] {
   const obls: ProofObligation[] = [];
@@ -71,7 +103,7 @@ function partialsToObls(
 function processStmts(
   stmts: Stmt[],
   incoming: PartialObligation[],
-  ensures: Cond[],
+  ensures: Prop[],
 ): [ProofObligation[], PartialObligation[]] {
   let obligations: ProofObligation[] = [];
   let partials = incoming;
@@ -88,7 +120,7 @@ function processStmts(
 function processStmt(
   stmt: Stmt,
   partials: PartialObligation[],
-  ensures: Cond[],
+  ensures: Prop[],
 ): [ProofObligation[], PartialObligation[]] {
   switch (stmt.tag) {
     case "pass":
@@ -101,7 +133,7 @@ function processStmt(
       return [[], partials.map((p) => substPartial(p, stmt.name, stmt.expr))];
 
     case "return": {
-      const goals = ensures.map((c) => substCond(c, "rv", stmt.expr));
+      const goals = ensures.map((p) => substProp(p, "rv", stmt.expr));
       return [[], [{ premises: [], goals }]];
     }
 
@@ -116,13 +148,15 @@ function processStmt(
         partials,
         ensures,
       );
+      const condProps = propAstToProps(stmt.cond);
+      const negCondProps = propAstToProps(new NotPropAst(stmt.cond));
       const thenExited = thenTop.map((p) => ({
         ...p,
-        premises: [stmt.cond, ...p.premises],
+        premises: [...condProps, ...p.premises],
       }));
       const elseExited = elseTop.map((p) => ({
         ...p,
-        premises: [negCond(stmt.cond), ...p.premises],
+        premises: [...negCondProps, ...p.premises],
       }));
       return [
         [...thenObls, ...elseObls],
@@ -131,17 +165,21 @@ function processStmt(
     }
 
     case "while": {
+      const invariantProps = stmt.invariant.flatMap(propAstToProps);
+      const condProps = propAstToProps(stmt.cond);
+      const negCondProps = propAstToProps(new NotPropAst(stmt.cond));
+
       // Incoming partials meet the loop exit: invariant holds and cond is false.
       const afterLoopObls = partialsToObls(
         partials,
-        [...stmt.invariant, negCond(stmt.cond)],
+        [...invariantProps, ...negCondProps],
         stmt.line,
       );
 
       // Process loop body: at the bottom sits a partial whose goals are the invariant.
       const bodyInit: PartialObligation = {
         premises: [],
-        goals: [...stmt.invariant],
+        goals: [...invariantProps],
       };
       const [bodyObls, bodyTop] = processStmts(stmt.body, [bodyInit], ensures);
 
@@ -150,14 +188,14 @@ function processStmt(
       const firstBodyLine = stmt.body[0]?.line ?? stmt.line;
       const maintenanceObls = partialsToObls(
         bodyTop,
-        [stmt.cond, ...stmt.invariant],
+        [...condProps, ...invariantProps],
         firstBodyLine,
       );
 
       // A partial obligation for invariant establishment exits upward past the loop.
       const upwardPartial: PartialObligation = {
         premises: [],
-        goals: [...stmt.invariant],
+        goals: [...invariantProps],
       };
 
       return [
@@ -174,29 +212,31 @@ function processStmt(
  * number at which that reasoning takes place.
  */
 export function getProofObligations(func: FuncDef): ProofObligation[] {
-  const [bodyObls, topPartials] = processStmts(func.body, [], func.ensures);
+  const ensureProps = func.ensures.flatMap(propAstToProps);
+  const [bodyObls, topPartials] = processStmts(func.body, [], ensureProps);
 
   const firstLine = func.body[0]?.line ?? func.line;
-  const topObls = partialsToObls(topPartials, [...func.requires], firstLine);
+  const requireProps = func.requires.flatMap(propAstToProps);
+  const topObls = partialsToObls(topPartials, requireProps, firstLine);
 
   const obls = [...topObls, ...bodyObls];
   for (const obl of obls) {
     const vars = oblVars(obl);
     obl.params = func.params
       .filter(p => vars.has(p.name))
-      .map(p => [p.name, p.type] as [string, string]);
+      .map<[string, string]>(p => [p.name, p.type]);
   }
   return obls;
 }
 
 /**
- * Converts a TheoremAst into a ProofObligation. The premise (if any) and
- * conclusion are converted via formulaToCond. Params are calculated from
- * which theorem params actually appear in the premises and goal.
+ * Converts a TheoremAst into a ProofObligation. Premises and conclusion are
+ * wrapped as AtomProps. Params are calculated from which theorem params
+ * actually appear in the premises and goal.
  */
 export function theoremToProofObligation(thm: TheoremAst): ProofObligation {
-  const premises = thm.premises.map(formulaToCond);
-  const goal = formulaToCond(thm.conclusion);
+  const premises = thm.premises.map(f => new AtomProp(f));
+  const goal = new AtomProp(thm.conclusion);
   const obl = new ProofObligation(premises, goal, thm.line);
   const vars = oblVars(obl);
   obl.params = thm.params.filter(([name]) => vars.has(name));

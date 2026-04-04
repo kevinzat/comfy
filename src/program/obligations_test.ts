@@ -1,18 +1,28 @@
 
 import * as assert from 'assert';
 import { Constant, Variable, Call } from '../facts/exprs';
-import { Cond, CondOp } from '../lang/code_ast';
+import { FormulaOp } from '../facts/formula';
+import { AtomProp, NotProp, Prop } from '../facts/prop';
 import { ParseCode } from '../lang/code_parser';
 import { ProofObligation, getProofObligations, TheoremObligation, getTheoremObligations, theoremToProofObligation } from './obligations';
 import { DeclsAst } from '../lang/decls_ast';
 import { TheoremAst } from '../lang/theorem_ast';
-import { Formula } from '../facts/formula';
 import { ParseDecls } from '../lang/decls_parser';
 
-function condEq(c: Cond, left: string | bigint, op: CondOp, right: string | bigint): boolean {
+function propAtomEq(p: Prop, left: string | bigint, op: FormulaOp, right: string | bigint): boolean {
+  if (p.tag !== 'atom') return false;
   const l = typeof left === 'bigint' ? Constant.of(left) : Variable.of(left);
   const r = typeof right === 'bigint' ? Constant.of(right) : Variable.of(right);
-  return c.left.equals(l) && c.op === op && c.right.equals(r);
+  const f = (p as AtomProp).formula;
+  return f.left.equals(l) && f.op === op && f.right.equals(r);
+}
+
+function propNotEq(p: Prop, left: string | bigint, op: FormulaOp, right: string | bigint): boolean {
+  if (p.tag !== 'not') return false;
+  const l = typeof left === 'bigint' ? Constant.of(left) : Variable.of(left);
+  const r = typeof right === 'bigint' ? Constant.of(right) : Variable.of(right);
+  const f = (p as NotProp).formula;
+  return f.left.equals(l) && f.op === op && f.right.equals(r);
 }
 
 function parse(src: string): ReturnType<typeof getProofObligations> {
@@ -37,33 +47,37 @@ describe('getProofObligations', function() {
     const obls = parse(`Int f(Int x) requires x >= 0 ensures rv >= 0 { return x; }`);
     assert.equal(obls.length, 1);
     assert.equal(obls[0].premises.length, 1);
-    assert.ok(condEq(obls[0].premises[0], 'x', '>=', 0n));
-    assert.ok(condEq(obls[0].goal, 'x', '>=', 0n));
+    // requires: x >= 0 → AtomProp(Formula(0, '<=', x))
+    assert.ok(propAtomEq(obls[0].premises[0], 0n, '<=', 'x'));
+    // ensures: rv >= 0, after subst rv→x: AtomProp(Formula(0, '<=', x))
+    assert.ok(propAtomEq(obls[0].goal, 0n, '<=', 'x'));
   });
 
   it('return with multiple ensures produces one obligation per ensures item', function() {
     const obls = parse(`Int f(Int x) requires x >= 0 ensures rv >= 0, rv <= 10 { return x; }`);
     assert.equal(obls.length, 2);
-    assert.ok(condEq(obls[0].goal, 'x', '>=', 0n));
-    assert.ok(condEq(obls[1].goal, 'x', '<=', 10n));
+    // rv >= 0 after subst rv→x: AtomProp(Formula(0, '<=', x))
+    assert.ok(propAtomEq(obls[0].goal, 0n, '<=', 'x'));
+    // rv <= 10 after subst rv→x: AtomProp(Formula(x, '<=', 10))
+    assert.ok(propAtomEq(obls[1].goal, 'x', '<=', 10n));
   });
 
   it('pass does not change the obligation', function() {
     const obls = parse(`Int f(Int x) ensures rv >= 0 { pass; return x; }`);
     assert.equal(obls.length, 1);
-    assert.ok(condEq(obls[0].goal, 'x', '>=', 0n));
+    assert.ok(propAtomEq(obls[0].goal, 0n, '<=', 'x'));
   });
 
   it('decl substitutes variable into goal', function() {
     const obls = parse(`Int f(Int x) ensures rv >= 0 { Int y = x; return y; }`);
     assert.equal(obls.length, 1);
-    assert.ok(condEq(obls[0].goal, 'x', '>=', 0n));
+    assert.ok(propAtomEq(obls[0].goal, 0n, '<=', 'x'));
   });
 
   it('assign substitutes variable into goal', function() {
     const obls = parse(`Int f(Int x) ensures rv >= 0 { Int y = 0; y = x; return y; }`);
     assert.equal(obls.length, 1);
-    assert.ok(condEq(obls[0].goal, 'x', '>=', 0n));
+    assert.ok(propAtomEq(obls[0].goal, 0n, '<=', 'x'));
   });
 
   it('if: then branch gets cond as premise', function() {
@@ -73,15 +87,15 @@ describe('getProofObligations', function() {
       }`);
     assert.equal(obls.length, 2);
 
-    // then branch: x >= 0 is premise, goal is x >= 0
-    const thenObl = obls.find(o => o.premises.some(p => condEq(p, 'x', '>=', 0n)));
+    // then branch: x >= 0 → AtomProp(Formula(0, '<=', x)) is premise, goal is x >= 0
+    const thenObl = obls.find(o => o.premises.some(p => propAtomEq(p, 0n, '<=', 'x')));
     assert.ok(thenObl);
-    assert.ok(condEq(thenObl!.goal, 'x', '>=', 0n));
+    assert.ok(propAtomEq(thenObl!.goal, 0n, '<=', 'x'));
 
-    // else branch: x < 0 is premise (negation of x >= 0), goal is 0 >= 0
-    const elseObl = obls.find(o => o.premises.some(p => condEq(p, 'x', '<', 0n)));
+    // else branch: not (x >= 0) → NotProp(Formula(0, '<=', x)), goal is 0 >= 0
+    const elseObl = obls.find(o => o.premises.some(p => propNotEq(p, 0n, '<=', 'x')));
     assert.ok(elseObl);
-    assert.ok(condEq(elseObl!.goal, 0n, '>=', 0n));
+    assert.ok(propAtomEq(elseObl!.goal, 0n, '<=', 0n));
   });
 
   it('while: produces after-loop, maintenance, and establishment obligations', function() {
@@ -95,24 +109,27 @@ describe('getProofObligations', function() {
     // establishment: requires implies invariant holds before loop
     const establishment = obls[0];
     assert.equal(establishment.premises.length, 1);
-    assert.ok(condEq(establishment.premises[0], 'n', '>=', 0n));  // requires
-    assert.ok(condEq(establishment.goal, 'n', '>=', 0n));
+    assert.ok(propAtomEq(establishment.premises[0], 0n, '<=', 'n'));  // requires: n >= 0
+    assert.ok(propAtomEq(establishment.goal, 0n, '<=', 'n'));
 
     // maintenance: cond + invariant implies invariant holds after body
     const maintenance = obls[1];
     assert.equal(maintenance.premises.length, 2);
-    assert.ok(condEq(maintenance.premises[0], 'n', '>', 0n));   // cond
-    assert.ok(condEq(maintenance.premises[1], 'n', '>=', 0n));  // invariant
-    assert.ok(maintenance.goal.left.equals(Call.subtract(Variable.of('n'), Constant.of(1n))));
-    assert.equal(maintenance.goal.op, '>=');
-    assert.ok(maintenance.goal.right.equals(Constant.of(0n)));
+    assert.ok(propAtomEq(maintenance.premises[0], 0n, '<', 'n'));   // cond: n > 0
+    assert.ok(propAtomEq(maintenance.premises[1], 0n, '<=', 'n'));  // invariant: n >= 0
+    // goal: invariant n >= 0 after subst n→n-1: AtomProp(Formula(0, '<=', n-1))
+    assert.ok(maintenance.goal instanceof AtomProp);
+    assert.ok((maintenance.goal as AtomProp).formula.left.equals(Constant.of(0n)));
+    assert.equal((maintenance.goal as AtomProp).formula.op, '<=');
+    assert.ok((maintenance.goal as AtomProp).formula.right.equals(
+        Call.subtract(Variable.of('n'), Constant.of(1n))));
 
     // after-loop: invariant + not cond implies the goal from below the loop
     const afterLoop = obls[2];
     assert.equal(afterLoop.premises.length, 2);
-    assert.ok(condEq(afterLoop.premises[0], 'n', '>=', 0n));  // invariant
-    assert.ok(condEq(afterLoop.premises[1], 'n', '<=', 0n));  // not (n > 0)
-    assert.ok(condEq(afterLoop.goal, 'n', '>=', 0n));
+    assert.ok(propAtomEq(afterLoop.premises[0], 0n, '<=', 'n'));  // invariant: n >= 0
+    assert.ok(propNotEq(afterLoop.premises[1], 0n, '<', 'n'));    // not (n > 0)
+    assert.ok(propAtomEq(afterLoop.goal, 0n, '<=', 'n'));
   });
 
   it('line number is set to return statement line', function() {
@@ -193,7 +210,7 @@ describe('theoremToProofObligation', function() {
     const { ast } = ParseDecls(`theorem foo (x : Int) | x = 0`);
     assert.ok(ast);
     const obl = theoremToProofObligation(ast.theorems[0]);
-    assert.ok(condEq(obl.goal, 'x', '==', 0n));
+    assert.ok(propAtomEq(obl.goal, 'x', '=', 0n));
   });
 
   it('has no premises when theorem has no premise', function() {
@@ -203,12 +220,12 @@ describe('theoremToProofObligation', function() {
     assert.equal(obl.premises.length, 0);
   });
 
-  it('converts premise to Cond when theorem has a premise', function() {
+  it('converts premise to AtomProp when theorem has a premise', function() {
     const { ast } = ParseDecls(`theorem foo (x : Int) | 0 <= x => x = 0`);
     assert.ok(ast);
     const obl = theoremToProofObligation(ast.theorems[0]);
     assert.equal(obl.premises.length, 1);
-    assert.ok(condEq(obl.premises[0], 0n, '<=', 'x'));
+    assert.ok(propAtomEq(obl.premises[0], 0n, '<=', 'x'));
   });
 
   it('params includes only theorem params that appear in premises or goal', function() {

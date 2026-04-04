@@ -6,10 +6,10 @@ import { ParseFormula } from '../facts/formula_parser';
 import { TypeDeclAst } from '../lang/type_ast';
 import { FuncAst, Param, ParamVar, ParamConstructor } from '../lang/func_ast';
 import { TheoremAst } from '../lang/theorem_ast';
-import { condToFormula } from '../lang/code_ast';
 import { ProofFile, ProofNode, CalcProofNode, CaseBlock } from './proof_file';
 import { DeclsAst } from '../lang/decls_ast';
 import { ProofObligation } from '../program/obligations';
+import { Prop } from '../facts/prop';
 
 
 function collectCtors(decls: DeclsAst): Set<string> {
@@ -36,8 +36,6 @@ function exprToLean(expr: Expression, ctors: Set<string>, prec: number = 0): str
   if (expr instanceof Variable) {
     return ctors.has(expr.name) ? `.${expr.name}` : expr.name;
   }
-
-  if (!(expr instanceof Call)) return expr.to_string();
 
   const { name, args } = expr;
 
@@ -78,6 +76,12 @@ function formulaToLean(f: Formula, ctors: Set<string>): string {
   const op = f.op === OP_LESS_EQUAL ? '≤' : f.op;
   const right = exprToLean(f.right, ctors);
   return `${left} ${op} ${right}`;
+}
+
+function propToLean(p: Prop, ctors: Set<string>): string {
+  if (p.tag === 'atom') return formulaToLean(p.formula, ctors);
+  if (p.tag === 'not') return `¬(${formulaToLean(p.formula, ctors)})`;
+  return p.disjuncts.map(d => propToLean(d, ctors)).join(' ∨ ');
 }
 
 function paramToLean(p: Param, ctors: Set<string>): string {
@@ -288,11 +292,11 @@ export function oblToLean(
   }
 
   const paramStr = paramsToLean(obl.params);
-  const provable = obl.premises.filter(c => c.op !== '!=');
-  const hyps = provable.map((c, i) =>
-    `(h_${i + 1} : ${formulaToLean(condToFormula(c), ctors)})`
+  const provable = obl.premises.filter(p => p.tag !== 'not');
+  const hyps = provable.map((p, i) =>
+    `(h_${i + 1} : ${propToLean(p, ctors)})`
   ).join(' ');
-  const conclusion = formulaToLean(condToFormula(obl.goal), ctors);
+  const conclusion = propToLean(obl.goal, ctors);
 
   const sig = ['obligation', paramStr, hyps].filter(Boolean).join(' ');
   lines.push(`theorem ${sig} : ${conclusion} := by`);

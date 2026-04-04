@@ -12,7 +12,7 @@ import grammar from './tactics_grammar';
 /** Parses a backward rule from user text. */
 export function ParseBackwardRule(text: string): TacticAst {
   const parser =
-      new nearley.Parser(nearley.Grammar.fromCompiled(grammar as any));
+      new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
   try {
     parser.feed(text.trim());
   } catch (_e) {
@@ -21,7 +21,8 @@ export function ParseBackwardRule(text: string): TacticAst {
   if (parser.results.length > 1) {
     throw new UserError(`ambiguous tactic "${text}"`);
   } else if (parser.results.length === 1) {
-    return parser.results[0] as TacticAst;
+    const result: TacticAst = parser.results[0];
+    return result;
   } else {
     throw new UserError(`syntax error in tactic "${text}"`);
   }
@@ -31,23 +32,17 @@ export function ParseBackwardRule(text: string): TacticAst {
 export function CreateTactic(ast: TacticAst, goal: Expression, env: Environment): Tactic {
   switch (ast.variety) {
     case TACTIC_ALGEBRA: {
-      const a = ast as AlgebraTacticAst;
-      const formula = new Formula(a.expr, a.op, goal);
-      return new AlgebraTactic(env, formula, ...a.refs);
+      const formula = new Formula(ast.expr, ast.op, goal);
+      return new AlgebraTactic(env, formula, ...ast.refs);
     }
     case TACTIC_SUBSTITUTE: {
-      const s = ast as SubstituteTacticAst;
-      return new SubstituteTactic(env, goal, s.index, s.right, s.expr);
+      return new SubstituteTactic(env, goal, ast.index, ast.right, ast.expr);
     }
     case TACTIC_DEFINITION: {
-      const d = ast as DefinitionTacticAst;
-      return new DefinitionTactic(env, goal, d.name, d.right, d.refs, d.expr);
+      return new DefinitionTactic(env, goal, ast.name, ast.right, ast.refs, ast.expr);
     }
     case TACTIC_APPLY: {
-      const a = ast as ApplyTacticAst;
-      return new ApplyTactic(env, goal, a.name, a.right, a.refs, a.expr);
+      return new ApplyTactic(env, goal, ast.name, ast.right, ast.refs, ast.expr);
     }
-    default:
-      throw new UserError(`unknown tactic variety: ${ast.variety}`);
   }
 }

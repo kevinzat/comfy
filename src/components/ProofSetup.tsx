@@ -6,6 +6,7 @@ import { ParseCode, CodeParseResult } from '../lang/code_parser';
 import { TopLevelEnv, NestedEnv } from '../types/env';
 import { checkFuncDef } from '../types/code_checker';
 import { UserError } from '../facts/user_error';
+import { Prop } from '../facts/prop';
 import {
   ProofObligation,
   getProofObligations, theoremToProofObligation, oblKey,
@@ -38,12 +39,22 @@ function circledNum(n: number): string {
   return `(${n})`;
 }
 
+function propToStr(p: Prop): string {
+  if (p.tag === 'atom') {
+    return `${p.formula.left.to_string()} ${p.formula.op} ${p.formula.right.to_string()}`;
+  }
+  if (p.tag === 'not') {
+    return `¬(${p.formula.left.to_string()} ${p.formula.op} ${p.formula.right.to_string()})`;
+  }
+  return p.disjuncts.map(propToStr).join(' ∨ ');
+}
+
 function condToStr(obl: ProofObligation): { premises: string; goal: string } {
-  const provable = obl.premises.filter(c => c.op !== '!=');
+  const provable = obl.premises.filter(p => p.tag !== 'not');
   const premStr = provable.length === 0
     ? 'none'
-    : provable.map(c => `${c.left.to_string()} ${c.op} ${c.right.to_string()}`).join(', ');
-  const goalStr = `${obl.goal.left.to_string()} ${obl.goal.op} ${obl.goal.right.to_string()}`;
+    : provable.map(propToStr).join(', ');
+  const goalStr = propToStr(obl.goal);
   return { premises: premStr, goal: goalStr };
 }
 
@@ -128,8 +139,7 @@ export default class ProofSetup
       const thmObligations: ProofObligation[] = [];
       const theorem = this.getTheorem();
       if (theorem) {
-        const facts = theorem.premise ? [theorem.premise, theorem.conclusion]
-            : [theorem.conclusion];
+        const facts = [...theorem.premises, theorem.conclusion];
         const thmEnv = new NestedEnv(env, theorem.params, facts);
         thmEnv.check();
         thmObligations.push(theoremToProofObligation(theorem));
@@ -284,7 +294,7 @@ export default class ProofSetup
               const num = circledNum(i + 1);
               const key = oblKey(obl);
               const proved = provedObls.has(key);
-              const provable = obl.goal.op !== '!=';
+              const provable = obl.goal.tag !== 'not';
               const { premises, goal } = condToStr(obl);
 
               return (

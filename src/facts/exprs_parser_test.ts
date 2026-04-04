@@ -1,14 +1,14 @@
 import * as nearley from 'nearley';
 import grammar from './exprs_grammar.js';
 import * as assert from 'assert';
-import { Expression, Constant, Variable, Call } from './exprs';
+import { Expression, ExpressionBase, Constant, Variable, Call } from './exprs';
 import { ParseExpr } from './exprs_parser';
 
 
 /** Ensures that the given string parses into the given expression. */
 function AssertParseEqual(text: string, exp_expr: Expression): void {
   const act_expr = ParseExpr(text);
-  if (!(act_expr instanceof Expression)) {
+  if (!(act_expr instanceof ExpressionBase)) {
     console.log("Result is not an expression:", act_expr);
   }
   if (!act_expr.equals(exp_expr)) {
@@ -16,7 +16,7 @@ function AssertParseEqual(text: string, exp_expr: Expression): void {
     console.log("    vs");
     console.log(exp_expr.to_string());
   }
-  assert.ok(act_expr instanceof Expression && act_expr.equals(exp_expr));
+  assert.ok(act_expr instanceof ExpressionBase && act_expr.equals(exp_expr));
 }
 
 

@@ -2,7 +2,7 @@
 import * as assert from 'assert';
 import { Constant, Variable, Call } from '../facts/exprs';
 import {
-  FuncDef, Param, DeclStmt, AssignStmt, WhileStmt, IfStmt, PassStmt, ReturnStmt, Cond
+  FuncDef, Param, DeclStmt, AssignStmt, WhileStmt, IfStmt, PassStmt, ReturnStmt, CondAst
 } from './code_ast';
 import { ParseCode } from './code_parser';
 
@@ -235,7 +235,7 @@ describe('code_parser', function() {
     assert.equal(loop.cond.op, '>=');
   });
 
-  it('records line/col on Cond', function() {
+  it('records line/col on CondAst', function() {
     const { ast } = ParseCode(`Int f(Int n) { while (n != 0) invariant n >= 0 { pass; } }`);
     assert.ok(ast);
     const loop = ast.body[0] as WhileStmt;

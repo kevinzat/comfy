@@ -77,59 +77,56 @@ export function checkExpr(env: Environment, expr: Expression): NamedType {
   if (expr.variety === EXPR_CONSTANT) {
     return INT_TYPE;
   } else if (expr.variety === EXPR_VARIABLE) {
-    const v = expr as Variable;
-    if (env.hasVariable(v.name))
-      return env.getVariable(v.name);
+    if (env.hasVariable(expr.name))
+      return env.getVariable(expr.name);
     // Zero-arg constructors parse as variables.
-    if (env.hasConstructor(v.name)) {
-      const ctorType = env.getConstructorType(v.name);
+    if (env.hasConstructor(expr.name)) {
+      const ctorType = env.getConstructorType(expr.name);
       if (ctorType.kind === 'named')
         return ctorType;
-      throw new ArityError(v.name, (ctorType as FunctionType).paramTypes.length, 0,
-          v.line, v.col);
+      throw new ArityError(expr.name, ctorType.paramTypes.length, 0,
+          expr.line, expr.col);
     }
-    throw new UnknownNameError(v.name, v.line, v.col);
+    throw new UnknownNameError(expr.name, expr.line, expr.col);
   } else {
-    const call = expr as Call;
     // Built-in arithmetic operations require Int arguments and return Int.
-    if (call.name.startsWith('_')) {
-      for (let i = 0; i < call.args.length; i++) {
-        const argType = checkExpr(env, call.args[i]);
+    if (expr.name.startsWith('_')) {
+      for (let i = 0; i < expr.args.length; i++) {
+        const argType = checkExpr(env, expr.args[i]);
         if (argType.name !== 'Int')
           throw new TypeMismatchError('Int', argType.name,
-              `argument ${i + 1} of built-in arithmetic at line ${call.line} col ${call.col}`);
+              `argument ${i + 1} of built-in arithmetic at line ${expr.line} col ${expr.col}`);
       }
       return INT_TYPE;
     }
 
     // Look up function or constructor.
     let callType: Type;
-    if (env.hasFunction(call.name)) {
-      callType = env.getFunctionType(call.name);
-    } else if (env.hasConstructor(call.name)) {
-      callType = env.getConstructorType(call.name);
+    if (env.hasFunction(expr.name)) {
+      callType = env.getFunctionType(expr.name);
+    } else if (env.hasConstructor(expr.name)) {
+      callType = env.getConstructorType(expr.name);
     } else {
-      throw new UnknownNameError(call.name, call.line, call.col);
+      throw new UnknownNameError(expr.name, expr.line, expr.col);
     }
 
     if (callType.kind !== 'function')
-      throw new ArityError(call.name, 0, call.args.length, call.line, call.col);
+      throw new ArityError(expr.name, 0, expr.args.length, expr.line, expr.col);
 
-    const funcType = callType as FunctionType;
-    if (funcType.paramTypes.length !== call.args.length)
-      throw new ArityError(call.name, funcType.paramTypes.length, call.args.length,
-          call.line, call.col);
+    if (callType.paramTypes.length !== expr.args.length)
+      throw new ArityError(expr.name, callType.paramTypes.length, expr.args.length,
+          expr.line, expr.col);
 
-    for (let i = 0; i < call.args.length; i++) {
-      const argType = checkExpr(env, call.args[i]);
-      const expectedType = funcType.paramTypes[i];
+    for (let i = 0; i < expr.args.length; i++) {
+      const argType = checkExpr(env, expr.args[i]);
+      const expectedType = callType.paramTypes[i];
       if (argType.name !== expectedType.name)
         throw new TypeMismatchError(
             expectedType.name, argType.name,
-            `argument ${i + 1} of "${call.name}" at line ${call.line} col ${call.col}`);
+            `argument ${i + 1} of "${expr.name}" at line ${expr.line} col ${expr.col}`);
     }
 
-    return funcType.returnType;
+    return callType.returnType;
   }
 }
 
@@ -151,11 +148,10 @@ function collectPatternVars(
       if (param.args.length !== 0)
         throw new ArityError(param.name, 0, param.args.length);
     } else {
-      const ft = ctorType as FunctionType;
-      if (ft.paramTypes.length !== param.args.length)
-        throw new ArityError(param.name, ft.paramTypes.length, param.args.length);
+      if (ctorType.paramTypes.length !== param.args.length)
+        throw new ArityError(param.name, ctorType.paramTypes.length, param.args.length);
       for (let i = 0; i < param.args.length; i++) {
-        collectPatternVars(env, param.args[i], ft.paramTypes[i].name, vars);
+        collectPatternVars(env, param.args[i], ctorType.paramTypes[i].name, vars);
       }
     }
   } else {
@@ -163,7 +159,7 @@ function collectPatternVars(
     if (env.hasConstructor(param.name)) {
       const ctorType = env.getConstructorType(param.name);
       if (ctorType.kind === 'function')
-        throw new ArityError(param.name, (ctorType as FunctionType).paramTypes.length, 0);
+        throw new ArityError(param.name, ctorType.paramTypes.length, 0);
       // Zero-arg constructor: not a variable, nothing to bind.
     } else {
       vars.push([param.name, typeName]);
