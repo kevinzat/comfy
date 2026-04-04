@@ -108,7 +108,7 @@ export function buildCases(
   env: Environment,
   varName: string,
   argNames?: string[],
-  premise?: Formula,
+  premises: Formula[] = [],
 ): CaseInfo[] {
   const varType = env.getVariable(varName);
   const typeName = varType.name;
@@ -185,16 +185,14 @@ export function buildCases(
         const ihLeft = formula.left.subst(varExpr, argExpr);
         const ihRight = formula.right.subst(varExpr, argExpr);
         const ihConclusion = new Formula(ihLeft, formula.op, ihRight);
-        const ihPremise = premise
-            ? new Formula(
-                premise.left.subst(varExpr, argExpr),
-                premise.op,
-                premise.right.subst(varExpr, argExpr))
-            : undefined;
+        const ihPremises = premises.map(p => new Formula(
+            p.left.subst(varExpr, argExpr),
+            p.op,
+            p.right.subst(varExpr, argExpr)));
         const baseName = recursiveCount === 1
             ? 'IH' : 'IH_' + ctorArgNames[i];
         const ihName = uniqueTheoremName(baseName, env);
-        ihTheorems.push(new TheoremAst(ihName, ihParams, ihPremise, ihConclusion));
+        ihTheorems.push(new TheoremAst(ihName, ihParams, ihPremises, ihConclusion));
         ihArgNames.push(ctorArgNames[i]);
       }
     }

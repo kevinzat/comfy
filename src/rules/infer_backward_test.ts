@@ -424,7 +424,7 @@ describe('CreateTactic - apply theorem', function() {
 
   it('backward apply equation theorem (replaces right with left)', function() {
     const comm = new TheoremAst('comm', [['a', 'Int'], ['b', 'Int']],
-        undefined, ParseFormula('a + b = b + a'));
+        [], ParseFormula('a + b = b + a'));
     const env = new TopLevelEnv([], [], [], [comm]);
     // Goal is y + x. Backward apply comm: replaces b+a (right side) with a+b (left side).
     const ast = ParseBackwardRule('apply comm');
@@ -437,7 +437,7 @@ describe('CreateTactic - apply theorem', function() {
 
   it('backward unapp equation theorem', function() {
     const comm = new TheoremAst('comm', [['a', 'Int'], ['b', 'Int']],
-        undefined, ParseFormula('a + b = b + a'));
+        [], ParseFormula('a + b = b + a'));
     const env = new TopLevelEnv([], [], [], [comm]);
     // Backward unapp: replaces a+b (left side) with b+a (right side).
     const ast = ParseBackwardRule('unapp comm');
@@ -455,7 +455,7 @@ describe('CreateTactic - apply theorem', function() {
 
   it('backward apply with premise', function() {
     const thm = new TheoremAst('foo', [['n', 'Int']],
-        ParseFormula('0 < n'), ParseFormula('n = n'));
+        [ParseFormula('0 < n')], ParseFormula('n = n'));
     const env = new TopLevelEnv([], [], [ParseFormula('0 < x')], [thm]);
     // Goal is x. Backward apply foo: replaces right (n) with left (n), trivially.
     const ast = ParseBackwardRule('apply foo since 1');
@@ -467,7 +467,7 @@ describe('CreateTactic - apply theorem', function() {
 
   it('backward apply inequality theorem', function() {
     const thm = new TheoremAst('succ', [['n', 'Int']],
-        undefined, ParseFormula('n < n + 1'));
+        [], ParseFormula('n < n + 1'));
     const env = new TopLevelEnv([], [], [], [thm]);
     // Goal is x + 1. Backward apply succ: replaces n+1 (right) with n (left).
     const ast = ParseBackwardRule('apply succ');

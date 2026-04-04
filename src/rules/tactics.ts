@@ -197,10 +197,10 @@ export class ApplyTactic extends Tactic {
     const theorem = env.getTheorem(name);
     const knownFacts = knowns.map(i => env.getFact(i));
 
-    if (theorem.premise && knowns.length === 0)
+    if (theorem.premises.length > 0 && knowns.length === 0)
       throw new UserError(
           `apply/unapp: "${name}" has a premise; known facts must be provided`);
-    if (!theorem.premise && knowns.length > 0)
+    if (theorem.premises.length === 0 && knowns.length > 0)
       throw new UserError(
           `apply/unapp: "${name}" has no premise; known facts must not be provided`);
 
@@ -208,12 +208,12 @@ export class ApplyTactic extends Tactic {
     if (theorem.conclusion.op === OP_EQUAL) {
       const rewriter = new TheoremEquationRewriter(
           'apply/unapp', env, goal, theorem.conclusion, !right,
-          theorem.premise, knownFacts);
+          theorem.premises, knownFacts);
       this._resultFormula = new Formula(rewriter.rewrite(premise), OP_EQUAL, goal);
     } else {
       const rewriter = new TheoremInequalityRewriter(
           'apply/unapp', env, goal, theorem.conclusion, !right,
-          theorem.premise, knownFacts);
+          theorem.premises, knownFacts);
       rewriter.rewrite(premise);
       if (rewriter.positive) {
         this._resultFormula = new Formula(rewriter.result, theorem.conclusion.op, goal);

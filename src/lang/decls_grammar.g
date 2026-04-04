@@ -46,10 +46,15 @@ Types -> %typeName
 
 TheoremDecl -> %kw_theorem %variable TheoremParamGroups %pipe Formula
       {% ([thm, name, params, _pipe, concl]) =>
-          new theoremAst.TheoremAst(name.text, expandParams(params), undefined, concl, thm.line) %}
-    | %kw_theorem %variable TheoremParamGroups %pipe Formula %fatArrow Formula
-      {% ([thm, name, params, _pipe, premise, _arrow, concl]) =>
-          new theoremAst.TheoremAst(name.text, expandParams(params), premise, concl, thm.line) %}
+          new theoremAst.TheoremAst(name.text, expandParams(params), [], concl, thm.line) %}
+    | %kw_theorem %variable TheoremParamGroups %pipe Premises %fatArrow Formula
+      {% ([thm, name, params, _pipe, premises, _arrow, concl]) =>
+          new theoremAst.TheoremAst(name.text, expandParams(params), premises, concl, thm.line) %}
+
+Premises -> Formula
+      {% ([f]) => [f] %}
+    | Premises %comma Formula
+      {% ([ps, _comma, f]) => ps.concat([f]) %}
 
 TheoremParamGroups -> TheoremParamGroup
       {% ([g]) => [g] %}

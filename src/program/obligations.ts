@@ -195,7 +195,7 @@ export function getProofObligations(func: FuncDef): ProofObligation[] {
  * which theorem params actually appear in the premises and goal.
  */
 export function theoremToProofObligation(thm: TheoremAst): ProofObligation {
-  const premises = thm.premise ? [formulaToCond(thm.premise)] : [];
+  const premises = thm.premises.map(formulaToCond);
   const goal = formulaToCond(thm.conclusion);
   const obl = new ProofObligation(premises, goal, thm.line);
   const vars = oblVars(obl);

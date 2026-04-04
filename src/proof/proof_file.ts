@@ -1,5 +1,6 @@
 import { DeclsAst } from '../lang/decls_ast';
-import { ParseDecls } from '../lang/decls_parser';
+import { ParseDecls, ParsePremises } from '../lang/decls_parser';
+import { Formula } from '../facts/formula';
 
 
 /**
@@ -58,7 +59,7 @@ export interface GivenLine {
 export interface IHLine {
   name: string;
   params: [string, string][];
-  premise: string | undefined;
+  premises: Formula[];
   formula: string;
   line: number;
 }
@@ -286,18 +287,23 @@ function parseCaseBlock(lines: Lines): CaseBlock {
     const paramsText = ihMatch[2].trim();
     const params = parseParams(paramsText, entry.line);
     const body = ihMatch[3];
-    // Split on => for optional premise.
+    // Split on => for optional premises.
     const arrowIdx = body.indexOf('=>');
-    let premise: string | undefined;
+    let premises: Formula[];
     let formula: string;
     if (arrowIdx !== -1) {
-      premise = body.substring(0, arrowIdx).trim();
+      const premiseText = body.substring(0, arrowIdx).trim();
+      try {
+        premises = ParsePremises(premiseText);
+      } catch (e: any) {
+        throw new ParseError(entry.line, `bad IH premise: ${e.message}`);
+      }
       formula = body.substring(arrowIdx + 2).trim();
     } else {
-      premise = undefined;
+      premises = [];
       formula = body;
     }
-    ihTheorems.push({ name, params, premise, formula, line: entry.line });
+    ihTheorems.push({ name, params, premises, formula, line: entry.line });
   }
 
   // Parse optional "given N. <formula>" lines (cases-on conditions).

@@ -236,22 +236,22 @@ export class ApplyRule extends Rule {
     const theorem = env.getTheorem(name);
     const knownFacts = knowns.map(i => env.getFact(i));
 
-    if (theorem.premise && knowns.length === 0)
+    if (theorem.premises.length > 0 && knowns.length === 0)
       throw new UserError(
           `apply/unapp: "${name}" has a premise; known facts must be provided`);
-    if (!theorem.premise && knowns.length > 0)
+    if (theorem.premises.length === 0 && knowns.length > 0)
       throw new UserError(
           `apply/unapp: "${name}" has no premise; known facts must not be provided`);
 
     if (theorem.conclusion.op === OP_EQUAL) {
       const rewriter = new TheoremEquationRewriter(
           'apply/unapp', env, ex, theorem.conclusion, right,
-          theorem.premise, knownFacts);
+          theorem.premises, knownFacts);
       this._resultFormula = new Formula(ex, OP_EQUAL, rewriter.rewrite(result));
     } else {
       const rewriter = new TheoremInequalityRewriter(
           'apply/unapp', env, ex, theorem.conclusion, right,
-          theorem.premise, knownFacts);
+          theorem.premises, knownFacts);
       rewriter.rewrite(result);
       if (rewriter.positive) {
         this._resultFormula = new Formula(ex, theorem.conclusion.op, rewriter.result);

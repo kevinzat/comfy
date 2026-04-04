@@ -638,7 +638,7 @@ describe('CreateRule - apply theorem', function() {
 
   it('apply equation theorem replaces one occurrence', function() {
     const comm = new TheoremAst('comm', [['a', 'Int'], ['b', 'Int']],
-        undefined, ParseFormula('a + b = b + a'));
+        [], ParseFormula('a + b = b + a'));
     const env = new TopLevelEnv([], [], [], [comm]);
     const ast = ParseForwardRule('apply comm');
     const current = ParseExpr('x + y');
@@ -650,7 +650,7 @@ describe('CreateRule - apply theorem', function() {
 
   it('apply equation theorem inside larger expression', function() {
     const comm = new TheoremAst('comm', [['a', 'Int'], ['b', 'Int']],
-        undefined, ParseFormula('a + b = b + a'));
+        [], ParseFormula('a + b = b + a'));
     const env = new TopLevelEnv([], [], [], [comm]);
     const ast = ParseForwardRule('apply comm => (y + x) * 2');
     const current = ParseExpr('(x + y) * 2');
@@ -661,7 +661,7 @@ describe('CreateRule - apply theorem', function() {
 
   it('unapp equation theorem reverses direction', function() {
     const comm = new TheoremAst('comm', [['a', 'Int'], ['b', 'Int']],
-        undefined, ParseFormula('a + b = b + a'));
+        [], ParseFormula('a + b = b + a'));
     const env = new TopLevelEnv([], [], [], [comm]);
     const ast = ParseForwardRule('unapp comm');
     const current = ParseExpr('y + x');
@@ -672,7 +672,7 @@ describe('CreateRule - apply theorem', function() {
 
   it('apply inequality theorem at positive position', function() {
     const thm = new TheoremAst('succ', [['n', 'Int']],
-        undefined, ParseFormula('n < n + 1'));
+        [], ParseFormula('n < n + 1'));
     const env = new TopLevelEnv([], [], [], [thm]);
     const ast = ParseForwardRule('apply succ');
     const current = ParseExpr('x');
@@ -685,7 +685,7 @@ describe('CreateRule - apply theorem', function() {
 
   it('apply theorem with premise citing facts', function() {
     const thm = new TheoremAst('foo', [['n', 'Int']],
-        ParseFormula('0 < n'), ParseFormula('n = n'));
+        [ParseFormula('0 < n')], ParseFormula('n = n'));
     const env = new TopLevelEnv([], [], [ParseFormula('0 < x')], [thm]);
     const ast = ParseForwardRule('apply foo since 1');
     const current = ParseExpr('x');
@@ -696,7 +696,7 @@ describe('CreateRule - apply theorem', function() {
 
   it('apply theorem with equation premise', function() {
     const thm = new TheoremAst('foo', [['n', 'Int']],
-        ParseFormula('n = 0'), ParseFormula('n + 1 = 1'));
+        [ParseFormula('n = 0')], ParseFormula('n + 1 = 1'));
     const env = new TopLevelEnv([], [], [ParseFormula('x = 0')], [thm]);
     const ast = ParseForwardRule('apply foo since 1');
     const current = ParseExpr('x + 1');
@@ -713,7 +713,7 @@ describe('CreateRule - apply theorem', function() {
 
   it('apply rejects when premise not cited', function() {
     const thm = new TheoremAst('foo', [['n', 'Int']],
-        ParseFormula('0 < n'), ParseFormula('n = n'));
+        [ParseFormula('0 < n')], ParseFormula('n = n'));
     const env = new TopLevelEnv([], [], [], [thm]);
     const ast = ParseForwardRule('apply foo');
     assert.throws(() => CreateRule(ast, ParseExpr('x'), env), /premise.*must be provided/);
@@ -721,7 +721,7 @@ describe('CreateRule - apply theorem', function() {
 
   it('apply rejects when no premise but facts cited', function() {
     const thm = new TheoremAst('comm', [['a', 'Int'], ['b', 'Int']],
-        undefined, ParseFormula('a + b = b + a'));
+        [], ParseFormula('a + b = b + a'));
     const env = new TopLevelEnv([], [], [ParseFormula('x = 1')], [thm]);
     const ast = ParseForwardRule('apply comm since 1');
     assert.throws(() => CreateRule(ast, ParseExpr('x + y'), env), /no premise.*must not be provided/);
@@ -729,7 +729,7 @@ describe('CreateRule - apply theorem', function() {
 
   it('apply rejects when premise not implied', function() {
     const thm = new TheoremAst('foo', [['n', 'Int']],
-        ParseFormula('0 < n'), ParseFormula('n = n'));
+        [ParseFormula('0 < n')], ParseFormula('n = n'));
     const env = new TopLevelEnv([], [], [ParseFormula('0 <= x')], [thm]);
     const ast = ParseForwardRule('apply foo since 1');
     assert.throws(() => CreateRule(ast, ParseExpr('x'), env), /premise.*not implied/);

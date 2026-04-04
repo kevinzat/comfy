@@ -166,8 +166,8 @@ export class TopLevelEnv implements Environment {
     }
     for (const thm of this.theorems_) {
       const thmEnv = new NestedEnv(this, thm.params);
-      if (thm.premise) {
-        checkFormula(thmEnv, thm.premise);
+      for (const p of thm.premises) {
+        checkFormula(thmEnv, p);
       }
       checkFormula(thmEnv, thm.conclusion);
     }

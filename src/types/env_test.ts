@@ -283,7 +283,7 @@ describe('TopLevelEnv theorems', function() {
 
   it('hasTheorem and getTheorem work', function() {
     const thm = new TheoremAst('comm', [['x', 'Int'], ['y', 'Int']],
-        undefined, ParseFormula('x + y = y + x'));
+        [], ParseFormula('x + y = y + x'));
     const env = new TopLevelEnv([], [], [], [thm]);
     assert.ok(env.hasTheorem('comm'));
     assert.strictEqual(env.getTheorem('comm'), thm);
@@ -292,35 +292,35 @@ describe('TopLevelEnv theorems', function() {
 
   it('check succeeds for well-typed theorem', function() {
     const thm = new TheoremAst('comm', [['x', 'Int'], ['y', 'Int']],
-        undefined, ParseFormula('x + y = y + x'));
+        [], ParseFormula('x + y = y + x'));
     const env = new TopLevelEnv([], [], [], [thm]);
     env.check();
   });
 
   it('check succeeds for theorem with premise', function() {
     const thm = new TheoremAst('foo', [['x', 'Int']],
-        ParseFormula('x < 0'), ParseFormula('x * x = x * x'));
+        [ParseFormula('x < 0')], ParseFormula('x * x = x * x'));
     const env = new TopLevelEnv([], [], [], [thm]);
     env.check();
   });
 
   it('check throws for theorem with unknown variable in conclusion', function() {
     const thm = new TheoremAst('bad', [['x', 'Int']],
-        undefined, ParseFormula('x + z = 0'));
+        [], ParseFormula('x + z = 0'));
     const env = new TopLevelEnv([], [], [], [thm]);
     assert.throws(() => env.check(), UnknownNameError);
   });
 
   it('check throws for theorem with unknown variable in premise', function() {
     const thm = new TheoremAst('bad', [['x', 'Int']],
-        ParseFormula('z < 0'), ParseFormula('x = x'));
+        [ParseFormula('z < 0')], ParseFormula('x = x'));
     const env = new TopLevelEnv([], [], [], [thm]);
     assert.throws(() => env.check(), UnknownNameError);
   });
 
   it('rejects duplicate theorem names', function() {
     const thm = new TheoremAst('foo', [['x', 'Int']],
-        undefined, ParseFormula('x = x'));
+        [], ParseFormula('x = x'));
     assert.throws(
         () => new TopLevelEnv([], [], [], [thm, thm]),
         DuplicateError);
@@ -331,7 +331,7 @@ describe('TopLevelEnv theorems', function() {
       new CaseAst([new ParamVar('x')], new ExprBody(Variable.of('x'))),
     ]);
     const thm = new TheoremAst('foo', [['x', 'Int']],
-        undefined, ParseFormula('x = x'));
+        [], ParseFormula('x = x'));
     assert.throws(
         () => new TopLevelEnv([], [func], [], [thm]),
         DuplicateError);
@@ -339,7 +339,7 @@ describe('TopLevelEnv theorems', function() {
 
   it('rejects theorem with unknown param type', function() {
     const thm = new TheoremAst('bad', [['x', 'Unknown']],
-        undefined, ParseFormula('x = x'));
+        [], ParseFormula('x = x'));
     assert.throws(
         () => new TopLevelEnv([], [], [], [thm]),
         UnknownTypeError);
@@ -348,14 +348,14 @@ describe('TopLevelEnv theorems', function() {
   it('check throws for theorem with type mismatch in conclusion', function() {
     // L is List, 0 is Int — can't be equal
     const thm = new TheoremAst('bad', [['L', 'List']],
-        undefined, ParseFormula('L = 0'));
+        [], ParseFormula('L = 0'));
     const env = new TopLevelEnv([listType], [], [], [thm]);
     assert.throws(() => env.check(), TypeMismatchError);
   });
 
   it('theorem params scope correctly with user types', function() {
     const thm = new TheoremAst('nil_eq', [['L', 'List']],
-        undefined, ParseFormula('L = L'));
+        [], ParseFormula('L = L'));
     const env = new TopLevelEnv([listType], [], [], [thm]);
     env.check();
   });

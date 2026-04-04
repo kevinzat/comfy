@@ -292,7 +292,7 @@ ${validConsCase}`;
       assert.equal(pf.proof.cases[1].ihTheorems.length, 1);
       assert.equal(pf.proof.cases[1].ihTheorems[0].name, 'IH');
       assert.deepEqual(pf.proof.cases[1].ihTheorems[0].params, []);
-      assert.equal(pf.proof.cases[1].ihTheorems[0].premise, undefined);
+      assert.deepEqual(pf.proof.cases[1].ihTheorems[0].premises, []);
       assert.equal(pf.proof.cases[1].ihTheorems[0].formula, '0 + len(L) = len(L)');
     }
   });
@@ -621,7 +621,7 @@ case cons(a, L):
       const consCase = pf.proof.cases[1];
       assert.equal(consCase.ihTheorems.length, 1);
       assert.equal(consCase.ihTheorems[0].name, 'IH');
-      assert.equal(consCase.ihTheorems[0].premise, 'cons(a, L) = nil');
+      assert.equal(consCase.ihTheorems[0].premises[0].to_string(), 'cons(a, L) = nil');
       assert.equal(consCase.ihTheorems[0].formula, '0 + len(L) = len(L)');
     }
   });

@@ -220,7 +220,7 @@ describe('buildCases', function() {
 
   it('renames IH to IH2 when IH already exists as a theorem', function() {
     const formula = ParseFormula('len(xs) = len(xs)');
-    const existingIH = new TheoremAst('IH', [], undefined,
+    const existingIH = new TheoremAst('IH', [], [],
         ParseFormula('0 = 0'));
     const env = new NestedEnv(
         new TopLevelEnv([listType], [lenFunc], [], [existingIH]),
@@ -239,7 +239,7 @@ describe('buildCases', function() {
       new CaseAst([new ParamVar('leaf')], new ExprBody(Constant.of(0n))),
       new CaseAst([new ParamVar('x')], new ExprBody(Constant.of(1n))),
     ]);
-    const existingIH = new TheoremAst('IH_T', [], undefined,
+    const existingIH = new TheoremAst('IH_T', [], [],
         ParseFormula('0 = 0'));
     const formula = ParseFormula('size(t) = size(t)');
     const env = new NestedEnv(
@@ -283,7 +283,7 @@ describe('buildCases', function() {
     const formula = ParseFormula('len(xs) = 0');
     const premise = ParseFormula('xs = nil');
     const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['xs', 'List']]);
-    const cases = buildCases(formula, env, 'xs', undefined, premise);
+    const cases = buildCases(formula, env, 'xs', undefined, [premise]);
 
     // nil case: no IH
     assert.equal(cases[0].ihTheorems.length, 0);
@@ -292,9 +292,9 @@ describe('buildCases', function() {
     const consCase = cases[1];
     assert.equal(consCase.ihTheorems.length, 1);
     const ih = consCase.ihTheorems[0];
-    assert.ok(ih.premise, 'IH should have a premise');
+    assert.equal(ih.premises.length, 1, 'IH should have a premise');
     const argName = consCase.ihArgNames[0]; // the List-typed arg
-    assert.equal(ih.premise!.to_string(), `${argName} = nil`);
+    assert.equal(ih.premises[0].to_string(), `${argName} = nil`);
     assert.equal(ih.conclusion.to_string(), `len(${argName}) = 0`);
   });
 
@@ -304,7 +304,7 @@ describe('buildCases', function() {
     const cases = buildCases(formula, env, 'xs');
 
     const consCase = cases[1];
-    assert.equal(consCase.ihTheorems[0].premise, undefined);
+    assert.deepEqual(consCase.ihTheorems[0].premises, []);
   });
 
 });

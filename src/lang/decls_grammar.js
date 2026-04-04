@@ -37,9 +37,11 @@ var grammar = {
     {"name": "Types", "symbols": [(lexer2.has("typeName") ? {type: "typeName"} : typeName)], "postprocess": ([a]) => a.text},
     {"name": "Types", "symbols": ["Types", (lexer2.has("comma") ? {type: "comma"} : comma), (lexer2.has("typeName") ? {type: "typeName"} : typeName)], "postprocess": ([a, _comma, b]) => [b.text, a]},
     {"name": "TheoremDecl", "symbols": [(lexer2.has("kw_theorem") ? {type: "kw_theorem"} : kw_theorem), (lexer2.has("variable") ? {type: "variable"} : variable), "TheoremParamGroups", (lexer2.has("pipe") ? {type: "pipe"} : pipe), "Formula"], "postprocess":  ([thm, name, params, _pipe, concl]) =>
-        new theoremAst.TheoremAst(name.text, expandParams(params), undefined, concl, thm.line) },
-    {"name": "TheoremDecl", "symbols": [(lexer2.has("kw_theorem") ? {type: "kw_theorem"} : kw_theorem), (lexer2.has("variable") ? {type: "variable"} : variable), "TheoremParamGroups", (lexer2.has("pipe") ? {type: "pipe"} : pipe), "Formula", (lexer2.has("fatArrow") ? {type: "fatArrow"} : fatArrow), "Formula"], "postprocess":  ([thm, name, params, _pipe, premise, _arrow, concl]) =>
-        new theoremAst.TheoremAst(name.text, expandParams(params), premise, concl, thm.line) },
+        new theoremAst.TheoremAst(name.text, expandParams(params), [], concl, thm.line) },
+    {"name": "TheoremDecl", "symbols": [(lexer2.has("kw_theorem") ? {type: "kw_theorem"} : kw_theorem), (lexer2.has("variable") ? {type: "variable"} : variable), "TheoremParamGroups", (lexer2.has("pipe") ? {type: "pipe"} : pipe), "Premises", (lexer2.has("fatArrow") ? {type: "fatArrow"} : fatArrow), "Formula"], "postprocess":  ([thm, name, params, _pipe, premises, _arrow, concl]) =>
+        new theoremAst.TheoremAst(name.text, expandParams(params), premises, concl, thm.line) },
+    {"name": "Premises", "symbols": ["Formula"], "postprocess": ([f]) => [f]},
+    {"name": "Premises", "symbols": ["Premises", (lexer2.has("comma") ? {type: "comma"} : comma), "Formula"], "postprocess": ([ps, _comma, f]) => ps.concat([f])},
     {"name": "TheoremParamGroups", "symbols": ["TheoremParamGroup"], "postprocess": ([g]) => [g]},
     {"name": "TheoremParamGroups", "symbols": ["TheoremParamGroups", "TheoremParamGroup"], "postprocess": ([gs, g]) => gs.concat([g])},
     {"name": "TheoremParamGroup", "symbols": [(lexer2.has("lparen") ? {type: "lparen"} : lparen), "TheoremNames", (lexer2.has("colon") ? {type: "colon"} : colon), (lexer2.has("typeName") ? {type: "typeName"} : typeName), (lexer2.has("rparen") ? {type: "rparen"} : rparen)], "postprocess": ([_lp, names, _colon, type, _rp]) => ({ names, type: type.text })},

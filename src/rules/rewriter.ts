@@ -29,7 +29,7 @@ import { UserError } from '../facts/user_error';
 
 export interface RewriteCandidate {
   result: Expression;
-  condition?: Formula;
+  conditions: Formula[];
 }
 
 export interface PolarizedCandidate extends RewriteCandidate {
@@ -60,7 +60,7 @@ export abstract class Rewriter {
    * Tests whether a rewrite applies at this node. Returns the replacement
    * expression and an optional condition, or undefined if no match.
    */
-  abstract tryMatch(node: Expression): { replacement: Expression; condition?: Formula } | undefined;
+  abstract tryMatch(node: Expression): { replacement: Expression; conditions: Formula[] } | undefined;
 
   /**
    * Enumerates all single-replacement candidates. The default implementation
@@ -70,10 +70,12 @@ export abstract class Rewriter {
     return this.enumerateIn(this.ex);
   }
 
-  /** Validates a condition on the chosen candidate. Override if needed. */
-  validateCondition(condition: Formula): void {
-    throw new UserError(
-      `${this.label}: unexpected condition ${condition.to_string()}`);
+  /** Validates conditions on the chosen candidate. Override if needed. */
+  validateConditions(conditions: Formula[]): void {
+    if (conditions.length > 0) {
+      throw new UserError(
+        `${this.label}: unexpected condition ${conditions[0].to_string()}`);
+    }
   }
 
   /**
@@ -104,8 +106,8 @@ export abstract class Rewriter {
       chosen = candidates[0];
     }
 
-    if (chosen.condition !== undefined) {
-      this.validateCondition(chosen.condition);
+    if (chosen.conditions.length > 0) {
+      this.validateConditions(chosen.conditions);
     }
 
     this._chosen = chosen;
@@ -130,7 +132,7 @@ export abstract class Rewriter {
 
     const match = this.tryMatch(ex);
     if (match !== undefined) {
-      candidates.push({ result: match.replacement, condition: match.condition });
+      candidates.push({ result: match.replacement, conditions: match.conditions });
     }
 
     if (ex.variety === EXPR_FUNCTION) {
@@ -141,7 +143,7 @@ export abstract class Rewriter {
           newArgs[i] = c.result;
           candidates.push({
             result: new Call(call.name, newArgs),
-            condition: c.condition,
+            conditions: c.conditions,
           });
         }
       }
@@ -166,7 +168,7 @@ export abstract class Rewriter {
 
     const match = this.tryMatch(ex);
     if (match) {
-      candidates.push({ result: match.replacement, positive, condition: match.condition });
+      candidates.push({ result: match.replacement, positive, conditions: match.conditions });
     }
 
     if (ex.variety !== EXPR_FUNCTION) return candidates;
@@ -177,37 +179,37 @@ export abstract class Rewriter {
         for (const c of this.enumerateWithPolarity(call.args[i], positive)) {
           const newArgs = call.args.slice();
           newArgs[i] = c.result;
-          candidates.push({ result: new Call(call.name, newArgs), positive: c.positive, condition: c.condition });
+          candidates.push({ result: new Call(call.name, newArgs), positive: c.positive, conditions: c.conditions });
         }
       }
     } else if (call.name === FUNC_SUBTRACT && call.args.length === 2) {
       for (const c of this.enumerateWithPolarity(call.args[0], positive)) {
         candidates.push({
           result: new Call(call.name, [c.result, call.args[1]]),
-          positive: c.positive, condition: c.condition,
+          positive: c.positive, conditions: c.conditions,
         });
       }
       for (const c of this.enumerateWithPolarity(call.args[1], !positive)) {
         candidates.push({
           result: new Call(call.name, [call.args[0], c.result]),
-          positive: c.positive, condition: c.condition,
+          positive: c.positive, conditions: c.conditions,
         });
       }
     } else if (call.name === FUNC_NEGATE && call.args.length === 1) {
       for (const c of this.enumerateWithPolarity(call.args[0], !positive)) {
-        candidates.push({ result: new Call(call.name, [c.result]), positive: c.positive, condition: c.condition });
+        candidates.push({ result: new Call(call.name, [c.result]), positive: c.positive, conditions: c.conditions });
       }
     } else if (call.name === FUNC_MULTIPLY && call.args.length === 2) {
       const [a, b] = call.args;
       if (a.variety === EXPR_CONSTANT) {
         const childPositive = (a as Constant).value >= 0n ? positive : !positive;
         for (const c of this.enumerateWithPolarity(b, childPositive)) {
-          candidates.push({ result: new Call(call.name, [a, c.result]), positive: c.positive, condition: c.condition });
+          candidates.push({ result: new Call(call.name, [a, c.result]), positive: c.positive, conditions: c.conditions });
         }
       } else if (b.variety === EXPR_CONSTANT) {
         const childPositive = (b as Constant).value >= 0n ? positive : !positive;
         for (const c of this.enumerateWithPolarity(a, childPositive)) {
-          candidates.push({ result: new Call(call.name, [c.result, b]), positive: c.positive, condition: c.condition });
+          candidates.push({ result: new Call(call.name, [c.result, b]), positive: c.positive, conditions: c.conditions });
         }
       }
     }
@@ -231,7 +233,7 @@ export class EquationRewriter extends Rewriter {
   }
 
   tryMatch(node: Expression) {
-    return node.equals(this.from) ? { replacement: this.to } : undefined;
+    return node.equals(this.from) ? { replacement: this.to, conditions: [] } : undefined;
   }
 }
 
@@ -250,7 +252,7 @@ export class InequalityRewriter extends Rewriter {
   }
 
   tryMatch(node: Expression) {
-    return node.equals(this.from) ? { replacement: this.to } : undefined;
+    return node.equals(this.from) ? { replacement: this.to, conditions: [] } : undefined;
   }
 
   /** Whether the chosen match was at a positive position. */
@@ -273,13 +275,13 @@ function setupUnification(
   env: { hasConstructor(name: string): boolean },
   formula: Formula,
   right: boolean,
-  condition: Formula | undefined,
+  conditions: Formula[],
 ): {
   matchSide: Expression;
   replSide: Expression;
   freeVars: Set<string>;
-  conditionFreshened?: [Expression, Expression];
-  conditionOp?: FormulaOp;
+  conditionsFreshened: [Expression, Expression][];
+  conditionOps: FormulaOp[];
 } {
   const origMatch = right ? formula.left : formula.right;
   const origRepl = right ? formula.right : formula.left;
@@ -287,17 +289,20 @@ function setupUnification(
     origMatch.var_refs().filter(v => !env.hasConstructor(v)));
 
   const toFreshen = [origMatch, origRepl];
-  if (condition) {
-    toFreshen.push(condition.left, condition.right);
+  for (const c of conditions) {
+    toFreshen.push(c.left, c.right);
   }
   const [freshened, freeVars] = FreshenVarsMany(toFreshen, origVars);
+
+  const conditionsFreshened: [Expression, Expression][] = conditions.map(
+    (_, i) => [freshened[2 + i * 2], freshened[2 + i * 2 + 1]]);
 
   return {
     matchSide: freshened[0],
     replSide: freshened[1],
     freeVars,
-    conditionFreshened: condition ? [freshened[2], freshened[3]] : undefined,
-    conditionOp: condition?.op,
+    conditionsFreshened,
+    conditionOps: conditions.map(c => c.op),
   };
 }
 
@@ -306,19 +311,15 @@ function unifyTryMatch(
   matchSide: Expression,
   replSide: Expression,
   freeVars: Set<string>,
-  conditionFreshened?: [Expression, Expression],
-  conditionOp?: FormulaOp,
-): { replacement: Expression; condition?: Formula } | undefined {
+  conditionsFreshened: [Expression, Expression][],
+  conditionOps: FormulaOp[],
+): { replacement: Expression; conditions: Formula[] } | undefined {
   const subst = UnifyExprs(node, matchSide, freeVars);
   if (subst === undefined) return undefined;
   const replacement = ApplySubst(replSide, subst);
-  let condition: Formula | undefined;
-  if (conditionFreshened) {
-    const condLeft = ApplySubst(conditionFreshened[0], subst);
-    const condRight = ApplySubst(conditionFreshened[1], subst);
-    condition = new Formula(condLeft, conditionOp!, condRight);
-  }
-  return { replacement, condition };
+  const conditions = conditionsFreshened.map((pair, i) =>
+    new Formula(ApplySubst(pair[0], subst), conditionOps[i], ApplySubst(pair[1], subst)));
+  return { replacement, conditions };
 }
 
 function validateWithInequalityImplied(
@@ -355,8 +356,8 @@ export class DefinitionRewriter extends Rewriter {
   private matchSide: Expression;
   private replSide: Expression;
   private freeVars: Set<string>;
-  private conditionFreshened?: [Expression, Expression];
-  private conditionOp?: FormulaOp;
+  private conditionsFreshened: [Expression, Expression][];
+  private conditionOps: FormulaOp[];
   private knownFacts: Formula[];
 
   constructor(
@@ -370,21 +371,21 @@ export class DefinitionRewriter extends Rewriter {
   ) {
     super(label, ex);
     this.knownFacts = knownFacts;
-    const u = setupUnification(env, defFormula, right, condition);
+    const u = setupUnification(env, defFormula, right, condition ? [condition] : []);
     this.matchSide = u.matchSide;
     this.replSide = u.replSide;
     this.freeVars = u.freeVars;
-    this.conditionFreshened = u.conditionFreshened;
-    this.conditionOp = u.conditionOp;
+    this.conditionsFreshened = u.conditionsFreshened;
+    this.conditionOps = u.conditionOps;
   }
 
   tryMatch(node: Expression) {
     return unifyTryMatch(node, this.matchSide, this.replSide, this.freeVars,
-        this.conditionFreshened, this.conditionOp);
+        this.conditionsFreshened, this.conditionOps);
   }
 
-  validateCondition(condition: Formula): void {
-    validateWithInequalityImplied(this.label, this.knownFacts, condition);
+  validateConditions(conditions: Formula[]): void {
+    validateWithInequalityImplied(this.label, this.knownFacts, conditions[0]);
   }
 }
 
@@ -398,8 +399,8 @@ export class TheoremEquationRewriter extends Rewriter {
   private matchSide: Expression;
   private replSide: Expression;
   private freeVars: Set<string>;
-  private conditionFreshened?: [Expression, Expression];
-  private conditionOp?: FormulaOp;
+  private conditionsFreshened: [Expression, Expression][];
+  private conditionOps: FormulaOp[];
   private knownFacts: Formula[];
 
   constructor(
@@ -408,26 +409,28 @@ export class TheoremEquationRewriter extends Rewriter {
     ex: Expression,
     conclusion: Formula,
     right: boolean,
-    premise: Formula | undefined,
+    premises: Formula[],
     knownFacts: Formula[],
   ) {
     super(label, ex);
     this.knownFacts = knownFacts;
-    const u = setupUnification(env, conclusion, right, premise);
+    const u = setupUnification(env, conclusion, right, premises);
     this.matchSide = u.matchSide;
     this.replSide = u.replSide;
     this.freeVars = u.freeVars;
-    this.conditionFreshened = u.conditionFreshened;
-    this.conditionOp = u.conditionOp;
+    this.conditionsFreshened = u.conditionsFreshened;
+    this.conditionOps = u.conditionOps;
   }
 
   tryMatch(node: Expression) {
     return unifyTryMatch(node, this.matchSide, this.replSide, this.freeVars,
-        this.conditionFreshened, this.conditionOp);
+        this.conditionsFreshened, this.conditionOps);
   }
 
-  validateCondition(condition: Formula): void {
-    validatePremise(this.label, this.knownFacts, condition);
+  validateConditions(conditions: Formula[]): void {
+    for (const condition of conditions) {
+      validatePremise(this.label, this.knownFacts, condition);
+    }
   }
 }
 
@@ -441,8 +444,8 @@ export class TheoremInequalityRewriter extends Rewriter {
   private matchSide: Expression;
   private replSide: Expression;
   private freeVars: Set<string>;
-  private conditionFreshened?: [Expression, Expression];
-  private conditionOp?: FormulaOp;
+  private conditionsFreshened: [Expression, Expression][];
+  private conditionOps: FormulaOp[];
   private knownFacts: Formula[];
 
   constructor(
@@ -451,22 +454,22 @@ export class TheoremInequalityRewriter extends Rewriter {
     ex: Expression,
     conclusion: Formula,
     right: boolean,
-    premise: Formula | undefined,
+    premises: Formula[],
     knownFacts: Formula[],
   ) {
     super(label, ex);
     this.knownFacts = knownFacts;
-    const u = setupUnification(env, conclusion, right, premise);
+    const u = setupUnification(env, conclusion, right, premises);
     this.matchSide = u.matchSide;
     this.replSide = u.replSide;
     this.freeVars = u.freeVars;
-    this.conditionFreshened = u.conditionFreshened;
-    this.conditionOp = u.conditionOp;
+    this.conditionsFreshened = u.conditionsFreshened;
+    this.conditionOps = u.conditionOps;
   }
 
   tryMatch(node: Expression) {
     return unifyTryMatch(node, this.matchSide, this.replSide, this.freeVars,
-        this.conditionFreshened, this.conditionOp);
+        this.conditionsFreshened, this.conditionOps);
   }
 
   /** Whether the chosen match was at a positive position. */
@@ -478,7 +481,9 @@ export class TheoremInequalityRewriter extends Rewriter {
     return this.enumerateWithPolarity(this.ex, true);
   }
 
-  validateCondition(condition: Formula): void {
-    validatePremise(this.label, this.knownFacts, condition);
+  validateConditions(conditions: Formula[]): void {
+    for (const condition of conditions) {
+      validatePremise(this.label, this.knownFacts, condition);
+    }
   }
 }

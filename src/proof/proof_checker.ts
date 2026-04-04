@@ -163,25 +163,16 @@ function checkIHTheorems(
           `IH ${ih.name} params should be${formatParams(exp.params)}, ` +
           `got${formatParams(ih.params)}`);
     }
-    // Check premise if expected.
-    if (exp.premise) {
-      if (!ih.premise) {
-        throw new CheckError(ih.line,
-            `IH ${ih.name} should have premise ${exp.premise.to_string()}`);
-      }
-      let parsedPremise: Formula;
-      try {
-        parsedPremise = ParseFormula(ih.premise);
-      } catch (e: any) {
-        throw new CheckError(ih.line, `bad IH premise: ${e.message}`);
-      }
-      if (parsedPremise.to_string() !== exp.premise.to_string()) {
-        throw new CheckError(ih.line,
-            `IH ${ih.name} premise is ${exp.premise.to_string()}, not ${parsedPremise.to_string()}`);
-      }
-    } else if (ih.premise) {
+    // Check premises if expected.
+    if (ih.premises.length !== exp.premises.length) {
       throw new CheckError(ih.line,
-          `IH ${ih.name} should not have a premise`);
+          `IH ${ih.name} should have ${exp.premises.length} premise(s), got ${ih.premises.length}`);
+    }
+    for (let j = 0; j < exp.premises.length; j++) {
+      if (ih.premises[j].to_string() !== exp.premises[j].to_string()) {
+        throw new CheckError(ih.line,
+            `IH ${ih.name} premise is ${exp.premises[j].to_string()}, not ${ih.premises[j].to_string()}`);
+      }
     }
     // Check conclusion.
     let parsed: Formula;
@@ -226,12 +217,12 @@ function checkCaseBlock(
 
 function checkProof(
     goal: Formula, env: Environment, node: ProofNode,
-    premise?: Formula): void {
+    premises: Formula[] = []): void {
   if (node.kind === 'calculate') {
     checkCalc(goal, env, node);
   } else if (node.kind === 'induction') {
     const parentFactCount = env.numFacts();
-    const cases = buildCases(goal, env, node.varName, node.argNames, premise);
+    const cases = buildCases(goal, env, node.varName, node.argNames, premises);
     if (node.cases.length !== cases.length) {
       const line = node.cases.length > 0 ? node.cases[0].goalLine : 0;
       throw new CheckError(line,
@@ -281,9 +272,8 @@ export function checkProofFile(pf: ProofFile): void {
     throw new CheckError(pf.theoremLine, `type error: ${e.message}`);
   }
 
-  // Build the proof env with theorem params as variables and premise as given.
-  const givens: Formula[] = theorem.premise ? [theorem.premise] : [];
-  const proofEnv = new NestedEnv(env, theorem.params, givens);
+  // Build the proof env with theorem params as variables and premises as givens.
+  const proofEnv = new NestedEnv(env, theorem.params, theorem.premises);
 
   // Type-check the theorem being proved (its formulas reference the params).
   // proofEnv.check() validates the premise (it's in givens); the conclusion
@@ -298,5 +288,5 @@ export function checkProofFile(pf: ProofFile): void {
   // Validate top-level given lines (premise).
   checkGivens(pf.givens, proofEnv, 0);
 
-  checkProof(theorem.conclusion, proofEnv, pf.proof, theorem.premise);
+  checkProof(theorem.conclusion, proofEnv, pf.proof, theorem.premises);
 }

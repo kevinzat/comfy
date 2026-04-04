@@ -81,7 +81,7 @@ describe('decls_parser', function() {
     assert.equal(ast.theorems.length, 1);
     assert.equal(ast.theorems[0].name, 'foo');
     assert.deepEqual(ast.theorems[0].params, [['x', 'Int']]);
-    assert.equal(ast.theorems[0].premise, undefined);
+    assert.deepEqual(ast.theorems[0].premises, []);
     assert.strictEqual(ast.theorems[0].conclusion.op, '=');
   });
 
@@ -91,8 +91,8 @@ describe('decls_parser', function() {
          | x < 0 => 0 < x * x`);
     assert.ok(ast, 'parse failed');
     assert.equal(ast.theorems.length, 1);
-    assert.ok(ast.theorems[0].premise);
-    assert.strictEqual(ast.theorems[0].premise!.op, '<');
+    assert.equal(ast.theorems[0].premises.length, 1);
+    assert.strictEqual(ast.theorems[0].premises[0].op, '<');
     assert.strictEqual(ast.theorems[0].conclusion.op, '<');
   });
 
