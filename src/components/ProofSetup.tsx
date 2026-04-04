@@ -238,21 +238,34 @@ export default class ProofSetup
       </tr>
     );
 
+    if (!checked) {
+      rows.push(
+        <tr key="check">
+          <td />
+          <td style={{ paddingTop: 10 }}>
+            <button className="btn-start" disabled={!this.isValid()}
+                onClick={this.handleCheck.bind(this)}>
+              Check
+            </button>
+            {this.state.checkError &&
+              <div className="check-error-msg">{this.state.checkError}</div>}
+          </td>
+        </tr>
+      );
+    } else if (thmObligations.length > 0 || codeObligations.length > 0) {
+      rows.push(
+        <tr key="obligations">
+          <td className="setup-label" style={{ paddingTop: 18 }}>Obligations</td>
+          <td>{this.renderObligations()}</td>
+        </tr>
+      );
+    }
+
     return (
       <div style={{ padding: 20 }}>
         <table cellPadding={5}>
           <tbody>{rows}</tbody>
         </table>
-        <div style={{ marginTop: 10 }}>
-          <button className="btn-start" disabled={!this.isValid()}
-              onClick={this.handleCheck.bind(this)}>
-            Check
-          </button>
-          {this.state.checkError &&
-            <div className="check-error-msg">{this.state.checkError}</div>}
-        </div>
-        {checked && (thmObligations.length > 0 || codeObligations.length > 0) &&
-          this.renderObligations()}
       </div>
     );
   }
@@ -264,10 +277,7 @@ export default class ProofSetup
     const decls = this.state.declsResult.ast ?? new DeclsAst([], [], []);
 
     return (
-      <div style={{ marginTop: 20 }}>
-        <div style={{ fontWeight: 'bold', fontFamily: 'Helvetica, sans-serif', marginBottom: 8 }}>
-          Proof Obligations
-        </div>
+      <div style={{ marginTop: 8 }}>
         <table cellPadding={5}>
           <tbody>
             {obligations.map((obl, i) => {
