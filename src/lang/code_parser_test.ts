@@ -2,7 +2,8 @@
 import * as assert from 'assert';
 import { Constant, Variable, Call } from '../facts/exprs';
 import {
-  FuncDef, Param, DeclStmt, AssignStmt, WhileStmt, IfStmt, PassStmt, ReturnStmt, CondAst
+  FuncDef, Param, DeclStmt, AssignStmt, WhileStmt, IfStmt, PassStmt, ReturnStmt, RelAst,
+  TrueCondAst, FalseCondAst
 } from './code_ast';
 import { ParseCode } from './code_parser';
 
@@ -67,9 +68,9 @@ describe('code_parser', function() {
     const stmt = ast.body[0];
     assert.ok(stmt instanceof WhileStmt);
     if (!(stmt instanceof WhileStmt)) return;
-    assert.equal(stmt.cond.op, '!=');
-    assert.ok(stmt.cond.left.equals(Variable.of('n')));
-    assert.ok(stmt.cond.right.equals(Constant.of(0n)));
+    assert.equal((stmt.cond as RelAst).op, '!=');
+    assert.ok((stmt.cond as RelAst).left.equals(Variable.of('n')));
+    assert.ok((stmt.cond as RelAst).right.equals(Constant.of(0n)));
     assert.equal(stmt.body.length, 1);
   });
 
@@ -78,9 +79,9 @@ describe('code_parser', function() {
     assert.ok(ast);
     const stmt = ast.body[0] as WhileStmt;
     assert.equal(stmt.invariant.length, 1);
-    assert.equal(stmt.invariant[0].op, '>=');
-    assert.ok(stmt.invariant[0].left.equals(Variable.of('n')));
-    assert.ok(stmt.invariant[0].right.equals(Constant.of(0n)));
+    assert.equal((stmt.invariant[0] as RelAst).op, '>=');
+    assert.ok((stmt.invariant[0] as RelAst).left.equals(Variable.of('n')));
+    assert.ok((stmt.invariant[0] as RelAst).right.equals(Constant.of(0n)));
   });
 
   it('parse while loop with multiple invariants', function() {
@@ -88,8 +89,8 @@ describe('code_parser', function() {
     assert.ok(ast);
     const stmt = ast.body[0] as WhileStmt;
     assert.equal(stmt.invariant.length, 2);
-    assert.equal(stmt.invariant[0].op, '>=');
-    assert.equal(stmt.invariant[1].op, '<=');
+    assert.equal((stmt.invariant[0] as RelAst).op, '>=');
+    assert.equal((stmt.invariant[1] as RelAst).op, '<=');
   });
 
   it('parse if/else', function() {
@@ -99,9 +100,9 @@ describe('code_parser', function() {
     const stmt = ast.body[0];
     assert.ok(stmt instanceof IfStmt);
     if (!(stmt instanceof IfStmt)) return;
-    assert.equal(stmt.cond.op, '==');
-    assert.ok(stmt.cond.left.equals(Variable.of('x')));
-    assert.ok(stmt.cond.right.equals(Constant.of(0n)));
+    assert.equal((stmt.cond as RelAst).op, '==');
+    assert.ok((stmt.cond as RelAst).left.equals(Variable.of('x')));
+    assert.ok((stmt.cond as RelAst).right.equals(Constant.of(0n)));
     assert.equal(stmt.thenBody.length, 1);
     assert.ok(stmt.thenBody[0] instanceof PassStmt);
     assert.equal(stmt.elseBody.length, 1);
@@ -211,31 +212,31 @@ describe('code_parser', function() {
     const { ast } = ParseCode(`Int f(Int x) { while (x < 10) invariant x >= 0 { pass; } }`);
     assert.ok(ast);
     const loop = ast.body[0] as WhileStmt;
-    assert.equal(loop.cond.op, '<');
+    assert.equal((loop.cond as RelAst).op, '<');
   });
 
   it('parse condition with <=', function() {
     const { ast } = ParseCode(`Int f(Int x) { while (x <= 10) invariant x >= 0 { pass; } }`);
     assert.ok(ast);
     const loop = ast.body[0] as WhileStmt;
-    assert.equal(loop.cond.op, '<=');
+    assert.equal((loop.cond as RelAst).op, '<=');
   });
 
   it('parse condition with >', function() {
     const { ast } = ParseCode(`Int f(Int x) { while (x > 0) invariant x >= 0 { pass; } }`);
     assert.ok(ast);
     const loop = ast.body[0] as WhileStmt;
-    assert.equal(loop.cond.op, '>');
+    assert.equal((loop.cond as RelAst).op, '>');
   });
 
   it('parse condition with >=', function() {
     const { ast } = ParseCode(`Int f(Int x) { while (x >= 0) invariant x >= 0 { pass; } }`);
     assert.ok(ast);
     const loop = ast.body[0] as WhileStmt;
-    assert.equal(loop.cond.op, '>=');
+    assert.equal((loop.cond as RelAst).op, '>=');
   });
 
-  it('records line/col on CondAst', function() {
+  it('records line/col on RelAst', function() {
     const { ast } = ParseCode(`Int f(Int n) { while (n != 0) invariant n >= 0 { pass; } }`);
     assert.ok(ast);
     const loop = ast.body[0] as WhileStmt;
@@ -272,16 +273,16 @@ describe('code_parser', function() {
     const { ast } = ParseCode(`Int f(Int x) requires x >= 0 { return x; }`);
     assert.ok(ast);
     assert.equal(ast.requires.length, 1);
-    assert.equal(ast.requires[0].op, '>=');
-    assert.ok(ast.requires[0].left.equals(Variable.of('x')));
-    assert.ok(ast.requires[0].right.equals(Constant.of(0n)));
+    assert.equal((ast.requires[0] as RelAst).op, '>=');
+    assert.ok((ast.requires[0] as RelAst).left.equals(Variable.of('x')));
+    assert.ok((ast.requires[0] as RelAst).right.equals(Constant.of(0n)));
   });
 
   it('parse function with ensures clause', function() {
     const { ast } = ParseCode(`Int f(Int x) ensures x >= 0 { return x; }`);
     assert.ok(ast);
     assert.equal(ast.ensures.length, 1);
-    assert.equal(ast.ensures[0].op, '>=');
+    assert.equal((ast.ensures[0] as RelAst).op, '>=');
   });
 
   it('parse function with both requires and ensures', function() {
@@ -295,14 +296,43 @@ describe('code_parser', function() {
     const { ast } = ParseCode(`Int f(Int x, Int y) requires x >= 0, y >= 0 ensures x >= 0 { return x; }`);
     assert.ok(ast);
     assert.equal(ast.requires.length, 2);
-    assert.equal(ast.requires[0].op, '>=');
-    assert.equal(ast.requires[1].op, '>=');
+    assert.equal((ast.requires[0] as RelAst).op, '>=');
+    assert.equal((ast.requires[1] as RelAst).op, '>=');
   });
 
   it('parse function with multiple ensures conditions', function() {
     const { ast } = ParseCode(`Int f(Int x) requires x >= 0 ensures x >= 0, x >= 1 { return x; }`);
     assert.ok(ast);
     assert.equal(ast.ensures.length, 2);
+  });
+
+  it('parse true as requires condition', function() {
+    const { ast } = ParseCode(`Int f(Int x) requires true { return x; }`);
+    assert.ok(ast);
+    assert.equal(ast.requires.length, 1);
+    assert.ok(ast.requires[0] instanceof TrueCondAst);
+  });
+
+  it('parse false as requires condition', function() {
+    const { ast } = ParseCode(`Int f(Int x) requires false { return x; }`);
+    assert.ok(ast);
+    assert.equal(ast.requires.length, 1);
+    assert.ok(ast.requires[0] instanceof FalseCondAst);
+  });
+
+  it('parse true as if condition', function() {
+    const { ast } = ParseCode(`Int f() { if (true) { return 1; } else { return 0; } }`);
+    assert.ok(ast);
+    const stmt = ast.body[0] as IfStmt;
+    assert.ok(stmt.cond instanceof TrueCondAst);
+  });
+
+  it('parse false as while condition', function() {
+    const { ast } = ParseCode(`Int f() { while (false) invariant true { pass; } return 0; }`);
+    assert.ok(ast);
+    const stmt = ast.body[0] as WhileStmt;
+    assert.ok(stmt.cond instanceof FalseCondAst);
+    assert.ok(stmt.invariant[0] instanceof TrueCondAst);
   });
 
 });

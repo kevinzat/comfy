@@ -46,6 +46,7 @@ function propToStr(p: Prop): string {
   if (p.tag === 'not') {
     return `¬(${p.formula.left.to_string()} ${p.formula.op} ${p.formula.right.to_string()})`;
   }
+  if (p.tag === 'const') return p.value ? 'true' : 'false';
   return p.disjuncts.map(propToStr).join(' ∨ ');
 }
 

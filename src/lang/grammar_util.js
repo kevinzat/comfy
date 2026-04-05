@@ -53,7 +53,8 @@ export function makeCodeLexer(moo) {
     ident: { match: /[a-z][_a-zA-Z0-9]*/, type: moo.keywords({
       kw_while: 'while', kw_if: 'if', kw_else: 'else', kw_pass: 'pass', kw_return: 'return',
       kw_requires: 'requires', kw_ensures: 'ensures', kw_invariant: 'invariant',
-      kw_and: 'and', kw_or: 'or', kw_not: 'not'
+      kw_and: 'and', kw_or: 'or', kw_not: 'not',
+      kw_true: 'true', kw_false: 'false'
     }) },
     lparen: '(', rparen: ')',
     lbrace: '{', rbrace: '}',

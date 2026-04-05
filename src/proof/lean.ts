@@ -81,6 +81,7 @@ function formulaToLean(f: Formula, ctors: Set<string>): string {
 function propToLean(p: Prop, ctors: Set<string>): string {
   if (p.tag === 'atom') return formulaToLean(p.formula, ctors);
   if (p.tag === 'not') return `¬(${formulaToLean(p.formula, ctors)})`;
+  if (p.tag === 'const') return p.value ? 'True' : 'False';
   return p.disjuncts.map(d => propToLean(d, ctors)).join(' ∨ ');
 }
 

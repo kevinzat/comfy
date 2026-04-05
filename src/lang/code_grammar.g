@@ -51,30 +51,34 @@ Stmt -> %typeName %ident %equal Expr %semi
   {% ([kw, e, _s]) => new codeAst.ReturnStmt(e, kw.line, kw.col) %}
 
 Prop -> Prop %kw_or PropAnd
-  {% ([l, op, r]) => new codeAst.OrPropAst(l, r, op.line, op.col) %}
+  {% ([l, op, r]) => new codeAst.OrCondAst(l, r, op.line, op.col) %}
       | PropAnd {% ([p]) => p %}
 
 PropAnd -> PropAnd %kw_and PropNot
-  {% ([l, op, r]) => new codeAst.AndPropAst(l, r, op.line, op.col) %}
+  {% ([l, op, r]) => new codeAst.AndCondAst(l, r, op.line, op.col) %}
          | PropNot {% ([p]) => p %}
 
 PropNot -> %kw_not PropNot
-  {% ([op, p]) => new codeAst.NotPropAst(p, op.line, op.col) %}
+  {% ([op, p]) => new codeAst.NotCondAst(p, op.line, op.col) %}
          | %lparen Prop %rparen {% ([_lp, p, _rp]) => p %}
          | AtomicProp {% ([p]) => p %}
 
 AtomicProp -> Expr %equalequal Expr
-  {% ([l, op, r]) => new codeAst.CondAst(l, '==', r, op.line, op.col) %}
+  {% ([l, op, r]) => new codeAst.RelAst(l, '==', r, op.line, op.col) %}
             | Expr %notequal Expr
-  {% ([l, op, r]) => new codeAst.CondAst(l, '!=', r, op.line, op.col) %}
+  {% ([l, op, r]) => new codeAst.RelAst(l, '!=', r, op.line, op.col) %}
             | Expr %lessequal Expr
-  {% ([l, op, r]) => new codeAst.CondAst(l, '<=', r, op.line, op.col) %}
+  {% ([l, op, r]) => new codeAst.RelAst(l, '<=', r, op.line, op.col) %}
             | Expr %greaterequal Expr
-  {% ([l, op, r]) => new codeAst.CondAst(l, '>=', r, op.line, op.col) %}
+  {% ([l, op, r]) => new codeAst.RelAst(l, '>=', r, op.line, op.col) %}
             | Expr %lessthan Expr
-  {% ([l, op, r]) => new codeAst.CondAst(l, '<', r, op.line, op.col) %}
+  {% ([l, op, r]) => new codeAst.RelAst(l, '<', r, op.line, op.col) %}
             | Expr %greaterthan Expr
-  {% ([l, op, r]) => new codeAst.CondAst(l, '>', r, op.line, op.col) %}
+  {% ([l, op, r]) => new codeAst.RelAst(l, '>', r, op.line, op.col) %}
+            | %kw_true
+  {% ([tok]) => new codeAst.TrueCondAst(tok.line, tok.col) %}
+            | %kw_false
+  {% ([tok]) => new codeAst.FalseCondAst(tok.line, tok.col) %}
 
 Expr -> Expr %plus NegTerm
   {% ([a, op, c]) => new exprs.Call(exprs.FUNC_ADD, [a, c], op.line, op.col) %}

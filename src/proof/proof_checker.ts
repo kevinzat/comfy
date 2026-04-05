@@ -2,6 +2,7 @@ import { Expression } from '../facts/exprs';
 import { ParseExpr } from '../facts/exprs_parser';
 import { Formula } from '../facts/formula';
 import { ParseFormula } from '../facts/formula_parser';
+import { Prop, AtomProp } from '../facts/prop';
 import { Environment, TopLevelEnv, NestedEnv } from '../types/env';
 import { TheoremAst } from '../lang/theorem_ast';
 import { checkFormula } from '../types/checker';
@@ -189,7 +190,7 @@ function checkIHTheorems(
 }
 
 function checkCaseBlock(
-    block: CaseBlock, goal: Formula, env: Environment,
+    block: CaseBlock, goal: Prop, env: Environment,
     parentFactCount: number, expectedIH?: TheoremAst[]): void {
   // Check stated IH theorems match the expected ones.
   if (expectedIH) {
@@ -200,36 +201,47 @@ function checkCaseBlock(
   checkGivens(block.givens, env, parentFactCount);
 
   // Check stated goal matches the expected goal.
+  if (!(goal instanceof AtomProp)) {
+    throw new CheckError(block.goalLine, `case block goal must be a formula`);
+  }
   let statedGoal: Formula;
   try {
     statedGoal = ParseFormula(block.goal);
   } catch (e: any) {
     throw new CheckError(block.goalLine, `bad goal formula: ${e.message}`);
   }
-  if (statedGoal.to_string() !== goal.to_string()) {
+  if (statedGoal.to_string() !== goal.formula.to_string()) {
     throw new CheckError(block.goalLine,
         `stated goal ${statedGoal.to_string()} does not match ` +
-        `expected goal ${goal.to_string()}`);
+        `expected goal ${goal.formula.to_string()}`);
   }
 
   checkProof(goal, env, block.proof);
 }
 
 function checkProof(
-    goal: Formula, env: Environment, node: ProofNode,
-    premises: Formula[] = []): void {
+    goal: Prop, env: Environment, node: ProofNode,
+    premises: Prop[] = []): void {
   if (node.kind === 'calculate') {
-    checkCalc(goal, env, node);
+    if (!(goal instanceof AtomProp)) {
+      throw new CheckError(0, `calculation requires a formula goal`);
+    }
+    checkCalc(goal.formula, env, node);
   } else if (node.kind === 'induction') {
+    if (!(goal instanceof AtomProp)) {
+      throw new CheckError(0, `induction requires a formula goal`);
+    }
+    const formulaPremises = premises.flatMap(
+        p => p instanceof AtomProp ? [p.formula] : []);
     const parentFactCount = env.numFacts();
-    const cases = buildCases(goal, env, node.varName, node.argNames, premises);
+    const cases = buildCases(goal.formula, env, node.varName, node.argNames, formulaPremises);
     if (node.cases.length !== cases.length) {
       const line = node.cases.length > 0 ? node.cases[0].goalLine : 0;
       throw new CheckError(line,
           `expected ${cases.length} cases, got ${node.cases.length}`);
     }
     for (let i = 0; i < cases.length; i++) {
-      checkCaseBlock(node.cases[i], cases[i].goal, cases[i].env,
+      checkCaseBlock(node.cases[i], new AtomProp(cases[i].goal), cases[i].env,
           parentFactCount, cases[i].ihTheorems);
     }
   } else if (node.kind === 'cases') {
@@ -288,5 +300,6 @@ export function checkProofFile(pf: ProofFile): void {
   // Validate top-level given lines (premise).
   checkGivens(pf.givens, proofEnv, 0);
 
-  checkProof(theorem.conclusion, proofEnv, pf.proof, theorem.premises);
+  checkProof(new AtomProp(theorem.conclusion), proofEnv, pf.proof,
+      theorem.premises.map(p => new AtomProp(p)));
 }

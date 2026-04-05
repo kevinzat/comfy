@@ -1,4 +1,4 @@
-import { FuncDef, Stmt, propAstToProps, NotPropAst } from "../lang/code_ast";
+import { FuncDef, Stmt, condToProps, NotCondAst } from "../lang/code_ast";
 import { Expression, Variable } from "../facts/exprs";
 import { Formula } from "../facts/formula";
 import { AtomProp, NotProp, OrProp, Literal, Prop } from "../facts/prop";
@@ -26,6 +26,7 @@ function propStr(p: Prop): string {
   if (p.tag === 'not') {
     return `!${p.formula.left.to_string()}${p.formula.op}${p.formula.right.to_string()}`;
   }
+  if (p.tag === 'const') return p.value ? 'true' : 'false';
   return `(${p.disjuncts.map(propStr).join('|')})`;
 }
 
@@ -39,6 +40,7 @@ function propVars(p: Prop): Set<string> {
   if (p.tag === 'atom' || p.tag === 'not') {
     return new Set([...p.formula.left.vars(), ...p.formula.right.vars()]);
   }
+  if (p.tag === 'const') return new Set<string>();
   const vars = new Set<string>();
   for (const lit of p.disjuncts) {
     for (const v of propVars(lit)) vars.add(v);
@@ -65,6 +67,7 @@ function substLiteral(p: Literal, name: string, expr: Expression): Literal {
 function substProp(p: Prop, name: string, expr: Expression): Prop {
   if (p.tag === 'atom') return new AtomProp(substFormula(p.formula, name, expr));
   if (p.tag === 'not') return new NotProp(substFormula(p.formula, name, expr));
+  if (p.tag === 'const') return p;
   return new OrProp(p.disjuncts.map(lit => substLiteral(lit, name, expr)));
 }
 
@@ -148,15 +151,15 @@ function processStmt(
         partials,
         ensures,
       );
-      const condProps = propAstToProps(stmt.cond);
-      const negCondProps = propAstToProps(new NotPropAst(stmt.cond));
+      const condProps = condToProps(stmt.cond);
+      const negRelProps = condToProps(new NotCondAst(stmt.cond));
       const thenExited = thenTop.map((p) => ({
         ...p,
         premises: [...condProps, ...p.premises],
       }));
       const elseExited = elseTop.map((p) => ({
         ...p,
-        premises: [...negCondProps, ...p.premises],
+        premises: [...negRelProps, ...p.premises],
       }));
       return [
         [...thenObls, ...elseObls],
@@ -165,14 +168,14 @@ function processStmt(
     }
 
     case "while": {
-      const invariantProps = stmt.invariant.flatMap(propAstToProps);
-      const condProps = propAstToProps(stmt.cond);
-      const negCondProps = propAstToProps(new NotPropAst(stmt.cond));
+      const invariantProps = stmt.invariant.flatMap(condToProps);
+      const condProps = condToProps(stmt.cond);
+      const negRelProps = condToProps(new NotCondAst(stmt.cond));
 
       // Incoming partials meet the loop exit: invariant holds and cond is false.
       const afterLoopObls = partialsToObls(
         partials,
-        [...invariantProps, ...negCondProps],
+        [...invariantProps, ...negRelProps],
         stmt.line,
       );
 
@@ -212,11 +215,11 @@ function processStmt(
  * number at which that reasoning takes place.
  */
 export function getProofObligations(func: FuncDef): ProofObligation[] {
-  const ensureProps = func.ensures.flatMap(propAstToProps);
+  const ensureProps = func.ensures.flatMap(condToProps);
   const [bodyObls, topPartials] = processStmts(func.body, [], ensureProps);
 
   const firstLine = func.body[0]?.line ?? func.line;
-  const requireProps = func.requires.flatMap(propAstToProps);
+  const requireProps = func.requires.flatMap(condToProps);
   const topObls = partialsToObls(topPartials, requireProps, firstLine);
 
   const obls = [...topObls, ...bodyObls];

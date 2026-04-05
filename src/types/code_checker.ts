@@ -1,5 +1,5 @@
 import { UserError } from '../facts/user_error';
-import { FuncDef, Stmt, CondAst, PropAst, AndPropAst, OrPropAst, NotPropAst } from '../lang/code_ast';
+import { FuncDef, Stmt, RelAst, CondAst, AndCondAst, OrCondAst, NotCondAst, TrueCondAst, FalseCondAst } from '../lang/code_ast';
 import { Environment, NestedEnv } from './env';
 import { getType, checkExpr, TypeMismatchError } from './checker';
 
@@ -34,7 +34,7 @@ export class MissingReturnError extends UserError {
   }
 }
 
-function checkCond(env: Environment, cond: CondAst): void {
+function checkCond(env: Environment, cond: RelAst): void {
   const leftType = checkExpr(env, cond.left);
   const rightType = checkExpr(env, cond.right);
   const loc = `line ${cond.line} col ${cond.col}`;
@@ -52,12 +52,14 @@ function checkCond(env: Environment, cond: CondAst): void {
   }
 }
 
-function checkProp(env: Environment, prop: PropAst): void {
-  if (prop instanceof AndPropAst || prop instanceof OrPropAst) {
+function checkProp(env: Environment, prop: CondAst): void {
+  if (prop instanceof AndCondAst || prop instanceof OrCondAst) {
     checkProp(env, prop.left);
     checkProp(env, prop.right);
-  } else if (prop instanceof NotPropAst) {
+  } else if (prop instanceof NotCondAst) {
     checkProp(env, prop.prop);
+  } else if (prop instanceof TrueCondAst || prop instanceof FalseCondAst) {
+    // no type checking needed for boolean constants
   } else {
     checkCond(env, prop);
   }

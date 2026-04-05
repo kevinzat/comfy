@@ -1,5 +1,17 @@
 import { Expression } from './exprs';
 
+/**
+ * Returns the given formula with all instances of expr replaced by value in
+ * both the left and right sides.
+ */
+export function subst_formula(formula: Formula, expr: Expression, value: Expression): Formula {
+  const newLeft = formula.left.subst(expr, value);
+  const newRight = formula.right.subst(expr, value);
+  if (newLeft === formula.left && newRight === formula.right)
+    return formula;
+  return new Formula(newLeft, formula.op, newRight);
+}
+
 export const OP_EQUAL = '=';
 export const OP_LESS_THAN = '<';
 export const OP_LESS_EQUAL = '<=';

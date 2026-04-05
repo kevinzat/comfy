@@ -1,18 +1,18 @@
 import { Expression, Variable } from '../facts/exprs';
 import { AstNode } from '../facts/ast';
 import { Formula } from '../facts/formula';
-import { AtomProp, NotProp, OrProp, Literal, Prop } from '../facts/prop';
+import { AtomProp, NotProp, OrProp, ConstProp, Literal, Prop } from '../facts/prop';
 
 export class FuncDef extends AstNode {
   returnType: string;
   name: string;
   params: Param[];
   body: Stmt[];
-  requires: PropAst[];
-  ensures: PropAst[];
+  requires: CondAst[];
+  ensures: CondAst[];
 
   constructor(returnType: string, name: string, params: Param[], body: Stmt[],
-      requires: PropAst[] = [], ensures: PropAst[] = [],
+      requires: CondAst[] = [], ensures: CondAst[] = [],
       line: number = 0, col: number = 0) {
     super(line, col);
     this.returnType = returnType;
@@ -66,11 +66,11 @@ export class AssignStmt extends AstNode {
 
 export class WhileStmt extends AstNode {
   tag: 'while' = 'while';
-  cond: PropAst;
-  invariant: PropAst[];
+  cond: CondAst;
+  invariant: CondAst[];
   body: Stmt[];
 
-  constructor(cond: PropAst, invariant: PropAst[], body: Stmt[], line: number = 0, col: number = 0) {
+  constructor(cond: CondAst, invariant: CondAst[], body: Stmt[], line: number = 0, col: number = 0) {
     super(line, col);
     this.cond = cond;
     this.invariant = invariant;
@@ -80,11 +80,11 @@ export class WhileStmt extends AstNode {
 
 export class IfStmt extends AstNode {
   tag: 'if' = 'if';
-  cond: PropAst;
+  cond: CondAst;
   thenBody: Stmt[];
   elseBody: Stmt[];
 
-  constructor(cond: PropAst, thenBody: Stmt[], elseBody: Stmt[],
+  constructor(cond: CondAst, thenBody: Stmt[], elseBody: Stmt[],
       line: number = 0, col: number = 0) {
     super(line, col);
     this.cond = cond;
@@ -119,7 +119,7 @@ const NEG_OP: Record<CondOp, CondOp> = {
   '>': '<=', '>=': '<',
 };
 
-export class CondAst extends AstNode {
+export class RelAst extends AstNode {
   tag: 'cond' = 'cond';
   left: Expression;
   op: CondOp;
@@ -134,49 +134,65 @@ export class CondAst extends AstNode {
   }
 }
 
-export class AndPropAst extends AstNode {
+export class AndCondAst extends AstNode {
   tag: 'and' = 'and';
-  left: PropAst;
-  right: PropAst;
+  left: CondAst;
+  right: CondAst;
 
-  constructor(left: PropAst, right: PropAst, line: number = 0, col: number = 0) {
+  constructor(left: CondAst, right: CondAst, line: number = 0, col: number = 0) {
     super(line, col);
     this.left = left;
     this.right = right;
   }
 }
 
-export class OrPropAst extends AstNode {
+export class OrCondAst extends AstNode {
   tag: 'or' = 'or';
-  left: PropAst;
-  right: PropAst;
+  left: CondAst;
+  right: CondAst;
 
-  constructor(left: PropAst, right: PropAst, line: number = 0, col: number = 0) {
+  constructor(left: CondAst, right: CondAst, line: number = 0, col: number = 0) {
     super(line, col);
     this.left = left;
     this.right = right;
   }
 }
 
-export class NotPropAst extends AstNode {
+export class NotCondAst extends AstNode {
   tag: 'not' = 'not';
-  prop: PropAst;
+  prop: CondAst;
 
-  constructor(prop: PropAst, line: number = 0, col: number = 0) {
+  constructor(prop: CondAst, line: number = 0, col: number = 0) {
     super(line, col);
     this.prop = prop;
   }
 }
 
-export type PropAst = CondAst | AndPropAst | OrPropAst | NotPropAst;
+export class TrueCondAst extends AstNode {
+  tag: 'true' = 'true';
 
-export function negCond(cond: CondAst): CondAst {
-  return new CondAst(cond.left, NEG_OP[cond.op], cond.right, cond.line, cond.col);
+  constructor(line: number = 0, col: number = 0) {
+    super(line, col);
+  }
 }
 
-export function substCond(cond: CondAst, name: string, expr: Expression): CondAst {
+export class FalseCondAst extends AstNode {
+  tag: 'false' = 'false';
+
+  constructor(line: number = 0, col: number = 0) {
+    super(line, col);
+  }
+}
+
+export type CondAst = RelAst | AndCondAst | OrCondAst | NotCondAst | TrueCondAst | FalseCondAst;
+
+export function negRel(cond: RelAst): RelAst {
+  return new RelAst(cond.left, NEG_OP[cond.op], cond.right, cond.line, cond.col);
+}
+
+export function substRel(cond: RelAst, name: string, expr: Expression): RelAst {
   const v = Variable.of(name);
-  return new CondAst(
+  return new RelAst(
     cond.left.subst(v, expr),
     cond.op,
     cond.right.subst(v, expr),
@@ -189,15 +205,15 @@ const FORMULA_TO_COND_OP: Record<'=' | '<' | '<=', CondOp> = {
   '=': '==', '<': '<', '<=': '<=',
 };
 
-export function formulaToCond(f: Formula): CondAst {
-  return new CondAst(f.left, FORMULA_TO_COND_OP[f.op], f.right);
+export function formulaToRel(f: Formula): RelAst {
+  return new RelAst(f.left, FORMULA_TO_COND_OP[f.op], f.right);
 }
 
 /**
- * Converts a CondAst to a Formula. Swaps sides for > and >= (to produce < and <=).
+ * Converts a RelAst to a Formula. Swaps sides for > and >= (to produce < and <=).
  * Throws for !=, which has no Formula equivalent.
  */
-export function condToFormula(c: CondAst): Formula {
+export function relToFormula(c: RelAst): Formula {
   switch (c.op) {
     case '==': return new Formula(c.left, '=', c.right);
     case '<':  return new Formula(c.left, '<', c.right);
@@ -208,8 +224,11 @@ export function condToFormula(c: CondAst): Formula {
   }
 }
 
-/** Converts a CondAst to a Literal, normalizing operators to =, <, <=. */
-function condToLiteral(c: CondAst): Literal {
+// Internal type for CNF clauses before simplification — extends Literal with ConstProp.
+export type ClauseLiteral = Literal | ConstProp;
+
+/** Converts a RelAst to a Literal, normalizing operators to =, <, <=. */
+function relToLiteral(c: RelAst): Literal {
   switch (c.op) {
     case '==': return new AtomProp(new Formula(c.left, '=', c.right));
     case '<':  return new AtomProp(new Formula(c.left, '<', c.right));
@@ -220,7 +239,8 @@ function condToLiteral(c: CondAst): Literal {
   }
 }
 
-function negateLiteral(lit: Literal): Literal {
+function negateLiteral(lit: ClauseLiteral): ClauseLiteral {
+  if (lit.tag === 'const') return new ConstProp(!lit.value);
   return lit.tag === 'atom' ? new NotProp(lit.formula) : new AtomProp(lit.formula);
 }
 
@@ -228,8 +248,8 @@ function negateLiteral(lit: Literal): Literal {
  * Distributes OR over AND: given two CNF forms (lists of clauses), produces
  * the CNF of their disjunction via the cross product of clauses.
  */
-function distribute(left: Literal[][], right: Literal[][]): Literal[][] {
-  const result: Literal[][] = [];
+function distribute(left: ClauseLiteral[][], right: ClauseLiteral[][]): ClauseLiteral[][] {
+  const result: ClauseLiteral[][] = [];
   for (const l of left) {
     for (const r of right) {
       result.push([...l, ...r]);
@@ -239,20 +259,45 @@ function distribute(left: Literal[][], right: Literal[][]): Literal[][] {
 }
 
 /**
- * Converts a PropAst to CNF, represented as a list of clauses (each clause
+ * Converts a CNF clause (list of ClauseLiterals) to a Prop, simplifying any
+ * ConstProp values: ConstProp(true) absorbs the whole clause; ConstProp(false)
+ * is dropped. The resulting OrProp only contains AtomProp/NotProp disjuncts.
+ */
+export function clauseToProp(clause: ClauseLiteral[]): Prop {
+  const kept: Literal[] = [];
+  for (const lit of clause) {
+    if (lit.tag === 'const') {
+      if (lit.value) return new ConstProp(true);
+      continue;
+    }
+    kept.push(lit);
+  }
+  if (kept.length === 0) return new ConstProp(false);
+  if (kept.length === 1) return kept[0];
+  return new OrProp(kept);
+}
+
+/**
+ * Converts a CondAst to CNF, represented as a list of clauses (each clause
  * is a list of literals to be OR'd). The `negated` flag tracks whether we
  * are currently under a negation, allowing de Morgan's laws to be applied
  * as negations are pushed inward.
  */
-function toCNFClauses(p: PropAst, negated: boolean): Literal[][] {
-  if (p instanceof CondAst) {
-    const lit = condToLiteral(p);
+function toCNFClauses(p: CondAst, negated: boolean): ClauseLiteral[][] {
+  if (p instanceof RelAst) {
+    const lit = relToLiteral(p);
     return [[negated ? negateLiteral(lit) : lit]];
   }
-  if (p instanceof NotPropAst) {
+  if (p instanceof TrueCondAst) {
+    return [[new ConstProp(!negated)]];
+  }
+  if (p instanceof FalseCondAst) {
+    return [[new ConstProp(negated)]];
+  }
+  if (p instanceof NotCondAst) {
     return toCNFClauses(p.prop, !negated);
   }
-  if (p instanceof AndPropAst) {
+  if (p instanceof AndCondAst) {
     if (!negated) {
       // And(P, Q) -> clauses(P) ++ clauses(Q)
       return [...toCNFClauses(p.left, false), ...toCNFClauses(p.right, false)];
@@ -261,7 +306,7 @@ function toCNFClauses(p: PropAst, negated: boolean): Literal[][] {
       return distribute(toCNFClauses(p.left, true), toCNFClauses(p.right, true));
     }
   }
-  // OrPropAst
+  // OrCondAst
   if (!negated) {
     // Or(P, Q) -> distribute clauses(P) over clauses(Q)
     return distribute(toCNFClauses(p.left, false), toCNFClauses(p.right, false));
@@ -272,12 +317,11 @@ function toCNFClauses(p: PropAst, negated: boolean): Literal[][] {
 }
 
 /**
- * Converts a PropAst to a list of normalized Props in CNF.
- * Each returned Prop is either a single literal (AtomProp/NotProp) or a
- * clause (OrProp), and the list represents their conjunction.
+ * Converts a CondAst to a list of normalized Props in CNF.
+ * Each returned Prop is either a literal (AtomProp/NotProp), a clause (OrProp
+ * containing only AtomProp/NotProp), or a ConstProp. The list represents
+ * their conjunction.
  */
-export function propAstToProps(p: PropAst): Prop[] {
-  return toCNFClauses(p, false).map(clause =>
-    clause.length === 1 ? clause[0] : new OrProp(clause)
-  );
+export function condToProps(p: CondAst): Prop[] {
+  return toCNFClauses(p, false).map(clauseToProp);
 }

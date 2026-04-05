@@ -206,7 +206,7 @@ describe('getTheoremObligations', function() {
 
 describe('theoremToProofObligation', function() {
 
-  it('converts conclusion to goal using formulaToCond', function() {
+  it('converts conclusion to goal using formulaToRel', function() {
     const { ast } = ParseDecls(`theorem foo (x : Int) | x = 0`);
     assert.ok(ast);
     const obl = theoremToProofObligation(ast.theorems[0]);
