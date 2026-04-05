@@ -5,7 +5,7 @@ import { ParseFormula } from '../facts/formula_parser';
 import { Prop, AtomProp } from '../facts/prop';
 import { Environment, TopLevelEnv, NestedEnv } from '../types/env';
 import { TheoremAst } from '../lang/theorem_ast';
-import { checkFormula } from '../types/checker';
+import { checkProp } from '../types/checker';
 import { buildCases, CaseInfo } from './induction';
 import { buildCasesOnCondition } from './cases';
 import { Step, applyForwardRule, applyBackwardRule, topFrontier, botFrontier, isComplete, checkValidity } from './calc_proof';
@@ -284,15 +284,14 @@ export function checkProofFile(pf: ProofFile): void {
     throw new CheckError(pf.theoremLine, `type error: ${e.message}`);
   }
 
-  // Build the proof env with theorem params as variables and premises as givens.
-  const proofEnv = new NestedEnv(env, theorem.params, theorem.premises);
+  // Build the proof env with theorem params as variables and atomic premises as givens.
+  const atomPremises = theorem.premises.flatMap(p => p.tag === 'atom' ? [p.formula] : []);
+  const proofEnv = new NestedEnv(env, theorem.params, atomPremises);
 
   // Type-check the theorem being proved (its formulas reference the params).
-  // proofEnv.check() validates the premise (it's in givens); the conclusion
-  // must be checked separately.
   try {
-    proofEnv.check();
-    checkFormula(proofEnv, theorem.conclusion);
+    for (const p of theorem.premises) checkProp(proofEnv, p);
+    checkProp(proofEnv, theorem.conclusion);
   } catch (e: any) {
     throw new CheckError(pf.theoremLine, `type error: ${e.message}`);
   }
@@ -300,6 +299,5 @@ export function checkProofFile(pf: ProofFile): void {
   // Validate top-level given lines (premise).
   checkGivens(pf.givens, proofEnv, 0);
 
-  checkProof(new AtomProp(theorem.conclusion), proofEnv, pf.proof,
-      theorem.premises.map(p => new AtomProp(p)));
+  checkProof(theorem.conclusion, proofEnv, pf.proof, theorem.premises);
 }

@@ -2,6 +2,7 @@ import { UserError } from '../facts/user_error';
 import { Expression, EXPR_CONSTANT, EXPR_VARIABLE, EXPR_FUNCTION,
     Constant, Variable, Call } from '../facts/exprs';
 import { Formula, OP_EQUAL } from '../facts/formula';
+import { Prop } from '../facts/prop';
 import { FuncAst, TypeAst, CaseBody, Param, ParamConstructor } from '../lang/func_ast';
 import { Environment, NestedEnv } from './env';
 import { Type, NamedType, FunctionType } from './type';
@@ -212,6 +213,15 @@ export function checkFuncDecl(env: Environment, func: FuncAst): void {
  * For "<" and "<=", both sides must be Int.
  * @throws TypeMismatchError if the types don't match the operator's requirements.
  */
+export function checkProp(env: Environment, p: Prop): void {
+  if (p.tag === 'atom' || p.tag === 'not') {
+    checkFormula(env, p.formula);
+  } else if (p.tag === 'or') {
+    for (const lit of p.disjuncts) checkFormula(env, lit.formula);
+  }
+  // 'const' needs no checking
+}
+
 export function checkFormula(env: Environment, formula: Formula): void {
   const leftType = checkExpr(env, formula.left);
   const rightType = checkExpr(env, formula.right);

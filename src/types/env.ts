@@ -3,7 +3,7 @@ import { Formula } from '../facts/formula';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
 import { FuncAst, TypeAst } from '../lang/func_ast';
 import { TheoremAst } from '../lang/theorem_ast';
-import { getType, checkFormula, checkFuncDecl } from './checker';
+import { getType, checkFormula, checkProp, checkFuncDecl } from './checker';
 import { Type, NamedType } from './type';
 
 export class DuplicateError extends UserError {
@@ -167,9 +167,9 @@ export class TopLevelEnv implements Environment {
     for (const thm of this.theorems_) {
       const thmEnv = new NestedEnv(this, thm.params);
       for (const p of thm.premises) {
-        checkFormula(thmEnv, p);
+        checkProp(thmEnv, p);
       }
-      checkFormula(thmEnv, thm.conclusion);
+      checkProp(thmEnv, thm.conclusion);
     }
   }
 

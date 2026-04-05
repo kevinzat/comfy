@@ -1,6 +1,6 @@
 import { DeclsAst } from '../lang/decls_ast';
 import { ParseDecls, ParsePremises } from '../lang/decls_parser';
-import { Formula } from '../facts/formula';
+import { Prop } from '../facts/prop';
 
 
 /**
@@ -59,7 +59,7 @@ export interface GivenLine {
 export interface IHLine {
   name: string;
   params: [string, string][];
-  premises: Formula[];
+  premises: Prop[];
   formula: string;
   line: number;
 }
@@ -289,7 +289,7 @@ function parseCaseBlock(lines: Lines): CaseBlock {
     const body = ihMatch[3];
     // Split on => for optional premises.
     const arrowIdx = body.indexOf('=>');
-    let premises: Formula[];
+    let premises: Prop[];
     let formula: string;
     if (arrowIdx !== -1) {
       const premiseText = body.substring(0, arrowIdx).trim();

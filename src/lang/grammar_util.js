@@ -25,7 +25,8 @@ export function makeLangLexer(moo) {
     typeName: /[A-Z][_a-zA-Z0-9]*/,
     variable: { match: /[a-z][_a-zA-Z0-9]*/, type: moo.keywords({
       def: 'def', type: 'type', kw_theorem: 'theorem',
-      kw_if: 'if', kw_then: 'then', kw_else: 'else'
+      kw_if: 'if', kw_then: 'then', kw_else: 'else',
+      kw_or: 'or', kw_not: 'not'
     }) },
     pipe: '|',
     colon: ':',

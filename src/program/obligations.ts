@@ -233,13 +233,12 @@ export function getProofObligations(func: FuncDef): ProofObligation[] {
 }
 
 /**
- * Converts a TheoremAst into a ProofObligation. Premises and conclusion are
- * wrapped as AtomProps. Params are calculated from which theorem params
- * actually appear in the premises and goal.
+ * Converts a TheoremAst into a ProofObligation. Params are calculated from
+ * which theorem params actually appear in the premises and goal.
  */
 export function theoremToProofObligation(thm: TheoremAst): ProofObligation {
-  const premises = thm.premises.map(f => new AtomProp(f));
-  const goal = new AtomProp(thm.conclusion);
+  const premises = thm.premises;
+  const goal = thm.conclusion;
   const obl = new ProofObligation(premises, goal, thm.line);
   const vars = oblVars(obl);
   obl.params = thm.params.filter(([name]) => vars.has(name));

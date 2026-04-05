@@ -150,10 +150,10 @@ function funcToLean(func: FuncAst, ctors: Set<string>): string {
 
 function axiomToLean(thm: TheoremAst, ctors: Set<string>): string {
   const params = paramsToLean(thm.params);
-  const conclusion = formulaToLean(thm.conclusion, ctors);
+  const conclusion = propToLean(thm.conclusion, ctors);
   const paramStr = params ? ` ${params}` : '';
   if (thm.premises.length > 0) {
-    const premiseStr = thm.premises.map(p => formulaToLean(p, ctors)).join(' → ');
+    const premiseStr = thm.premises.map(p => propToLean(p, ctors)).join(' → ');
     return `axiom ${thm.name}${paramStr} : ${premiseStr} → ${conclusion}`;
   }
   return `axiom ${thm.name}${paramStr} : ${conclusion}`;
@@ -336,11 +336,11 @@ export function toLean(pf: ProofFile): string {
 
   // Main theorem with proof
   const params = paramsToLean(theorem.params);
-  const conclusion = formulaToLean(theorem.conclusion, ctors);
+  const conclusion = propToLean(theorem.conclusion, ctors);
   const paramStr = params ? ` ${params}` : '';
   if (theorem.premises.length > 0) {
     const hypotheses = theorem.premises
-        .map((p, i) => `(h_premise${theorem.premises.length === 1 ? '' : i + 1} : ${formulaToLean(p, ctors)})`)
+        .map((p, i) => `(h_premise${theorem.premises.length === 1 ? '' : i + 1} : ${propToLean(p, ctors)})`)
         .join(' ');
     lines.push(`theorem ${theorem.name}${paramStr} ${hypotheses} : ${conclusion} := by`);
   } else {

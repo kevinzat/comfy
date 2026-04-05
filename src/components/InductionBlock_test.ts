@@ -4,6 +4,7 @@ import { FuncAst, TypeAst, CaseAst, ExprBody, ParamVar } from '../lang/func_ast'
 import { TheoremAst } from '../lang/theorem_ast';
 import { Constant, Variable, Call } from '../facts/exprs';
 import { Formula, OP_EQUAL } from '../facts/formula';
+import { AtomProp } from '../facts/prop';
 import { ParseFormula } from '../facts/formula_parser';
 import { TopLevelEnv, NestedEnv } from '../types/env';
 import { buildCases } from './InductionBlock';
@@ -221,7 +222,7 @@ describe('buildCases', function() {
   it('renames IH to IH2 when IH already exists as a theorem', function() {
     const formula = ParseFormula('len(xs) = len(xs)');
     const existingIH = new TheoremAst('IH', [], [],
-        ParseFormula('0 = 0'));
+        new AtomProp(ParseFormula('0 = 0')));
     const env = new NestedEnv(
         new TopLevelEnv([listType], [lenFunc], [], [existingIH]),
         [['xs', 'List']]);
@@ -240,7 +241,7 @@ describe('buildCases', function() {
       new CaseAst([new ParamVar('x')], new ExprBody(Constant.of(1n))),
     ]);
     const existingIH = new TheoremAst('IH_T', [], [],
-        ParseFormula('0 = 0'));
+        new AtomProp(ParseFormula('0 = 0')));
     const formula = ParseFormula('size(t) = size(t)');
     const env = new NestedEnv(
         new TopLevelEnv([treeType], [sizeFunc], [], [existingIH]),

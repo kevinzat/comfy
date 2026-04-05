@@ -1,17 +1,17 @@
-import { Formula } from '../facts/formula';
+import { Prop } from '../facts/prop';
 
 export class TheoremAst {
   name: string;
   params: [string, string][];  // [name, typeName] pairs
-  premises: Formula[];
-  conclusion: Formula;
+  premises: Prop[];
+  conclusion: Prop;
   line: number;
 
   constructor(
     name: string,
     params: [string, string][],
-    premises: Formula[],
-    conclusion: Formula,
+    premises: Prop[],
+    conclusion: Prop,
     line: number = 0,
   ) {
     this.name = name;

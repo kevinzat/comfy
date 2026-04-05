@@ -140,8 +140,9 @@ export default class ProofSetup
       const thmObligations: ProofObligation[] = [];
       const theorem = this.getTheorem();
       if (theorem) {
-        const facts = [...theorem.premises, theorem.conclusion];
-        const thmEnv = new NestedEnv(env, theorem.params, facts);
+        const atomFacts = [...theorem.premises, theorem.conclusion]
+            .flatMap(p => p.tag === 'atom' ? [p.formula] : []);
+        const thmEnv = new NestedEnv(env, theorem.params, atomFacts);
         thmEnv.check();
         thmObligations.push(theoremToProofObligation(theorem));
       }

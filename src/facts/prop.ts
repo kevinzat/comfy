@@ -13,6 +13,8 @@ export class AtomProp {
     const newFormula = subst_formula(this.formula, expr, value);
     return newFormula === this.formula ? this : new AtomProp(newFormula);
   }
+
+  to_string(): string { return this.formula.to_string(); }
 }
 
 export class NotProp {
@@ -27,6 +29,8 @@ export class NotProp {
     const newFormula = subst_formula(this.formula, expr, value);
     return newFormula === this.formula ? this : new NotProp(newFormula);
   }
+
+  to_string(): string { return `not ${this.formula.to_string()}`; }
 }
 
 export type Literal = AtomProp | NotProp;
@@ -48,6 +52,8 @@ export class OrProp {
     });
     return !changed ? this : new OrProp(newDisjuncts);
   }
+
+  to_string(): string { return this.disjuncts.map(d => d.to_string()).join(' or '); }
 }
 
 export class ConstProp {
@@ -61,6 +67,8 @@ export class ConstProp {
   subst(_expr: Expression, _value: Expression): ConstProp {
     return this;
   }
+
+  to_string(): string { return this.value ? 'true' : 'false'; }
 }
 
 export type Prop = AtomProp | NotProp | OrProp | ConstProp;

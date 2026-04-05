@@ -205,21 +205,26 @@ export class ApplyTactic extends Tactic {
           `apply/unapp: "${name}" has no premise; known facts must not be provided`);
 
     // Backward is opposite direction from forward
-    if (theorem.conclusion.op === OP_EQUAL) {
+    if (theorem.conclusion.tag !== 'atom')
+      throw new UserError(`apply/unapp: "${name}" has a non-atomic conclusion`);
+    const concl = theorem.conclusion.formula;
+    const atomPremises = theorem.premises.flatMap(p => p.tag === 'atom' ? [p.formula] : []);
+
+    if (concl.op === OP_EQUAL) {
       const rewriter = new TheoremEquationRewriter(
-          'apply/unapp', env, goal, theorem.conclusion, !right,
-          theorem.premises, knownFacts);
+          'apply/unapp', env, goal, concl, !right,
+          atomPremises, knownFacts);
       this._resultFormula = new Formula(rewriter.rewrite(premise), OP_EQUAL, goal);
     } else {
       const rewriter = new TheoremInequalityRewriter(
-          'apply/unapp', env, goal, theorem.conclusion, !right,
-          theorem.premises, knownFacts);
+          'apply/unapp', env, goal, concl, !right,
+          atomPremises, knownFacts);
       rewriter.rewrite(premise);
       if (rewriter.positive) {
-        this._resultFormula = new Formula(rewriter.result, theorem.conclusion.op, goal);
+        this._resultFormula = new Formula(rewriter.result, concl.op, goal);
       } else {
         const flippedOp: FormulaOp =
-            theorem.conclusion.op === OP_LESS_THAN ? OP_LESS_EQUAL : OP_LESS_THAN;
+            concl.op === OP_LESS_THAN ? OP_LESS_EQUAL : OP_LESS_THAN;
         this._resultFormula = new Formula(goal, flippedOp, rewriter.result);
       }
     }

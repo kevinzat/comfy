@@ -1,6 +1,7 @@
 @{%
 const exprs = require('../facts/exprs');
 const formula = require('../facts/formula');
+const prop = require('../facts/prop');
 const funcAst = require('./func_ast');
 const typeAst = require('./type_ast');
 const declsAst = require('./decls_ast');
@@ -44,17 +45,17 @@ Types -> %typeName
     | Types %comma %typeName
       {% ([a, _comma, b]) => [b.text, a] %}
 
-TheoremDecl -> %kw_theorem %variable TheoremParamGroups %pipe Formula
+TheoremDecl -> %kw_theorem %variable TheoremParamGroups %pipe Prop
       {% ([thm, name, params, _pipe, concl]) =>
           new theoremAst.TheoremAst(name.text, expandParams(params), [], concl, thm.line) %}
-    | %kw_theorem %variable TheoremParamGroups %pipe Premises %fatArrow Formula
+    | %kw_theorem %variable TheoremParamGroups %pipe Premises %fatArrow Prop
       {% ([thm, name, params, _pipe, premises, _arrow, concl]) =>
           new theoremAst.TheoremAst(name.text, expandParams(params), premises, concl, thm.line) %}
 
-Premises -> Formula
-      {% ([f]) => [f] %}
-    | Premises %comma Formula
-      {% ([ps, _comma, f]) => ps.concat([f]) %}
+Premises -> Prop
+      {% ([p]) => [p] %}
+    | Premises %comma Prop
+      {% ([ps, _comma, p]) => ps.concat([p]) %}
 
 TheoremParamGroups -> TheoremParamGroup
       {% ([g]) => [g] %}
@@ -73,18 +74,13 @@ TheoremNames -> %variable
     | TheoremNames %comma %typeName
       {% ([ns, _comma, v]) => ns.concat([v.text]) %}
 
-Formula -> Expr %equal Expr
-      {% ([left, _op, right]) => new formula.Formula(left, '=', right) %}
-    | Expr %lessthan Expr
-      {% ([left, _op, right]) => new formula.Formula(left, '<', right) %}
-    | Expr %lessequal Expr
-      {% ([left, _op, right]) => new formula.Formula(left, '<=', right) %}
-
 @include "type_decl_rules.g"
 
 @include "func_def_rules.g"
 
 @include "../facts/expr_rules.g"
+
+@include "../facts/prop_rules.g"
 
 Primary -> %typeName
       {% ([a]) => new exprs.Variable(a.text, a.line, a.col) %}

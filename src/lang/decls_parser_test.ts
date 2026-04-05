@@ -1,6 +1,7 @@
 
 import * as assert from 'assert';
 import { Constant, Variable, Call } from '../facts/exprs';
+import { AtomProp, NotProp, OrProp } from '../facts/prop';
 import { ParamVar, ParamConstructor } from './func_ast';
 import { ConstructorAst } from './type_ast';
 import { ParseDecls } from './decls_parser';
@@ -49,8 +50,8 @@ describe('decls_parser', function() {
         `type Bool
          | true : Bool
          | false : Bool
-         def not : (Bool) -> Bool
-         | not(b) => b
+         def negate : (Bool) -> Bool
+         | negate(b) => b
          theorem foo (x : Int)
          | x = x`);
     assert.ok(ast);
@@ -82,7 +83,8 @@ describe('decls_parser', function() {
     assert.equal(ast.theorems[0].name, 'foo');
     assert.deepEqual(ast.theorems[0].params, [['x', 'Int']]);
     assert.deepEqual(ast.theorems[0].premises, []);
-    assert.strictEqual(ast.theorems[0].conclusion.op, '=');
+    assert.ok(ast.theorems[0].conclusion instanceof AtomProp);
+    assert.strictEqual(ast.theorems[0].conclusion.formula.op, '=');
   });
 
   it('parse theorem with premise', function() {
@@ -92,8 +94,10 @@ describe('decls_parser', function() {
     assert.ok(ast, 'parse failed');
     assert.equal(ast.theorems.length, 1);
     assert.equal(ast.theorems[0].premises.length, 1);
-    assert.strictEqual(ast.theorems[0].premises[0].op, '<');
-    assert.strictEqual(ast.theorems[0].conclusion.op, '<');
+    assert.ok(ast.theorems[0].premises[0] instanceof AtomProp);
+    assert.strictEqual(ast.theorems[0].premises[0].formula.op, '<');
+    assert.ok(ast.theorems[0].conclusion instanceof AtomProp);
+    assert.strictEqual(ast.theorems[0].conclusion.formula.op, '<');
   });
 
   it('parse theorem with multiple params of same type', function() {
@@ -143,6 +147,46 @@ describe('decls_parser', function() {
     assert.ok(ast);
     assert.equal(ast.functions.length, 1);
     assert.equal(ast.theorems.length, 1);
+  });
+
+  it('parse theorem with not conclusion', function() {
+    const { ast } = ParseDecls(
+        `theorem foo (x : Int)
+         | not x < 0`);
+    assert.ok(ast);
+    assert.ok(ast.theorems[0].conclusion instanceof NotProp);
+    assert.strictEqual(ast.theorems[0].conclusion.formula.op, '<');
+  });
+
+  it('parse theorem with not premise', function() {
+    const { ast } = ParseDecls(
+        `theorem foo (x : Int)
+         | not x < 0 => 0 < x * x`);
+    assert.ok(ast);
+    assert.equal(ast.theorems[0].premises.length, 1);
+    assert.ok(ast.theorems[0].premises[0] instanceof NotProp);
+    assert.ok(ast.theorems[0].conclusion instanceof AtomProp);
+  });
+
+  it('parse theorem with or premise', function() {
+    const { ast } = ParseDecls(
+        `theorem foo (x : Int)
+         | x < 0 or x = 0 => 0 <= x * x`);
+    assert.ok(ast);
+    assert.equal(ast.theorems[0].premises.length, 1);
+    assert.ok(ast.theorems[0].premises[0] instanceof OrProp);
+    assert.equal(ast.theorems[0].premises[0].disjuncts.length, 2);
+    assert.ok(ast.theorems[0].conclusion instanceof AtomProp);
+  });
+
+  it('parse theorem with multiple mixed premises', function() {
+    const { ast } = ParseDecls(
+        `theorem foo (x : Int)
+         | x < 0, not x = 0 => 0 <= x * x`);
+    assert.ok(ast);
+    assert.equal(ast.theorems[0].premises.length, 2);
+    assert.ok(ast.theorems[0].premises[0] instanceof AtomProp);
+    assert.ok(ast.theorems[0].premises[1] instanceof NotProp);
   });
 
 });

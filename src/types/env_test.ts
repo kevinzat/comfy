@@ -6,6 +6,7 @@ import { TheoremAst } from '../lang/theorem_ast';
 import { Constant, Variable, Call } from '../facts/exprs';
 import { Formula, OP_EQUAL } from '../facts/formula';
 import { ParseFormula } from '../facts/formula_parser';
+import { AtomProp } from '../facts/prop';
 import { TopLevelEnv, NestedEnv, DuplicateError, ShadowError } from './env';
 import { UnknownTypeError, UnknownNameError, TypeMismatchError } from './checker';
 
@@ -283,7 +284,7 @@ describe('TopLevelEnv theorems', function() {
 
   it('hasTheorem and getTheorem work', function() {
     const thm = new TheoremAst('comm', [['x', 'Int'], ['y', 'Int']],
-        [], ParseFormula('x + y = y + x'));
+        [], new AtomProp(ParseFormula('x + y = y + x')));
     const env = new TopLevelEnv([], [], [], [thm]);
     assert.ok(env.hasTheorem('comm'));
     assert.strictEqual(env.getTheorem('comm'), thm);
@@ -292,35 +293,35 @@ describe('TopLevelEnv theorems', function() {
 
   it('check succeeds for well-typed theorem', function() {
     const thm = new TheoremAst('comm', [['x', 'Int'], ['y', 'Int']],
-        [], ParseFormula('x + y = y + x'));
+        [], new AtomProp(ParseFormula('x + y = y + x')));
     const env = new TopLevelEnv([], [], [], [thm]);
     env.check();
   });
 
   it('check succeeds for theorem with premise', function() {
     const thm = new TheoremAst('foo', [['x', 'Int']],
-        [ParseFormula('x < 0')], ParseFormula('x * x = x * x'));
+        [new AtomProp(ParseFormula('x < 0'))], new AtomProp(ParseFormula('x * x = x * x')));
     const env = new TopLevelEnv([], [], [], [thm]);
     env.check();
   });
 
   it('check throws for theorem with unknown variable in conclusion', function() {
     const thm = new TheoremAst('bad', [['x', 'Int']],
-        [], ParseFormula('x + z = 0'));
+        [], new AtomProp(ParseFormula('x + z = 0')));
     const env = new TopLevelEnv([], [], [], [thm]);
     assert.throws(() => env.check(), UnknownNameError);
   });
 
   it('check throws for theorem with unknown variable in premise', function() {
     const thm = new TheoremAst('bad', [['x', 'Int']],
-        [ParseFormula('z < 0')], ParseFormula('x = x'));
+        [new AtomProp(ParseFormula('z < 0'))], new AtomProp(ParseFormula('x = x')));
     const env = new TopLevelEnv([], [], [], [thm]);
     assert.throws(() => env.check(), UnknownNameError);
   });
 
   it('rejects duplicate theorem names', function() {
     const thm = new TheoremAst('foo', [['x', 'Int']],
-        [], ParseFormula('x = x'));
+        [], new AtomProp(ParseFormula('x = x')));
     assert.throws(
         () => new TopLevelEnv([], [], [], [thm, thm]),
         DuplicateError);
@@ -331,7 +332,7 @@ describe('TopLevelEnv theorems', function() {
       new CaseAst([new ParamVar('x')], new ExprBody(Variable.of('x'))),
     ]);
     const thm = new TheoremAst('foo', [['x', 'Int']],
-        [], ParseFormula('x = x'));
+        [], new AtomProp(ParseFormula('x = x')));
     assert.throws(
         () => new TopLevelEnv([], [func], [], [thm]),
         DuplicateError);
@@ -339,7 +340,7 @@ describe('TopLevelEnv theorems', function() {
 
   it('rejects theorem with unknown param type', function() {
     const thm = new TheoremAst('bad', [['x', 'Unknown']],
-        [], ParseFormula('x = x'));
+        [], new AtomProp(ParseFormula('x = x')));
     assert.throws(
         () => new TopLevelEnv([], [], [], [thm]),
         UnknownTypeError);
@@ -348,14 +349,14 @@ describe('TopLevelEnv theorems', function() {
   it('check throws for theorem with type mismatch in conclusion', function() {
     // L is List, 0 is Int — can't be equal
     const thm = new TheoremAst('bad', [['L', 'List']],
-        [], ParseFormula('L = 0'));
+        [], new AtomProp(ParseFormula('L = 0')));
     const env = new TopLevelEnv([listType], [], [], [thm]);
     assert.throws(() => env.check(), TypeMismatchError);
   });
 
   it('theorem params scope correctly with user types', function() {
     const thm = new TheoremAst('nil_eq', [['L', 'List']],
-        [], ParseFormula('L = L'));
+        [], new AtomProp(ParseFormula('L = L')));
     const env = new TopLevelEnv([listType], [], [], [thm]);
     env.check();
   });

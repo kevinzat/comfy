@@ -4,6 +4,7 @@
 
 import * as exprs from '../facts/exprs.ts';
 import * as formula from '../facts/formula.ts';
+import * as prop from '../facts/prop.ts';
 import * as funcAst from './func_ast.ts';
 import * as typeAst from './type_ast.ts';
 import * as declsAst from './decls_ast.ts';
@@ -36,12 +37,12 @@ var grammar = {
     {"name": "Decl", "symbols": ["TheoremDecl"], "postprocess": ([d]) => new declsAst.DeclsAst([], [], [d])},
     {"name": "Types", "symbols": [(lexer2.has("typeName") ? {type: "typeName"} : typeName)], "postprocess": ([a]) => a.text},
     {"name": "Types", "symbols": ["Types", (lexer2.has("comma") ? {type: "comma"} : comma), (lexer2.has("typeName") ? {type: "typeName"} : typeName)], "postprocess": ([a, _comma, b]) => [b.text, a]},
-    {"name": "TheoremDecl", "symbols": [(lexer2.has("kw_theorem") ? {type: "kw_theorem"} : kw_theorem), (lexer2.has("variable") ? {type: "variable"} : variable), "TheoremParamGroups", (lexer2.has("pipe") ? {type: "pipe"} : pipe), "Formula"], "postprocess":  ([thm, name, params, _pipe, concl]) =>
+    {"name": "TheoremDecl", "symbols": [(lexer2.has("kw_theorem") ? {type: "kw_theorem"} : kw_theorem), (lexer2.has("variable") ? {type: "variable"} : variable), "TheoremParamGroups", (lexer2.has("pipe") ? {type: "pipe"} : pipe), "Prop"], "postprocess":  ([thm, name, params, _pipe, concl]) =>
         new theoremAst.TheoremAst(name.text, expandParams(params), [], concl, thm.line) },
-    {"name": "TheoremDecl", "symbols": [(lexer2.has("kw_theorem") ? {type: "kw_theorem"} : kw_theorem), (lexer2.has("variable") ? {type: "variable"} : variable), "TheoremParamGroups", (lexer2.has("pipe") ? {type: "pipe"} : pipe), "Premises", (lexer2.has("fatArrow") ? {type: "fatArrow"} : fatArrow), "Formula"], "postprocess":  ([thm, name, params, _pipe, premises, _arrow, concl]) =>
+    {"name": "TheoremDecl", "symbols": [(lexer2.has("kw_theorem") ? {type: "kw_theorem"} : kw_theorem), (lexer2.has("variable") ? {type: "variable"} : variable), "TheoremParamGroups", (lexer2.has("pipe") ? {type: "pipe"} : pipe), "Premises", (lexer2.has("fatArrow") ? {type: "fatArrow"} : fatArrow), "Prop"], "postprocess":  ([thm, name, params, _pipe, premises, _arrow, concl]) =>
         new theoremAst.TheoremAst(name.text, expandParams(params), premises, concl, thm.line) },
-    {"name": "Premises", "symbols": ["Formula"], "postprocess": ([f]) => [f]},
-    {"name": "Premises", "symbols": ["Premises", (lexer2.has("comma") ? {type: "comma"} : comma), "Formula"], "postprocess": ([ps, _comma, f]) => ps.concat([f])},
+    {"name": "Premises", "symbols": ["Prop"], "postprocess": ([p]) => [p]},
+    {"name": "Premises", "symbols": ["Premises", (lexer2.has("comma") ? {type: "comma"} : comma), "Prop"], "postprocess": ([ps, _comma, p]) => ps.concat([p])},
     {"name": "TheoremParamGroups", "symbols": ["TheoremParamGroup"], "postprocess": ([g]) => [g]},
     {"name": "TheoremParamGroups", "symbols": ["TheoremParamGroups", "TheoremParamGroup"], "postprocess": ([gs, g]) => gs.concat([g])},
     {"name": "TheoremParamGroup", "symbols": [(lexer2.has("lparen") ? {type: "lparen"} : lparen), "TheoremNames", (lexer2.has("colon") ? {type: "colon"} : colon), (lexer2.has("typeName") ? {type: "typeName"} : typeName), (lexer2.has("rparen") ? {type: "rparen"} : rparen)], "postprocess": ([_lp, names, _colon, type, _rp]) => ({ names, type: type.text })},
@@ -49,9 +50,6 @@ var grammar = {
     {"name": "TheoremNames", "symbols": [(lexer2.has("typeName") ? {type: "typeName"} : typeName)], "postprocess": ([v]) => [v.text]},
     {"name": "TheoremNames", "symbols": ["TheoremNames", (lexer2.has("comma") ? {type: "comma"} : comma), (lexer2.has("variable") ? {type: "variable"} : variable)], "postprocess": ([ns, _comma, v]) => ns.concat([v.text])},
     {"name": "TheoremNames", "symbols": ["TheoremNames", (lexer2.has("comma") ? {type: "comma"} : comma), (lexer2.has("typeName") ? {type: "typeName"} : typeName)], "postprocess": ([ns, _comma, v]) => ns.concat([v.text])},
-    {"name": "Formula", "symbols": ["Expr", (lexer2.has("equal") ? {type: "equal"} : equal), "Expr"], "postprocess": ([left, _op, right]) => new formula.Formula(left, '=', right)},
-    {"name": "Formula", "symbols": ["Expr", (lexer2.has("lessthan") ? {type: "lessthan"} : lessthan), "Expr"], "postprocess": ([left, _op, right]) => new formula.Formula(left, '<', right)},
-    {"name": "Formula", "symbols": ["Expr", (lexer2.has("lessequal") ? {type: "lessequal"} : lessequal), "Expr"], "postprocess": ([left, _op, right]) => new formula.Formula(left, '<=', right)},
     {"name": "TypeDecl", "symbols": [(lexer2.has("type") ? {type: "type"} : type), (lexer2.has("typeName") ? {type: "typeName"} : typeName), "Ctors"], "postprocess": ([_type, name, ctors]) => new typeAst.TypeDeclAst(name.text, checkCtorReturnTypes(name, ctors))},
     {"name": "Ctors", "symbols": ["Ctor"], "postprocess": ([c]) => [c]},
     {"name": "Ctors", "symbols": ["Ctors", "Ctor"], "postprocess": ([cs, c]) => cs.concat([c])},
@@ -86,6 +84,16 @@ var grammar = {
     {"name": "Primary", "symbols": [(lexer2.has("lparen") ? {type: "lparen"} : lparen), "Expr", (lexer2.has("rparen") ? {type: "rparen"} : rparen)], "postprocess": ([a, b, c]) => b},
     {"name": "Exprs", "symbols": ["Expr"], "postprocess": ([a]) => a},
     {"name": "Exprs", "symbols": ["Exprs", (lexer2.has("comma") ? {type: "comma"} : comma), "Expr"], "postprocess": ([a, b, c]) => [c, a]},
+    {"name": "Prop", "symbols": ["Literal"], "postprocess": ([l]) => l},
+    {"name": "Prop", "symbols": ["Prop", (lexer2.has("kw_or") ? {type: "kw_or"} : kw_or), "Literal"], "postprocess":  ([p, _op, l]) => {
+            if (p.tag === 'or') return new prop.OrProp([...p.disjuncts, l]);
+            return new prop.OrProp([p, l]);
+        } },
+    {"name": "Literal", "symbols": ["Formula"], "postprocess": ([f]) => new prop.AtomProp(f)},
+    {"name": "Literal", "symbols": [(lexer2.has("kw_not") ? {type: "kw_not"} : kw_not), "Formula"], "postprocess": ([_op, f]) => new prop.NotProp(f)},
+    {"name": "Formula", "symbols": ["Expr", (lexer2.has("equal") ? {type: "equal"} : equal), "Expr"], "postprocess": ([l, _op, r]) => new formula.Formula(l, '=', r)},
+    {"name": "Formula", "symbols": ["Expr", (lexer2.has("lessthan") ? {type: "lessthan"} : lessthan), "Expr"], "postprocess": ([l, _op, r]) => new formula.Formula(l, '<', r)},
+    {"name": "Formula", "symbols": ["Expr", (lexer2.has("lessequal") ? {type: "lessequal"} : lessequal), "Expr"], "postprocess": ([l, _op, r]) => new formula.Formula(l, '<=', r)},
     {"name": "Primary", "symbols": [(lexer2.has("typeName") ? {type: "typeName"} : typeName)], "postprocess": ([a]) => new exprs.Variable(a.text, a.line, a.col)},
     {"name": "Primary", "symbols": [(lexer2.has("typeName") ? {type: "typeName"} : typeName), (lexer2.has("lparen") ? {type: "lparen"} : lparen), "Exprs", (lexer2.has("rparen") ? {type: "rparen"} : rparen)], "postprocess": ([a, b, c, d]) => new exprs.Call(a.text, list_to_array(c, true), a.line, a.col)}
 ]

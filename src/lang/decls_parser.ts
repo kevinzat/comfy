@@ -9,8 +9,8 @@ export interface DeclsParseResult {
   error?: string;
 }
 
-/** Parses a comma-separated list of formulas (as used in theorem premises). */
-export function ParsePremises(text: string): import('../facts/formula').Formula[] {
+/** Parses a comma-separated list of props (as used in theorem premises). */
+export function ParsePremises(text: string): import('../facts/prop').Prop[] {
   const result = ParseDecls(`theorem dummy (dummy : Int) | ${text} => 0 = 0`);
   if (result.error) throw new Error(result.error);
   return result.ast!.theorems[0].premises;

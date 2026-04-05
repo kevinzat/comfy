@@ -243,21 +243,26 @@ export class ApplyRule extends Rule {
       throw new UserError(
           `apply/unapp: "${name}" has no premise; known facts must not be provided`);
 
-    if (theorem.conclusion.op === OP_EQUAL) {
+    if (theorem.conclusion.tag !== 'atom')
+      throw new UserError(`apply/unapp: "${name}" has a non-atomic conclusion`);
+    const concl = theorem.conclusion.formula;
+    const atomPremises = theorem.premises.flatMap(p => p.tag === 'atom' ? [p.formula] : []);
+
+    if (concl.op === OP_EQUAL) {
       const rewriter = new TheoremEquationRewriter(
-          'apply/unapp', env, ex, theorem.conclusion, right,
-          theorem.premises, knownFacts);
+          'apply/unapp', env, ex, concl, right,
+          atomPremises, knownFacts);
       this._resultFormula = new Formula(ex, OP_EQUAL, rewriter.rewrite(result));
     } else {
       const rewriter = new TheoremInequalityRewriter(
-          'apply/unapp', env, ex, theorem.conclusion, right,
-          theorem.premises, knownFacts);
+          'apply/unapp', env, ex, concl, right,
+          atomPremises, knownFacts);
       rewriter.rewrite(result);
       if (rewriter.positive) {
-        this._resultFormula = new Formula(ex, theorem.conclusion.op, rewriter.result);
+        this._resultFormula = new Formula(ex, concl.op, rewriter.result);
       } else {
         const flippedOp: FormulaOp =
-            theorem.conclusion.op === OP_LESS_THAN ? OP_LESS_EQUAL : OP_LESS_THAN;
+            concl.op === OP_LESS_THAN ? OP_LESS_EQUAL : OP_LESS_THAN;
         this._resultFormula = new Formula(rewriter.result, flippedOp, ex);
       }
     }

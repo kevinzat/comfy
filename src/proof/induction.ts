@@ -1,5 +1,6 @@
 import { Expression, Variable, Call } from '../facts/exprs';
 import { Formula } from '../facts/formula';
+import { AtomProp } from '../facts/prop';
 import { Environment, NestedEnv } from '../types/env';
 import { ConstructorAst } from '../lang/type_ast';
 import { TheoremAst } from '../lang/theorem_ast';
@@ -184,11 +185,11 @@ export function buildCases(
         const argExpr = Variable.of(ctorArgNames[i]);
         const ihLeft = formula.left.subst(varExpr, argExpr);
         const ihRight = formula.right.subst(varExpr, argExpr);
-        const ihConclusion = new Formula(ihLeft, formula.op, ihRight);
-        const ihPremises = premises.map(p => new Formula(
+        const ihConclusion = new AtomProp(new Formula(ihLeft, formula.op, ihRight));
+        const ihPremises = premises.map(p => new AtomProp(new Formula(
             p.left.subst(varExpr, argExpr),
             p.op,
-            p.right.subst(varExpr, argExpr)));
+            p.right.subst(varExpr, argExpr))));
         const baseName = recursiveCount === 1
             ? 'IH' : 'IH_' + ctorArgNames[i];
         const ihName = uniqueTheoremName(baseName, env);

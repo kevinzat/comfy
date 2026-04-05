@@ -130,7 +130,7 @@ export default class InductionBlock
                             {this.formatIHName(thm)}:
                           </td>
                           <td className="induction-ih-formula">
-                            {this.formatFormula(thm.conclusion)}
+                            {thm.conclusion.to_string()}
                           </td>
                         </tr>
                       ))}
