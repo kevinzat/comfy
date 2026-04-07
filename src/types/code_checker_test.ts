@@ -1,7 +1,7 @@
 
 import * as assert from 'assert';
 import { Constant, Variable } from '../facts/exprs';
-import { FuncDef, Param, DeclStmt, AssignStmt, ReturnStmt, WhileStmt, PassStmt, RelAst } from '../lang/code_ast';
+import { FuncDef, Param, DeclStmt, AssignStmt, ReturnStmt, WhileStmt, PassStmt, RelAst, AndCondAst, OrCondAst } from '../lang/code_ast';
 import { TopLevelEnv, NestedEnv } from './env';
 import { UnknownTypeError, TypeMismatchError, UnknownNameError } from './checker';
 import { checkFuncDef, UnknownVariableError, MissingReturnError, ShadowedVariableError, ReadOnlyVariableError } from './code_checker';
@@ -85,6 +85,16 @@ describe('checkFuncDef', function() {
   it('accepts assignment to declared variable', function() {
     const env = makeEnv();
     assert.doesNotThrow(() => checkFuncDef(env, parse(`Int f() { Int x = 1; x = 5; return x; }`)));
+  });
+
+  it('throws ReadOnlyVariableError without location info', function() {
+    const env = makeEnv();
+    assert.throws(
+        () => checkFuncDef(env, new FuncDef('Int', 'f', [new Param('Int', 'x')], [
+          new AssignStmt('x', Constant.of(0n)),
+          new ReturnStmt(Variable.of('x')),
+        ])),
+        ReadOnlyVariableError);
   });
 
   it('throws ReadOnlyVariableError when assigning to a parameter', function() {
@@ -176,6 +186,36 @@ describe('checkFuncDef', function() {
     const env = makeEnv();
     assert.doesNotThrow(() =>
         checkFuncDef(env, parse(`Int f(Int n) { Int i = n; while (i != 0) invariant i >= 0, i <= n { i = i - 1; } return i; }`)));
+  });
+
+  it('throws TypeMismatchError for == with mismatched types', function() {
+    const env = makeEnvWithList();
+    const func = new FuncDef('Int', 'f', [new Param('List', 'xs')], [
+      new WhileStmt(new RelAst(Variable.of('xs'), '==', Constant.of(0n)), [],
+          [new PassStmt()]),
+      new PassStmt(),
+    ]);
+    assert.throws(() => checkFuncDef(env, func), TypeMismatchError);
+  });
+
+  it('accepts and condition in requires', function() {
+    const env = makeEnv();
+    const func = new FuncDef('Int', 'f', [new Param('Int', 'x')], [
+      new ReturnStmt(Variable.of('x')),
+    ], [new AndCondAst(
+      new RelAst(Variable.of('x'), '>=', Constant.of(0n)),
+      new RelAst(Variable.of('x'), '<', Constant.of(10n)))], []);
+    assert.doesNotThrow(() => checkFuncDef(env, func));
+  });
+
+  it('accepts or condition in requires', function() {
+    const env = makeEnv();
+    const func = new FuncDef('Int', 'f', [new Param('Int', 'x')], [
+      new ReturnStmt(Variable.of('x')),
+    ], [new OrCondAst(
+      new RelAst(Variable.of('x'), '>=', Constant.of(0n)),
+      new RelAst(Variable.of('x'), '<', Constant.of(10n)))], []);
+    assert.doesNotThrow(() => checkFuncDef(env, func));
   });
 
   it('throws TypeMismatchError for invariant with non-Int operand in < comparison', function() {
@@ -289,6 +329,14 @@ describe('checkFuncDef', function() {
   it('accepts return statement with matching type', function() {
     const env = makeEnv();
     assert.doesNotThrow(() => checkFuncDef(env, parse(`Int f(Int x) { return x + 1; }`)));
+  });
+
+  it('throws TypeMismatchError when return type does not match declared type', function() {
+    const env = makeEnvWithList();
+    const func = new FuncDef('List', 'f', [], [
+      new ReturnStmt(Constant.of(0n)),
+    ]);
+    assert.throws(() => checkFuncDef(env, func), TypeMismatchError);
   });
 
   it('throws TypeMismatchError for return with wrong type', function() {
@@ -500,6 +548,16 @@ describe('checkFuncDef', function() {
         MissingReturnError);
   });
 
+  it('throws ShadowedVariableError without location info', function() {
+    const env = makeEnv();
+    assert.throws(
+        () => checkFuncDef(env, new FuncDef('Int', 'f', [new Param('Int', 'x')], [
+          new DeclStmt('Int', 'x', Constant.of(0n)),
+          new ReturnStmt(Variable.of('x')),
+        ])),
+        ShadowedVariableError);
+  });
+
   it('throws ShadowedVariableError when decl shadows a parameter', function() {
     const env = makeEnv();
     assert.throws(
@@ -512,6 +570,25 @@ describe('checkFuncDef', function() {
     assert.throws(
         () => checkFuncDef(env, parse(`Int f() { Int x = 1; Int x = 2; return x; }`)),
         ShadowedVariableError);
+  });
+
+  it('throws TypeMismatchError when decl init type does not match declared type', function() {
+    const env = makeEnvWithList();
+    const func = new FuncDef('Int', 'f', [new Param('List', 'xs')], [
+      new DeclStmt('Int', 'y', Variable.of('xs')),
+      new ReturnStmt(Constant.of(0n)),
+    ]);
+    assert.throws(() => checkFuncDef(env, func), TypeMismatchError);
+  });
+
+  it('throws TypeMismatchError when assignment type does not match variable type', function() {
+    const env = makeEnvWithList();
+    const func = new FuncDef('Int', 'f', [new Param('List', 'xs')], [
+      new DeclStmt('Int', 'y', Constant.of(0n)),
+      new AssignStmt('y', Variable.of('xs')),
+      new ReturnStmt(Variable.of('y')),
+    ]);
+    assert.throws(() => checkFuncDef(env, func), TypeMismatchError);
   });
 
   it('accepts decl of a name not previously declared', function() {

@@ -120,9 +120,11 @@ function peekLine(lines: Lines): string | undefined {
   return lines.raw[lines.pos];
 }
 
-function readLine(lines: Lines): { text: string; line: number } | undefined {
+function readLine(lines: Lines): { text: string; line: number } {
   peekLine(lines);  // skip blanks
-  if (lines.pos >= lines.raw.length) return undefined;
+  /* v8 ignore start */
+  if (lines.pos >= lines.raw.length) throw new Error("impossible: no line");
+  /* v8 ignore stop */
   const text = lines.raw[lines.pos];
   const line = lines.pos + 1;  // 1-indexed
   lines.pos++;
@@ -198,7 +200,7 @@ function parseCalcSection(lines: Lines): { start: TaggedLine | null; steps: Calc
       firstTrimmed.startsWith('given ') || firstTrimmed.startsWith('prove ')) {
     return { start: null, steps: [] };
   }
-  const firstEntry = readLine(lines)!;
+  const firstEntry = readLine(lines);
 
   const steps: CalcStep[] = [];
   while (true) {
@@ -207,7 +209,7 @@ function parseCalcSection(lines: Lines): { start: TaggedLine | null; steps: Calc
     const trimmed = next.trim();
     if (trimmed.startsWith('case ') || trimmed === '---' ||
         trimmed.startsWith('given ') || trimmed.startsWith('prove ')) break;
-    const entry = readLine(lines)!;
+    const entry = readLine(lines);
     steps.push(parseCalcStep(trimmed, entry.line));
   }
   return { start: { text: firstTrimmed, line: firstEntry.line }, steps };
@@ -228,44 +230,48 @@ function parseCalcBody(lines: Lines, calc: CalcProofNode): void {
 }
 
 function parseProofBody(lines: Lines, node: ProofNode): void {
-  if (node.kind === 'calculate') {
-    parseCalcBody(lines, node);
-  } else if (node.kind === 'induction') {
-    while (true) {
-      const next = peekLine(lines);
-      if (next === undefined) break;
-      if (!next.trim().startsWith('case ')) break;
-      node.cases.push(parseCaseBlock(lines));
-    }
-    if (node.cases.length === 0) {
-      const lineNum = lines.pos < lines.raw.length ? lines.pos + 1 : lines.raw.length;
-      throw new ParseError(lineNum, 'induction proof has no cases');
-    }
-  } else if (node.kind === 'cases') {
-    for (let i = 0; i < 2; i++) {
-      const next = peekLine(lines);
-      if (next === undefined) {
-        throw new ParseError(lines.raw.length, `expected case ${i === 0 ? 'then' : 'else'} block`);
+  switch (node.kind) {
+    case 'calculate':
+      parseCalcBody(lines, node);
+      break;
+    case 'induction':
+      while (true) {
+        const next = peekLine(lines);
+        if (next === undefined) break;
+        if (!next.trim().startsWith('case ')) break;
+        node.cases.push(parseCaseBlock(lines));
       }
-      if (!next.trim().startsWith('case ')) {
-        const entry = readLine(lines)!;
-        throw new ParseError(entry.line, `expected "case then:" or "case else:" block`);
+      if (node.cases.length === 0) {
+        const lineNum = lines.pos < lines.raw.length ? lines.pos + 1 : lines.raw.length;
+        throw new ParseError(lineNum, 'induction proof has no cases');
       }
-      const block = parseCaseBlock(lines);
-      if (block.label === 'then') {
-        node.thenCase = block;
-      } else if (block.label === 'else') {
-        node.elseCase = block;
-      } else {
-        throw new ParseError(block.goalLine, `expected "then" or "else", got "${block.label}"`);
+      break;
+    case 'cases':
+      for (let i = 0; i < 2; i++) {
+        const next = peekLine(lines);
+        if (next === undefined) {
+          throw new ParseError(lines.raw.length, `expected case ${i === 0 ? 'then' : 'else'} block`);
+        }
+        if (!next.trim().startsWith('case ')) {
+          const entry = readLine(lines);
+          throw new ParseError(entry.line, `expected "case then:" or "case else:" block`);
+        }
+        const block = parseCaseBlock(lines);
+        if (block.label === 'then') {
+          node.thenCase = block;
+        } else if (block.label === 'else') {
+          node.elseCase = block;
+        } else {
+          throw new ParseError(block.goalLine, `expected "then" or "else", got "${block.label}"`);
+        }
       }
-    }
+      break;
   }
 }
 
 function parseCaseBlock(lines: Lines): CaseBlock {
   // Parse "case <label>:"
-  const headerLine = readLine(lines)!;
+  const headerLine = readLine(lines);
   const headerMatch = headerLine.text.trim().match(/^case (.+):$/);
   if (!headerMatch) {
     throw new ParseError(headerLine.line, 'expected "case <label>:"');
@@ -282,7 +288,7 @@ function parseCaseBlock(lines: Lines): CaseBlock {
     const ihMatch = trimmed.match(
         /^given\s+(IH(?:_\w+|\d+)?)\s*((?:\([^)]*\)\s*)*):\s+(.+)$/);
     if (!ihMatch) break;
-    const entry = readLine(lines)!;
+    const entry = readLine(lines);
     const name = ihMatch[1];
     const paramsText = ihMatch[2].trim();
     const params = parseParams(paramsText, entry.line);
@@ -313,7 +319,7 @@ function parseCaseBlock(lines: Lines): CaseBlock {
     if (next === undefined) break;
     const givenMatch = next.trim().match(/^given\s+(\d+)\.\s+(.+)$/);
     if (!givenMatch) break;
-    const entry = readLine(lines)!;
+    const entry = readLine(lines);
     givens.push({ index: parseInt(givenMatch[1]), text: givenMatch[2], line: entry.line });
   }
 
@@ -322,7 +328,7 @@ function parseCaseBlock(lines: Lines): CaseBlock {
   if (provePeek === undefined) {
     throw new ParseError(headerLine.line, 'expected "prove" after case header');
   }
-  const proveEntry = readLine(lines)!;
+  const proveEntry = readLine(lines);
   const proveMatch = proveEntry.text.trim().match(/^prove\s+(.+)\s+by\s+(.+)$/);
   if (!proveMatch) {
     throw new ParseError(proveEntry.line, 'expected "prove <formula> by <method>"');
@@ -379,7 +385,7 @@ export function parseProofFile(source: string): ProofFile {
     if (next === undefined) break;
     const givenMatch = next.trim().match(/^given\s+(\d+)\.\s+(.+)$/);
     if (!givenMatch) break;
-    const entry = readLine(lines)!;
+    const entry = readLine(lines);
     givens.push({ index: parseInt(givenMatch[1]), text: givenMatch[2], line: entry.line });
   }
 

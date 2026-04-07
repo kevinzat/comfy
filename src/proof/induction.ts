@@ -48,7 +48,9 @@ function defaultVarName(typeName: string, used: Set<string>): string {
       if (!used.has(ch)) return ch;
     }
   }
+  /* v8 ignore start */
   throw new Error('could not find a default variable name');
+  /* v8 ignore stop */
 }
 
 /**
@@ -58,9 +60,11 @@ function defaultVarName(typeName: string, used: Set<string>): string {
 export function defaultArgNames(
     env: Environment, typeName: string, varName: string): string[] {
   const typeDecl = env.getTypeDecl(typeName);
+  /* v8 ignore start */
   if (typeDecl === null) {
     throw new Error(`cannot induct on built-in type "${typeName}"`);
   }
+  /* v8 ignore stop */
   const used = new Set<string>();
   used.add(varName);
   const names: string[] = [];
@@ -127,10 +131,12 @@ export function buildCases(
   // Determine names to use.
   let allNames: string[];
   if (argNames !== undefined) {
+    /* v8 ignore start */
     if (argNames.length !== totalParams) {
       throw new Error(
           `expected ${totalParams} argument names, got ${argNames.length}`);
     }
+    /* v8 ignore stop */
     allNames = argNames;
   } else {
     allNames = defaultArgNames(env, typeName, varName);
@@ -150,9 +156,11 @@ export function buildCases(
   // Check for duplicates within the names themselves.
   const seen = new Set<string>();
   for (const name of allNames) {
+    /* v8 ignore start */
     if (seen.has(name)) {
       throw new Error(`duplicate argument name "${name}"`);
     }
+    /* v8 ignore stop */
     seen.add(name);
   }
 

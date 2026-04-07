@@ -70,11 +70,13 @@ export function IsInequalityImplied(
     } else if (op === OP_LESS_EQUAL) {
       // left <= right  =>  right - left >= 0
       ineqs.push(_MakeInequality(left, right, indexes, 0n));
-    } else if (op === OP_LESS_THAN) {
+    } else {
+      /* v8 ignore start */
+      if (op !== OP_LESS_THAN)
+        throw new Error(`unsupported operator: ${op}`);
+      /* v8 ignore stop */
       // left < right  =>  right - left >= 1
       ineqs.push(_MakeInequality(left, right, indexes, 1n));
-    } else {
-      throw new Error(`unsupported operator: ${op}`);
     }
   }
 
@@ -86,10 +88,12 @@ export function IsInequalityImplied(
     return IsImplied(eqs, ineqs, fwd) && IsImplied(eqs, ineqs, bwd);
   } else if (goal.op === OP_LESS_EQUAL) {
     return IsImplied(eqs, ineqs, _MakeInequality(goalSides[0], goalSides[1], indexes, 0n));
-  } else if (goal.op === OP_LESS_THAN) {
-    return IsImplied(eqs, ineqs, _MakeInequality(goalSides[0], goalSides[1], indexes, 1n));
   } else {
-    throw new Error(`unsupported goal operator: ${goal.op}`);
+      /* v8 ignore start */
+      if (goal.op !== OP_LESS_THAN)
+        throw new Error(`unsupported goal operator: ${goal.op}`);
+      /* v8 ignore stop */
+    return IsImplied(eqs, ineqs, _MakeInequality(goalSides[0], goalSides[1], indexes, 1n));
   }
 }
 

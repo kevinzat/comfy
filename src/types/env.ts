@@ -188,8 +188,10 @@ export class TopLevelEnv implements Environment {
   }
 
   getConstructorType(name: string): Type {
+    /* v8 ignore start */
     if (!this.constructors.has(name))
       throw new Error(`unknown constructor: "${name}"`);
+    /* v8 ignore stop */
     return this.constructors.get(name)![0];
   }
 
@@ -204,8 +206,10 @@ export class TopLevelEnv implements Environment {
   }
 
   getFunctionType(name: string): Type {
+    /* v8 ignore start */
     if (!this.functions.has(name))
       throw new Error(`unknown function: "${name}"`);
+    /* v8 ignore stop */
     return this.functions.get(name)![0];
   }
 
@@ -221,8 +225,10 @@ export class TopLevelEnv implements Environment {
 
   getTheorem(name: string): TheoremAst {
     const thm = this.theorems_.find(t => t.name === name);
+    /* v8 ignore start */
     if (!thm)
       throw new Error(`unknown theorem: "${name}"`);
+    /* v8 ignore stop */
     return thm;
   }
 

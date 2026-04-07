@@ -94,3 +94,33 @@ describe('Prop.subst', function() {
   });
 
 });
+
+
+describe('Prop.to_string', function() {
+
+  it('AtomProp.to_string delegates to formula', function() {
+    const p = new AtomProp(f_x_eq_1);
+    assert.strictEqual(p.to_string(), 'x = 1');
+  });
+
+  it('NotProp.to_string prepends "not "', function() {
+    const p = new NotProp(f_x_eq_1);
+    assert.strictEqual(p.to_string(), 'not x = 1');
+  });
+
+  it('OrProp.to_string joins disjuncts with " or "', function() {
+    const p = new OrProp([new AtomProp(f_x_eq_1), new NotProp(f_y_lt_x)]);
+    assert.strictEqual(p.to_string(), 'x = 1 or not y < x');
+  });
+
+  it('ConstProp.to_string returns "true" for true', function() {
+    const p = new ConstProp(true);
+    assert.strictEqual(p.to_string(), 'true');
+  });
+
+  it('ConstProp.to_string returns "false" for false', function() {
+    const p = new ConstProp(false);
+    assert.strictEqual(p.to_string(), 'false');
+  });
+
+});

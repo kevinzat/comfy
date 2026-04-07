@@ -3,7 +3,7 @@ import { Constant, Variable, Call } from './exprs';
 import { Formula, OP_LESS_THAN } from './formula';
 import { UnifyExprs, EnumerateReplacements, ApplySubst, SubstAll,
     SubstAllWithCheck, SubstPositive, SubstNegative,
-    FreshenVars, FreshenVarsMany } from './unify';
+    FreshenVars, FreshenVarsMany, FreshVarName } from './unify';
 
 const x = Variable.of("x");
 const y = Variable.of("y");
@@ -74,6 +74,48 @@ describe('UnifyExprs', function() {
     // x unified with x, neither allowed — succeeds
     const subst2 = UnifyExprs(x, x, new Set([]));
     assert.ok(subst2 !== undefined);
+  });
+
+  it('unifies variable with constant', function() {
+    // UnifyVar("a", ONE) triggers OccursCheck on a constant (line 133)
+    const subst = UnifyExprs(Variable.of('a'), ONE, new Set(['a']));
+    assert.ok(subst !== undefined);
+    assert.ok(subst!.get('a')!.equals(ONE));
+  });
+
+  it('fails on circular reference (occurs check)', function() {
+    // a = f(a) should fail via OccursCheck (line 113)
+    const subst = UnifyExprs(Variable.of('a'), Call.of('f', Variable.of('a')), new Set(['a']));
+    assert.strictEqual(subst, undefined);
+  });
+
+  it('unifies via variable chain in substitution', function() {
+    // unify add(a, b) with add(c, a) where {a, b} are allowed
+    // Step 1: a unifies with c → bind a = c
+    // Step 2: b unifies with a → a is already in subst → UnifyVar("b", c) (line 111)
+    const subst = UnifyExprs(
+        Call.add(Variable.of('a'), Variable.of('b')),
+        Call.add(Variable.of('c'), Variable.of('a')),
+        new Set(['a', 'b']));
+    assert.ok(subst !== undefined);
+    assert.ok(subst!.get('a')!.equals(Variable.of('c')));
+    assert.ok(subst!.get('b')!.equals(Variable.of('c')));
+  });
+
+  it('fails when functions have different arities', function() {
+    // Line 92: expr1.args.length !== expr2.args.length
+    const subst = UnifyExprs(Call.of('f', x), Call.of('f', x, y), new Set([]));
+    assert.strictEqual(subst, undefined);
+  });
+
+  it('fails with transitive circular reference via substitution', function() {
+    // add(b, a) vs add(f(a), f(b)) with {a,b} allowed:
+    // 1) bind b = f(a);  2) OccursCheck("a", f(b)) → follows chain b→f(a) → finds "a" (line 125)
+    const subst = UnifyExprs(
+        Call.add(Variable.of('b'), Variable.of('a')),
+        Call.add(Call.of('f', Variable.of('a')), Call.of('f', Variable.of('b'))),
+        new Set(['a', 'b']));
+    assert.strictEqual(subst, undefined);
   });
 
 });
@@ -171,6 +213,21 @@ describe('SubstAll', function() {
     assert.ok(result.equals(x));
   });
 
+  it('returns original function when no children match', function() {
+    // add(x, y) — top level and both children don't match f(a); changed=false, falls through (lines 218)
+    const pattern = Call.of('f', Variable.of('a'));
+    const result = SubstAll(Call.add(x, y), pattern, ONE, new Set(['a']));
+    assert.ok(result.equals(Call.add(x, y)));
+  });
+
+  it('substitutes only matching children', function() {
+    // add(f(x), y) — f(x) matches → changed=true; y doesn't → unchanged child (line 215)
+    const pattern = Call.of('f', Variable.of('a'));
+    const repl = Call.add(Variable.of('a'), ONE);
+    const result = SubstAll(Call.add(Call.of('f', x), y), pattern, repl, new Set(['a']));
+    assert.ok(result.equals(Call.add(Call.add(x, ONE), y)));
+  });
+
 });
 
 
@@ -200,6 +257,17 @@ describe('FreshenVars', function() {
     const [result, freshNames] = FreshenVars(ONE);
     assert.equal(freshNames.size, 0);
     assert.ok(result.equals(ONE));
+  });
+
+  it('skips variable whose name collides with an earlier fresh name', function() {
+    // Probe the counter so we know the next two fresh names
+    const probe = FreshVarName();               // consumes _v{N}
+    const nextFresh = `_v${parseInt(probe.slice(2)) + 1}`;  // _v{N+1}
+    // expr: add('x', nextFresh). Processing 'x' first generates nextFresh, then
+    // the loop sees nextFresh as the next variable and freshNames.has(nextFresh) is true → continue
+    const expr = Call.add(Variable.of('x'), Variable.of(nextFresh));
+    const [, freshNames] = FreshenVars(expr);
+    assert.ok(freshNames.has(nextFresh));
   });
 
 });
@@ -274,9 +342,35 @@ describe('SubstPositive', function() {
     assert.ok(result.equals(expr));
   });
 
+  it('returns original subtract when from not present', function() {
+    const expr = Call.subtract(Variable.of('x'), Variable.of('y'));
+    const result = SubstPositive(expr, Variable.of('z'), Constant.of(3n));
+    assert.ok(result === expr);
+  });
+
+  it('replaces inside multiply when variable * constant', function() {
+    // b is the constant; cover the b.variety === EXPR_CONSTANT branch
+    const expr = Call.multiply(Variable.of('x'), Constant.of(2n));
+    const result = SubstPositive(expr, Variable.of('x'), Constant.of(3n));
+    assert.ok(result.equals(Call.multiply(Constant.of(3n), Constant.of(2n))));
+  });
+
+  it('does not replace inside multiply variable * negative constant', function() {
+    const expr = Call.multiply(Variable.of('x'), Constant.of(-2n));
+    const result = SubstPositive(expr, Variable.of('x'), Constant.of(3n));
+    assert.ok(result.equals(expr));
+  });
+
   it('replaces at top level', function() {
     const result = SubstPositive(Variable.of('x'), Variable.of('x'), Constant.of(3n));
     assert.ok(result.equals(Constant.of(3n)));
+  });
+
+  it('does not recurse into multiply with two non-constant args', function() {
+    // Neither arg is a constant — falls through the multiply constant checks (line 299 false branch)
+    const expr = Call.multiply(Variable.of('x'), Variable.of('y'));
+    const result = SubstPositive(expr, Variable.of('z'), Constant.of(3n));
+    assert.ok(result === expr);
   });
 
 });
@@ -345,6 +439,39 @@ describe('SubstAllWithCheck', function() {
         throw new Error('condition failed');
       });
     }, /condition failed/);
+  });
+
+  it('returns original variable when no match', function() {
+    // Variable.of('x') does not unify with a+b (not a function), so returns expr
+    const matchSide = Call.add(Variable.of('a'), Variable.of('b'));
+    const replSide = Constant.of(0n);
+    const freeVars = new Set(['a', 'b']);
+    const result = SubstAllWithCheck(Variable.of('x'), matchSide, replSide, freeVars, () => {});
+    assert.ok(result.equals(Variable.of('x')));
+  });
+
+  it('substitutes inside function children', function() {
+    // expr = add(f(x), f(y)) — top level doesn't match f(a), but children do (lines 237-244, changed=true)
+    const matchSide = Call.of('f', Variable.of('a'));
+    const replSide = Call.add(Variable.of('a'), ONE);
+    const freeVars = new Set(['a']);
+    const matches: string[] = [];
+    const expr = Call.add(Call.of('f', x), Call.of('f', y));
+    const result = SubstAllWithCheck(expr, matchSide, replSide, freeVars, (subst) => {
+      matches.push(subst.get('a')!.to_string());
+    });
+    assert.ok(result.equals(Call.add(Call.add(x, ONE), Call.add(y, ONE))));
+    assert.equal(matches.length, 2);
+  });
+
+  it('returns original function when no match in children', function() {
+    // expr = add(x, y) — top level doesn't match f(a), children don't either (lines 237-244, changed=false)
+    const matchSide = Call.of('f', Variable.of('a'));
+    const replSide = ONE;
+    const freeVars = new Set(['a']);
+    const expr = Call.add(x, y);
+    const result = SubstAllWithCheck(expr, matchSide, replSide, freeVars, () => {});
+    assert.ok(result === expr);
   });
 
 });

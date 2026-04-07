@@ -2,8 +2,8 @@
 import * as assert from 'assert';
 import { Constant, Variable, Call } from '../facts/exprs';
 import { Formula } from '../facts/formula';
-import { AtomProp, NotProp, ConstProp } from '../facts/prop';
-import { RelAst, TrueCondAst, FalseCondAst, AndCondAst, OrCondAst, NotCondAst, ClauseLiteral, clauseToProp, negRel, substRel, formulaToRel, condToProps } from './code_ast';
+import { AtomProp, NotProp, OrProp, ConstProp } from '../facts/prop';
+import { RelAst, TrueCondAst, FalseCondAst, AndCondAst, OrCondAst, NotCondAst, ClauseLiteral, clauseToProp, negRel, substRel, formulaToRel, relToFormula, condToProps } from './code_ast';
 
 describe('negRel', function() {
 
@@ -269,6 +269,131 @@ describe('condToProps with constants', function() {
     assert.equal(props.length, 1);
     assert.ok(props[0] instanceof ConstProp);
     assert.equal((props[0] as ConstProp).value, true);
+  });
+
+});
+
+
+describe('relToFormula', function() {
+
+  it('converts == to = formula', function() {
+    const cond = new RelAst(Variable.of('x'), '==', Constant.of(0n));
+    const f = relToFormula(cond);
+    assert.strictEqual(f.op, '=');
+    assert.ok(f.left.equals(Variable.of('x')));
+    assert.ok(f.right.equals(Constant.of(0n)));
+  });
+
+  it('converts < to < formula', function() {
+    const cond = new RelAst(Variable.of('x'), '<', Constant.of(1n));
+    const f = relToFormula(cond);
+    assert.strictEqual(f.op, '<');
+  });
+
+  it('converts <= to <= formula', function() {
+    const cond = new RelAst(Variable.of('x'), '<=', Constant.of(1n));
+    const f = relToFormula(cond);
+    assert.strictEqual(f.op, '<=');
+  });
+
+  it('converts > to < formula with swapped sides', function() {
+    const cond = new RelAst(Variable.of('x'), '>', Constant.of(0n));
+    const f = relToFormula(cond);
+    assert.strictEqual(f.op, '<');
+    assert.ok(f.left.equals(Constant.of(0n)));
+    assert.ok(f.right.equals(Variable.of('x')));
+  });
+
+  it('converts >= to <= formula with swapped sides', function() {
+    const cond = new RelAst(Variable.of('x'), '>=', Constant.of(0n));
+    const f = relToFormula(cond);
+    assert.strictEqual(f.op, '<=');
+    assert.ok(f.left.equals(Constant.of(0n)));
+    assert.ok(f.right.equals(Variable.of('x')));
+  });
+
+  it('throws for != condition', function() {
+    const cond = new RelAst(Variable.of('x'), '!=', Constant.of(0n));
+    assert.throws(() => relToFormula(cond), /Cannot convert/);
+  });
+
+});
+
+
+describe('condToProps with == and < operators', function() {
+
+  it('== produces AtomProp with = op', function() {
+    const cond = new RelAst(Variable.of('x'), '==', Constant.of(0n));
+    const props = condToProps(cond);
+    assert.equal(props.length, 1);
+    assert.ok(props[0] instanceof AtomProp);
+    assert.equal((props[0] as AtomProp).formula.op, '=');
+  });
+
+  it('< produces AtomProp with < op', function() {
+    const cond = new RelAst(Variable.of('x'), '<', Constant.of(5n));
+    const props = condToProps(cond);
+    assert.equal(props.length, 1);
+    assert.ok(props[0] instanceof AtomProp);
+    assert.equal((props[0] as AtomProp).formula.op, '<');
+  });
+
+});
+
+
+describe('condToProps with != operator', function() {
+
+  it('!= condition produces NotProp', function() {
+    const cond = new RelAst(Variable.of('x'), '!=', Constant.of(0n));
+    const props = condToProps(cond);
+    assert.equal(props.length, 1);
+    assert.ok(props[0] instanceof NotProp);
+    assert.equal((props[0] as NotProp).formula.op, '=');
+  });
+
+  it('negated != produces AtomProp with = op', function() {
+    const cond = new RelAst(Variable.of('x'), '!=', Constant.of(0n));
+    const props = condToProps(new NotCondAst(cond));
+    assert.equal(props.length, 1);
+    assert.ok(props[0] instanceof AtomProp);
+    assert.equal((props[0] as AtomProp).formula.op, '=');
+  });
+
+});
+
+
+describe('condToProps with AND/OR and negation', function() {
+
+  it('not(a and b) produces two clauses via de Morgan (distribute)', function() {
+    const a = new RelAst(Variable.of('x'), '>', Constant.of(0n));
+    const b = new RelAst(Variable.of('y'), '>', Constant.of(0n));
+    // not(a and b) = not(a) or not(b) → one clause with two disjuncts
+    const props = condToProps(new NotCondAst(new AndCondAst(a, b)));
+    assert.equal(props.length, 1);
+    // Should be OrProp([NotProp(x>0), NotProp(y>0)])
+    assert.ok('disjuncts' in props[0]);
+    const or = props[0] as OrProp;
+    assert.equal(or.disjuncts.length, 2);
+    assert.ok(or.disjuncts[0] instanceof NotProp);
+    assert.ok(or.disjuncts[1] instanceof NotProp);
+  });
+
+  it('not(a or b) produces two separate clauses via de Morgan', function() {
+    const a = new RelAst(Variable.of('x'), '>', Constant.of(0n));
+    const b = new RelAst(Variable.of('y'), '>', Constant.of(0n));
+    // not(a or b) = not(a) and not(b) → two clauses
+    const props = condToProps(new NotCondAst(new OrCondAst(a, b)));
+    assert.equal(props.length, 2);
+    assert.ok(props[0] instanceof NotProp);
+    assert.ok(props[1] instanceof NotProp);
+  });
+
+  it('(a or b) produces one OrProp clause', function() {
+    const a = new RelAst(Variable.of('x'), '>', Constant.of(0n));
+    const b = new RelAst(Variable.of('y'), '>', Constant.of(0n));
+    const props = condToProps(new OrCondAst(a, b));
+    assert.equal(props.length, 1);
+    assert.ok('disjuncts' in props[0]);
   });
 
 });

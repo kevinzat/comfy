@@ -76,6 +76,23 @@ describe('funcToDefinitions', function() {
     assert.ok(defs[1].formula.right.equals(Variable.of('x')));
   });
 
+  it('produces conditional definitions for if/else with <= condition', function() {
+    const func = new FuncAst('f', new TypeAst(['Int'], 'Int'), [
+      new CaseAst([new ParamVar('x')],
+          new IfElseBody(
+              new Formula(Variable.of('x'), OP_LESS_EQUAL, Constant.of(0n)),
+              Constant.of(0n),
+              Variable.of('x'))),
+    ]);
+
+    const defs = funcToDefinitions(func);
+    assert.equal(defs.length, 2);
+    assert.equal(defs[0].condition!.op, '<=');
+    assert.equal(defs[1].condition!.op, '<');
+    assert.ok(defs[1].condition!.left.equals(Constant.of(0n)));
+    assert.ok(defs[1].condition!.right.equals(Variable.of('x')));
+  });
+
   it('ExprBody definitions have no condition', function() {
     const func = new FuncAst('f', new TypeAst(['Int'], 'Int'), [
       new CaseAst([new ParamVar('x')], new ExprBody(Variable.of('x'))),

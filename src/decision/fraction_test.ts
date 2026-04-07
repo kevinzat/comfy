@@ -60,6 +60,11 @@ describe('fraction', function() {
     assert.strictEqual(new Fraction(-2n).to_integer(), -2n);
     assert.strictEqual(new Fraction(4n, 2n).to_integer(), 2n);
     assert.strictEqual(new Fraction(-4n, 2n).to_integer(), -2n);
+    assert.throws(() => new Fraction(3n, 2n).to_integer(), /not an integer/);
+  });
+
+  it('division by zero throws', function() {
+    assert.throws(() => new Fraction(1n, 0n), /division by zero/);
   });
 
   it('inverse', function() {

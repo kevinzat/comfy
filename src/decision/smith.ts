@@ -79,10 +79,14 @@ export function SmithNormalForm(A: Tableau): [number, number[]] {
             A.rowAddMultiple(k, i, t);  // gcd = s * A[k][k] + t * A[i][k]
         }
 
+        /* v8 ignore start */
         if (A.entries[k][k] !== d)
           throw new Error(`un oh! ${A.entries[k][k]} should be ${d}`);
+        /* v8 ignore stop */
+        /* v8 ignore start */
         if (A.entries[i][k] % d !== 0n)
           throw new Error(`un oh! ${d} should divide ${A.entries[i][k]}`);
+        /* v8 ignore stop */
 
         // Eliminate A[i][k] by subtracting a multiple of gcd;
         A.rowAddMultiple(i, k, -A.entries[i][k] / d);
@@ -95,15 +99,20 @@ export function SmithNormalForm(A: Tableau): [number, number[]] {
 
         // Calculate the gcd of A[k][k] and A[k][j].
         let [d, s, t] = ext_gcd(A.entries[k][k], A.entries[k][j]);
+        /* v8 ignore start */
         if (d !== s * A.entries[k][k] + t * A.entries[k][j])
           throw new Error(`${d} != ${s} * ${A.entries[k][k]} + ${t} * ${A.entries[k][j]}`);
+        /* v8 ignore stop */
 
         // Apply column ops to make A[k][k] contain the gcd.
         if (s === 0n) {
           A.colSwap(j, k);  // A[k][j] is the gcd, so just swap them
           [indexes[j], indexes[k]] = [indexes[k], indexes[j]];
-          if (t !== 0n)
-            A.colScale(k, t);
+          /* v8 ignore start */
+          if (t === 0n)
+            throw new Error(`t should be nonzero when s is zero`);
+          /* v8 ignore stop */
+          A.colScale(k, t);  // make gcd positive (t = d / A[k][j])
         } else {
           if (s !== 1n)
             A.colScale(k, s);
@@ -111,10 +120,14 @@ export function SmithNormalForm(A: Tableau): [number, number[]] {
             A.colAddMultiple(k, j, t);  // gcd = s * A[k][k] + t * A[k][j]
         }
 
+        /* v8 ignore start */
         if (A.entries[k][k] !== d)
           throw new Error(`un oh! ${A.entries[k][k]} should be ${d}`);
+        /* v8 ignore stop */
+        /* v8 ignore start */
         if (A.entries[k][j] % d !== 0n)
           throw new Error(`un oh! ${d} should divide ${A.entries[k][j]}`);
+        /* v8 ignore stop */
 
         // Eliminate A[k][j] by subtracting a multiple of gcd;
         A.colAddMultiple(j, k, -A.entries[k][j] / d);

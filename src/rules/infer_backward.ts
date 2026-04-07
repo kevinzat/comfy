@@ -18,9 +18,12 @@ export function ParseBackwardRule(text: string): TacticAst {
   } catch (_e) {
     throw new UserError(`syntax error in tactic "${text}"`);
   }
+  /* v8 ignore start */
   if (parser.results.length > 1) {
-    throw new UserError(`ambiguous tactic "${text}"`);
-  } else if (parser.results.length === 1) {
+    throw new Error(`ambiguous tactic "${text}"`);
+  }
+  /* v8 ignore stop */
+  if (parser.results.length === 1) {
     const result: TacticAst = parser.results[0];
     return result;
   } else {

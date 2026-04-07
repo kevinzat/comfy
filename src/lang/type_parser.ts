@@ -9,28 +9,25 @@ export interface TypeParseResult {
   error?: string;
 }
 
-function extractLineCol(msg: string): { line?: number, col?: number } {
-  const m = msg.match(/line (\d+) col (\d+)/i);
-  if (m) return { line: parseInt(m[1]), col: parseInt(m[2]) };
-  return {};
-}
-
 /** Parses a type declaration, returning the AST or an error message. */
 export function ParseTypeDecl(text: string): TypeParseResult {
   try {
     const parser =
         new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
     parser.feed(text);
+    /* v8 ignore start */
     if (parser.results.length > 1) {
-      return { error: `ambiguous grammar` };
-    } else if (parser.results.length == 1) {
+      throw new Error('ambiguous grammar');
+    }
+    /* v8 ignore stop */
+    if (parser.results.length == 1) {
       const ast: TypeDeclAst = parser.results[0];
       return { ast };
     } else {
       return { error: `unexpected end of input` };
     }
   } catch (e: any) {
-    const msg = e?.message ?? String(e);
+    const msg: string = e.message;
     return { error: msg };
   }
 }

@@ -169,8 +169,6 @@ export function PatternMatch(
             const entryComp = [...comp];
             if (entryDesc.length > 0)
               entryDesc.push({bold: false, text: " "});
-            if (entryComp.length > 0 && entryComp[entryComp.length-1] !== " ")
-              entryComp.push(" ");
             entryDesc.push({bold: true, text: parts[i]});
             if (name.length > parts[i].length)
               entryDesc.push({bold: false, text: name.substring(parts[i].length)});

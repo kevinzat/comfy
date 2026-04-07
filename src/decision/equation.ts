@@ -38,11 +38,15 @@ export function IsEquationChainValid(steps: Formula[]): string | undefined {
 /** Determines whether the last equation is implied by the earlier ones. */
 export function IsEquationImplied(eqs: Formula[], eq: Formula): boolean {
   for (const eqn of eqs) {
+    /* v8 ignore start */
     if (eqn.op !== OP_EQUAL)
       throw new Error(`expected equation, got ${eqn.to_string()}`);
+    /* v8 ignore stop */
   }
+  /* v8 ignore start */
   if (eq.op !== OP_EQUAL)
     throw new Error(`expected equation, got ${eq.to_string()}`);
+  /* v8 ignore stop */
 
   // Normalize both sides of all the equations (once only) to put each in
   // sum-of-products form.
@@ -101,12 +105,16 @@ export function _MakeEquation(
     if (term[1] === undefined) {
       value -= term[0];
     } else {
+      /* v8 ignore start */
       if (!indexes.has(term[1]))
         throw new Error(`we have uh-oh... missing index for ${term[1]}, over`);
+      /* v8 ignore stop */
 
       const index = indexes.get(term[1])!;
+      /* v8 ignore start */
       if (index < 0 || indexes.size <= index)
         throw new Error(`we have uh-oh... bad index value ${index} for ${term[1]}, over`);
+      /* v8 ignore stop */
 
       coefs[index] += term[0];
     }
@@ -117,12 +125,16 @@ export function _MakeEquation(
     if (term[1] === undefined) {
       value += term[0];
     } else {
+      /* v8 ignore start */
       if (!indexes.has(term[1]))
         throw new Error(`we have uh-oh... missing index for ${term[1]}, over`);
+      /* v8 ignore stop */
 
       const index = indexes.get(term[1])!;
+      /* v8 ignore start */
       if (index < 0 || indexes.size <= index)
         throw new Error(`we have uh-oh... bad index value ${index} for ${term[1]}, over`);
+      /* v8 ignore stop */
 
       coefs[index] -= term[0];
     }
@@ -141,7 +153,11 @@ export function _GetTerms(expr: Expression): [bigint, string|undefined][] {
     expr = new Call(FUNC_ADD, [expr]);
   }
 
-  if (expr.variety !== EXPR_FUNCTION) throw new Error('unreachable');
+  /* v8 ignore start */ 
+  if (expr.variety !== EXPR_FUNCTION)
+    throw new Error('unreachable');
+  /* v8 ignore stop */ 
+
   const terms: [bigint, string|undefined][] = [];
 
   for (const arg of expr.args) {

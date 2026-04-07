@@ -34,6 +34,10 @@ describe('tableau', function() {
     assert.deepEqual(A.entries, [[1n, 6n, 3n], [4n, 15n, 6n]]);
     assert.deepEqual(A.col0, [7n, 8n]);
     assert.deepEqual(A.row0, [9n, 30n, 11n]);
+    // Also test without row0 (covers the row0 === undefined branch)
+    let B = new Tableau([[1n, 2n, 3n], [4n, 5n, 6n]]);
+    B.colScale(1, 3n);
+    assert.deepEqual(B.entries, [[1n, 6n, 3n], [4n, 15n, 6n]]);
   });
 
   it('rowAddMultiple', function() {
@@ -50,6 +54,26 @@ describe('tableau', function() {
     assert.deepEqual(A.entries, [[7n, 2n, 3n], [19n, 5n, 6n]]);
     assert.deepEqual(A.col0, [7n, 8n]);
     assert.deepEqual(A.row0, [39n, 10n, 11n]);
+  });
+
+  it('constructor throws on empty rows', function() {
+    assert.throws(() => new Tableau([]), /rows are missing/);
+  });
+
+  it('constructor throws on jagged rows', function() {
+    assert.throws(() => new Tableau([[1n, 2n], [3n]]), /same length/);
+  });
+
+  it('constructor throws on wrong col0 length', function() {
+    assert.throws(
+      () => new Tableau([[1n, 2n], [3n, 4n]], [1n, 2n, 3n]),
+      /extra column has wrong length/);
+  });
+
+  it('constructor throws on wrong row0 length', function() {
+    assert.throws(
+      () => new Tableau([[1n, 2n], [3n, 4n]], undefined, [1n]),
+      /extra column has wrong length/);
   });
 
 });

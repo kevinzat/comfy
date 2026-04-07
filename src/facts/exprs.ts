@@ -411,19 +411,25 @@ export class Call extends ExpressionBase {
     if (this.name === FUNC_NEGATE) {
       if (numConst === 1 && newArgs.length === 1) {
         const arg0 = newArgs[0];
+        /* v8 ignore start */
         if (arg0.variety !== EXPR_CONSTANT) throw new Error('unreachable');
+        /* v8 ignore stop */
         return new Constant(-arg0.value);
       }
     } else if (this.name === FUNC_EXPONENTIATE) {
       if (numConst === 2 && newArgs.length === 2) {
         const arg0 = newArgs[0]; const arg1 = newArgs[1];
+        /* v8 ignore start */
         if (arg0.variety !== EXPR_CONSTANT || arg1.variety !== EXPR_CONSTANT) throw new Error('unreachable');
+        /* v8 ignore stop */
         return new Constant(arg0.value ** arg1.value);
       }
     } else if (this.name === FUNC_SUBTRACT) {
       if (numConst === 2 && newArgs.length === 2) {
         const arg0 = newArgs[0]; const arg1 = newArgs[1];
+        /* v8 ignore start */
         if (arg0.variety !== EXPR_CONSTANT || arg1.variety !== EXPR_CONSTANT) throw new Error('unreachable');
+        /* v8 ignore stop */
         return new Constant(arg0.value - arg1.value);
       } else if (newArgs.length == 2 && newArgs[1].variety === EXPR_CONSTANT) {
         return new Call(FUNC_ADD, [newArgs[0], new Constant(-newArgs[1].value)]);
@@ -434,7 +440,9 @@ export class Call extends ExpressionBase {
       if (numConst === newArgs.length) {
         let val = 1n;
         for (const newArg of newArgs) {
+          /* v8 ignore start */
           if (newArg.variety !== EXPR_CONSTANT) throw new Error('unreachable');
+          /* v8 ignore stop */
           val *= newArg.value;
         }
         return new Constant(val);
@@ -455,7 +463,9 @@ export class Call extends ExpressionBase {
       if (numConst === newArgs.length) {
         let val = 0n;
         for (const newArg of newArgs) {
+          /* v8 ignore start */
           if (newArg.variety !== EXPR_CONSTANT) throw new Error('unreachable');
+          /* v8 ignore stop */
           val += newArg.value;
         }
         return new Constant(val);
@@ -564,7 +574,9 @@ export class Call extends ExpressionBase {
       }
     } else if (Call.isExponentiation(this)) {
       const exp = this.args[1];
+      /* v8 ignore start */
       if (exp.variety !== EXPR_CONSTANT) throw new Error('unreachable');
+      /* v8 ignore stop */
       if (exp.value === 0n) {
         return Constant.ONE;
       } else if (exp.value === 1n) {
@@ -677,9 +689,13 @@ export class Call extends ExpressionBase {
         let val: bigint = 1n;
         let expr: Expression = arg;
         if (Call.isExponentiation(arg)) {
+          /* v8 ignore start */
           if (arg.variety !== EXPR_FUNCTION) throw new Error('unreachable');
+          /* v8 ignore stop */
           const expArg = arg.args[1];
+          /* v8 ignore start */
           if (expArg.variety !== EXPR_CONSTANT) throw new Error('unreachable');
+          /* v8 ignore stop */
           expr = arg.args[0];
           val = expArg.value;
         }
@@ -699,9 +715,12 @@ export class Call extends ExpressionBase {
     const newArgs: Expression[] = [];
     for (const key of keys) {
       const [expr, val] = count.get(key)!;
+      /* v8 ignore start */
       if (expr.variety === EXPR_CONSTANT) {
-        throw Error(`we have uh-oh, over`)
-      } else if (val == 1n) {
+        throw new Error(`we have uh-oh, over`)
+      }
+      /* v8 ignore stop */
+      if (val == 1n) {
         newArgs.push(expr);
       } else {
         newArgs.push(new Call(FUNC_EXPONENTIATE, [expr, new Constant(val)]));
@@ -715,15 +734,21 @@ export class Call extends ExpressionBase {
         this.args[0].variety === EXPR_FUNCTION) {
       const arg = this.args[0];
       const expArg = this.args[1];
+      /* v8 ignore start */
       if (expArg.variety !== EXPR_CONSTANT) throw new Error('unreachable');
+      /* v8 ignore stop */
       const exp = expArg.value;
 
       // Replace exponentiation of exponentiation with a single exponentiation
       // and then remove that exponent.
       if (Call.isExponentiation(arg)) {
+        /* v8 ignore start */
         if (arg.variety !== EXPR_FUNCTION) throw new Error('unreachable');
+        /* v8 ignore stop */
         const innerExp = arg.args[1];
+        /* v8 ignore start */
         if (innerExp.variety !== EXPR_CONSTANT) throw new Error('unreachable');
+        /* v8 ignore stop */
         return new Call(FUNC_EXPONENTIATE,
             [arg.args[0], new Constant(exp * innerExp.value)]).remove_exponents();
 

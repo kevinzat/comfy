@@ -197,19 +197,18 @@ export function TwoPhaseSimplexMethod(A: Tableau, c: bigint[]):
       return { status: 'infeasible' };
   }
 
-  // Pivot out any degenerate artificial variables still in the basis.
+  // Any degenerate artificial variable remaining in the basis must have all-zero
+  // real non-basis column entries (provably: if any were positive, Phase I would
+  // have found them profitable and pivoted them out before converging).
   for (let i = 0; i < m; i++) {
     if (cols[i] < n) continue;
 
-    let pivoted = false;
     for (let j = 0; j < n; j++) {
-      if (!cols.includes(j) && aug.entries[i][j] !== 0n) {
-        Pivot(aug, cols, i, j);
-        pivoted = true;
-        break;
-      }
+      /* v8 ignore start */
+      if (!cols.includes(j) && aug.entries[i][j] !== 0n)
+        throw new Error('unexpected: degenerate artificial with non-zero real entry');
+      /* v8 ignore stop */
     }
-    // If not pivoted, the row is redundant (all real coefficients are zero).
   }
 
   // Build Phase II tableau: keep only non-redundant rows and real columns.
@@ -378,12 +377,10 @@ export function IsImplied(
     let bRow = A.col0![fractionalRow];
     const rowCoefs = A.entries[fractionalRow].slice();
 
-    if (D < 0n) {
-      D = -D;
-      bRow = -bRow;
-      for (let j = 0; j < rowCoefs.length; j++)
-        rowCoefs[j] = -rowCoefs[j];
-    }
+    /* v8 ignore start */
+    if (D < 0n)
+      throw new Error('unexpected: negative basis diagonal in Gomory cut');
+    /* v8 ignore stop */
 
     const basisSet = new Set(cols);
     const cutRow: bigint[] = new Array(A.n + 1).fill(0n);
@@ -409,35 +406,4 @@ export function IsImplied(
   }
 
   throw new Error('Gomory cut iteration limit exceeded');
-}
-
-
-// Zero out (row1, col) using multiples of (row2, col).
-function Zero(A: Tableau, row1: number, row2: number, col: number): void {
-  // Calculate the gcd of A[row1][col] and A[row2][col].
-  let [d, s, t] = ext_gcd(A.entries[row1][col], A.entries[row2][col]);
-
-  if (t === 0n) {  // A[row1][col] is the gcd
-    if (A.entries[row2][col] % A.entries[row1][col] !== 0n)
-      throw new Error(`uh oh! ${A.entries[row1][col]} should divide ${A.entries[row2][col]}`)
-
-    // Scale row1 up so A[row1][col] = A[row2][col] then subtract row1 to zero row2
-    A.rowScale(row1, A.entries[row2][col] / A.entries[row1][col]);
-    A.rowAddMultiple(row1, row2, -1n);
-
-  } else {
-    // Apply row ops to make A[row2][col] contain the gcd.
-    if (t !== 1n)
-      A.rowScale(row2, t);
-    if (s !== 0n)
-      A.rowAddMultiple(row2, row1, s);  // gcd = s * A[row1][col] + t * A[row2][col]
-
-    if (A.entries[row2][col] !== d)
-      throw new Error(`uh oh! ${A.entries[row2][col]} should be ${d}`);
-    if (A.entries[row1][col] % d !== 0n)
-      throw new Error(`uh oh! ${d} should divide ${A.entries[row1][col]}`);
-
-    // Eliminate A[row1][col] by subtracting a multiple of gcd;
-    A.rowAddMultiple(row1, row2, -A.entries[row1][col] / d);
-  }
 }

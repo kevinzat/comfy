@@ -737,3 +737,53 @@ describe('CreateRule - apply theorem', function() {
   });
 
 });
+
+
+describe('RuleAst.to_string', function() {
+
+  it('AlgebraAst.to_string with no refs', function() {
+    const ast = ParseForwardRule('= x + 1') as AlgebraAst;
+    assert.strictEqual(ast.to_string(), '= x + 1');
+  });
+
+  it('AlgebraAst.to_string with refs', function() {
+    const ast = ParseForwardRule('= x + 1 since 1 2') as AlgebraAst;
+    assert.strictEqual(ast.to_string(), '= x + 1 since 1 2');
+  });
+
+  it('SubstituteAst.to_string subst', function() {
+    const ast = ParseForwardRule('subst 2') as SubstituteAst;
+    assert.strictEqual(ast.to_string(), 'subst 2');
+  });
+
+  it('SubstituteAst.to_string unsub', function() {
+    const ast = ParseForwardRule('unsub 1') as SubstituteAst;
+    assert.strictEqual(ast.to_string(), 'unsub 1');
+  });
+
+  it('DefinitionAst.to_string defof no refs no expr', function() {
+    const ast = ParseForwardRule('defof len') as DefinitionAst;
+    assert.strictEqual(ast.to_string(), 'defof len');
+  });
+
+  it('DefinitionAst.to_string defof with refs', function() {
+    const ast = ParseForwardRule('defof len since 1') as DefinitionAst;
+    assert.strictEqual(ast.to_string(), 'defof len since 1');
+  });
+
+  it('ApplyAst.to_string apply no refs', function() {
+    const ast = ParseForwardRule('apply my_thm') as ApplyAst;
+    assert.strictEqual(ast.to_string(), 'apply my_thm');
+  });
+
+  it('ApplyAst.to_string apply with refs', function() {
+    const ast = ParseForwardRule('apply my_thm since 1') as ApplyAst;
+    assert.strictEqual(ast.to_string(), 'apply my_thm since 1');
+  });
+
+  it('ApplyAst.to_string unapp', function() {
+    const ast = ParseForwardRule('unapp my_thm') as ApplyAst;
+    assert.strictEqual(ast.to_string(), 'unapp my_thm');
+  });
+
+});

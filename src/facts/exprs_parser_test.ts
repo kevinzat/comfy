@@ -66,4 +66,12 @@ describe('exprs_parser', function() {
             Variable.of("z")));
   });
 
+  it('throws syntax error on empty input', function() {
+    assert.throws(() => ParseExpr(''), /syntax error/);
+  });
+
+  it('throws syntax error on incomplete expression', function() {
+    assert.throws(() => ParseExpr('x + '), /syntax error/);
+  });
+
 });

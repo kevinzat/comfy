@@ -408,6 +408,102 @@ describe('exprs', function() {
 
     let expr12: Expression = expr11.normalize();
     assert.strictEqual(expr12.to_string(), "2*a + 2*b + (-2)*y");
+
+    // Coefficient terms: 2*x after normalization stays as 2*x
+    let expr13: Expression = Call.multiply(Constant.of(2n), Variable.of("x"));
+    let expr14: Expression = expr13.normalize();
+    assert.strictEqual(expr14.to_string(), "2*x");
+  });
+
+  it('apply_identities exponent 0 and 1', function() {
+    // x^0 = 1
+    const e0 = Call.exponentiate(x, Constant.of(0n)).apply_identities();
+    assert.ok(e0.equals(Constant.ONE));
+
+    // x^1 = x
+    const e1 = Call.exponentiate(x, Constant.of(1n)).apply_identities();
+    assert.ok(e1.equals(x));
+  });
+
+  it('isNegation', function() {
+    assert.ok(!Call.isNegation(Constant.of(3n)));
+    assert.ok(!Call.isNegation(Variable.of("x")));
+    assert.ok(Call.isNegation(Call.negate(Variable.of("x"))));
+    assert.ok(!Call.isNegation(Call.add(Variable.of("x"), Variable.of("y"))));
+  });
+
+  it('equals with different arg counts', function() {
+    const f1 = Call.of("f", x);
+    const f2 = Call.of("f", x, y);
+    assert.ok(!f1.equals(f2));
+    assert.ok(!f2.equals(f1));
+  });
+
+  it('Constant.subst when equal', function() {
+    const c = Constant.of(3n);
+    assert.ok(c.subst(c, Variable.of("x")).equals(Variable.of("x")));
+    assert.ok(c.subst(Constant.of(5n), Variable.of("x")).equals(c));
+  });
+
+  it('eval_constants with partial constants in add', function() {
+    // 1 + x + 2 should consolidate to 3 + x
+    const expr = new Call(exprs.FUNC_ADD,
+        [Constant.of(1n), Variable.of("x"), Constant.of(2n)]);
+    const result = expr.eval_constants();
+    assert.strictEqual(result.to_string(), "3 + x");
+
+    // negate(variable) should stay unchanged
+    const expr2 = Call.negate(Variable.of("x"));
+    assert.ok(expr2.eval_constants().equals(expr2));
+  });
+
+  it('add_negation with negative constant', function() {
+    // x + (-3) should become x - 3
+    const expr1 = new Call(exprs.FUNC_ADD, [x, Constant.of(-3n)]);
+    assert.strictEqual(expr1.add_negation().to_string(), "x - 3");
+
+    // x + 3 cannot become subtraction (positive constant)
+    const expr2 = new Call(exprs.FUNC_ADD, [x, Constant.of(3n)]);
+    assert.ok(expr2.add_negation().equals(new Call(exprs.FUNC_ADD, [x, Constant.of(3n)])));
+
+    // x + y cannot become subtraction (variable)
+    const expr3 = new Call(exprs.FUNC_ADD, [x, y]);
+    assert.ok(expr3.add_negation().equals(new Call(exprs.FUNC_ADD, [x, y])));
+  });
+
+  it('add_negation with MINUS_ONE times 3+ args', function() {
+    // (-1) * x * y should produce -(x*y) = -x*y
+    const expr = new Call(exprs.FUNC_MULTIPLY, [Constant.MINUS_ONE, x, y]);
+    assert.strictEqual(expr.add_negation().to_string(), "-x*y");
+  });
+
+  it('apply_identities with 1 times 3+ args', function() {
+    // 1 * x * y should become x * y
+    const expr = new Call(exprs.FUNC_MULTIPLY, [Constant.ONE, x, y]);
+    assert.ok(expr.apply_identities().equals(new Call(exprs.FUNC_MULTIPLY, [x, y])));
+  });
+
+  it('combine_terms with single-constant multiply', function() {
+    // Two copies of Call(FUNC_MULTIPLY, [Constant]) share base ONE, so they combine
+    const a = new Call(exprs.FUNC_MULTIPLY, [Constant.of(3n)]);
+    const b = new Call(exprs.FUNC_MULTIPLY, [Constant.of(5n)]);
+    const result = Call.combine_terms([a, b]);
+    assert.strictEqual(result.length, 1);
+    assert.strictEqual(result[0].to_string(), "8*1");
+  });
+
+  it('remove_exponents with subtract and negate base', function() {
+    // (x - y)^2 should expand
+    const expr1 = Call.exponentiate(Call.subtract(x, y), Constant.of(2n));
+    assert.strictEqual(expr1.remove_exponents().to_string(), "(x - y)*(x - y)");
+
+    // (-x)^2 should expand
+    const expr2 = Call.exponentiate(Call.negate(x), Constant.of(2n));
+    assert.strictEqual(expr2.remove_exponents().to_string(), "(-x)*(-x)");
+
+    // gcd(x, y)^2 should not expand (not a supported arithmetic op)
+    const expr3 = Call.exponentiate(Call.of("gcd", x, y), Constant.of(2n));
+    assert.strictEqual(expr3.remove_exponents().to_string(), "gcd(x, y)^2");
   });
 
 });

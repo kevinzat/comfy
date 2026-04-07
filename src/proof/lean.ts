@@ -65,10 +65,13 @@ function exprToLean(expr: Expression, ctors: Set<string>, prec: number = 0): str
 
   // Constructor or user function
   const leanName = ctors.has(name) ? `.${name}` : name;
-  if (args.length === 0) return leanName;
-  const leanArgs = args.map(a => exprToLean(a, ctors, 1000));
-  const s = `${leanName} ${leanArgs.join(' ')}`;
-  return prec >= 1000 ? `(${s})` : s;
+  if (args.length === 0) {
+    return leanName;
+  } else {
+    const leanArgs = args.map(a => exprToLean(a, ctors, 1000));
+    const s = `${leanName} ${leanArgs.join(' ')}`;
+    return prec >= 1000 ? `(${s})` : s;
+  }
 }
 
 function formulaToLean(f: Formula, ctors: Set<string>): string {
@@ -89,16 +92,18 @@ function paramToLean(p: Param, ctors: Set<string>): string {
   if (p instanceof ParamVar) {
     return ctors.has(p.name) ? `.${p.name}` : p.name;
   }
-  if (p.args.length === 0) return `.${p.name}`;
-  return `.${p.name} ${p.args.map(a => paramToLeanAtom(a, ctors)).join(' ')}`;
+  const parts = [`.${p.name}`, ...p.args.map(a => paramToLeanAtom(a, ctors))];
+  return parts.join(' ');
 }
 
 function paramToLeanAtom(p: Param, ctors: Set<string>): string {
   if (p instanceof ParamVar) {
     return ctors.has(p.name) ? `.${p.name}` : p.name;
+  } else if (p instanceof ParamConstructor && p.args.length === 0) {
+    return `.${p.name}`;
+  } else {
+    return `(${paramToLean(p, ctors)})`;
   }
-  if (p instanceof ParamConstructor && p.args.length === 0) return `.${p.name}`;
-  return `(${paramToLean(p, ctors)})`;
 }
 
 function paramsToLean(params: [string, string][]): string {
@@ -165,7 +170,9 @@ function ihNameToLean(name: string): string {
 
 function parseCaseLabel(label: string): { name: string; args: string[] } {
   const m = label.match(/^(\w+)(?:\(([^)]*)\))?$/);
+  /* v8 ignore start */
   if (!m) throw new Error(`bad case label: ${label}`);
+  /* v8 ignore stop */
   return {
     name: m[1],
     args: m[2] ? m[2].split(',').map(s => s.trim()) : [],
@@ -199,16 +206,13 @@ function calcToLean(
     node: CalcProofNode, ihNames: string[], condVar: string | undefined, indent: string): string {
   const { fns, thms } = collectCalcNames(node);
   const simpArgs: string[] = [...fns];
-
-  for (const t of thms) {
-    const leanName = t.match(/^IH/) ? ihNameToLean(t) : t;
-    if (!simpArgs.includes(leanName)) simpArgs.push(leanName);
-  }
-  for (const ih of ihNames) {
-    if (!simpArgs.includes(ih)) simpArgs.push(ih);
-  }
-  if (condVar && !simpArgs.includes(condVar)) {
-    simpArgs.push(condVar);
+  const thmNames = [...thms].map(t => t.match(/^IH/) ? ihNameToLean(t) : t);
+  const extras = [...thmNames, ...ihNames, ...(condVar ? [condVar] : [])];
+  const seen = new Set<string>(simpArgs);
+  for (const name of extras) {
+    if (seen.has(name)) continue;
+    seen.add(name);
+    simpArgs.push(name);
   }
 
   if (simpArgs.length === 0) {
@@ -222,9 +226,7 @@ function proofToLean(
     ihNames: string[], condVar?: string): string {
   if (node.kind === 'calculate') {
     return calcToLean(node, ihNames, condVar, indent);
-  }
-
-  if (node.kind === 'induction') {
+  } else if (node.kind === 'induction') {
     // Collect parameter names from IH theorems that need generalizing.
     const generalize = new Set<string>();
     for (const block of node.cases) {
@@ -246,9 +248,10 @@ function proofToLean(
       lines.push(proofToLean(block.proof, ctors, indent + '  ', ihs));
     }
     return lines.join('\n');
-  }
-
-  if (node.kind === 'cases') {
+  } else {
+    /* v8 ignore start */
+    if (node.kind !== 'cases') throw new Error(`unknown proof kind`);
+    /* v8 ignore stop */
     const condFormula = ParseFormula(node.condition);
     const condLean = formulaToLean(condFormula, ctors);
     const lines: string[] = [];
@@ -259,8 +262,6 @@ function proofToLean(
     lines.push(proofToLean(node.elseCase.proof, ctors, indent + '  ', ihNames, 'h'));
     return lines.join('\n');
   }
-
-  throw new Error(`unknown proof kind`);
 }
 
 /**

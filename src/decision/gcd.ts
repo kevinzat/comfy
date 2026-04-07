@@ -51,9 +51,12 @@ export function gcd(a: bigint, b: bigint): bigint {
 
 // Helper function for above that assumes a >= b >= 0.
 function gcd_rec(a: bigint, b: bigint): bigint {
+  /* v8 ignore start */
   if (a < 0n || b < 0n) {
     throw new Error(`gcd on ${a} and ${b}`);
-  } else if (b === 0n) {
+  }
+  /* v8 ignore stop */
+  if (b === 0n) {
     return a;
   } else {
     return gcd_rec(b, a % b);

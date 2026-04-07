@@ -157,7 +157,7 @@ export function EnumerateReplacements(
   // Option B: keep this node and recurse into children.
   if (expr.variety === EXPR_CONSTANT || expr.variety === EXPR_VARIABLE) {
     results.push(expr);
-  } else if (expr.variety === EXPR_FUNCTION) {
+  } else {
     // Build arrays of possibilities for each child.
     const childPossibilities: Expression[][] = [];
     for (let i = 0; i < expr.args.length; i++) {

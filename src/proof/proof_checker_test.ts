@@ -245,6 +245,392 @@ case else:
   x`;
     checkFails(source, 4, /cases condition must use < or <=/);
   });
+
+  it('reports bad expression in forward start', function() {
+    const source = `theorem comm (x, y : Int)
+| x + y = y + x
+
+prove comm by calculation
+  @@@`;
+    checkFails(source, 5, /bad expression/);
+  });
+
+  it('reports invalid chain (< goal with only <= steps)', function() {
+    const source = `theorem foo (x : Int)
+| x < x + 2
+
+prove foo by calculation
+  x
+  <= x + 2`;
+    checkFails(source, 6, /invalid chain/);
+  });
+
+  it('reports bad given formula', function() {
+    const source = `theorem foo (x : Int)
+| x = 0 => x + 1 = 1
+
+prove foo by calculation
+given 1. @@@
+  x + 1`;
+    checkFails(source, 5, /bad given formula/);
+  });
+
+  it('reports wrong IH premise count', function() {
+    const source = `type List
+| nil : List
+| cons : (Int, List) -> List
+
+def sum : (List) -> Int
+| sum(nil) => 0
+| sum(cons(a, L)) => a + sum(L)
+
+def concat : (List, List) -> List
+| concat(nil, R) => R
+| concat(cons(a, L), R) => cons(a, concat(L, R))
+
+theorem sum_concat_lower (S, T : List)
+| 0 <= sum(T) => sum(S) <= sum(concat(S, T))
+
+prove sum_concat_lower by induction on S (a, L)
+given 1. 0 <= sum(T)
+
+case nil:
+  prove sum(nil) <= sum(concat(nil, T)) by calculation
+  sum(nil)
+  defof sum_1 = 0
+  ---
+  sum(concat(nil, T))
+  undef concat_1 = sum(T)
+  0 <= since 1
+
+case cons(a, L):
+  given IH (T : List) : sum(L) <= sum(concat(L, T))
+  prove sum(cons(a, L)) <= sum(concat(cons(a, L), T)) by calculation
+  sum(cons(a, L))
+  defof sum_2 = a + sum(L)
+  apply IH since 1 <= a + sum(concat(L, T))
+  ---
+  sum(concat(cons(a, L), T))
+  undef concat_2 = sum(cons(a, concat(L, T)))
+  undef sum_2 = a + sum(concat(L, T))`;
+    // IH should have 1 premise (0 <= sum(T)) but stated with 0 premises
+    checkFails(source, 29, /IH IH should have 1 premise/);
+  });
+
+  it('reports wrong IH premise content', function() {
+    const source = `type List
+| nil : List
+| cons : (Int, List) -> List
+
+def sum : (List) -> Int
+| sum(nil) => 0
+| sum(cons(a, L)) => a + sum(L)
+
+def concat : (List, List) -> List
+| concat(nil, R) => R
+| concat(cons(a, L), R) => cons(a, concat(L, R))
+
+theorem sum_concat_lower (S, T : List)
+| 0 <= sum(T) => sum(S) <= sum(concat(S, T))
+
+prove sum_concat_lower by induction on S (a, L)
+given 1. 0 <= sum(T)
+
+case nil:
+  prove sum(nil) <= sum(concat(nil, T)) by calculation
+  sum(nil)
+  defof sum_1 = 0
+  ---
+  sum(concat(nil, T))
+  undef concat_1 = sum(T)
+  0 <= since 1
+
+case cons(a, L):
+  given IH (T : List) : 999 = 999 => sum(L) <= sum(concat(L, T))
+  prove sum(cons(a, L)) <= sum(concat(cons(a, L), T)) by calculation
+  sum(cons(a, L))
+  defof sum_2 = a + sum(L)
+  apply IH since 1 <= a + sum(concat(L, T))
+  ---
+  sum(concat(cons(a, L), T))
+  undef concat_2 = sum(cons(a, concat(L, T)))
+  undef sum_2 = a + sum(concat(L, T))`;
+    // IH premise should be "0 <= sum(T)" but stated "999 = 999"
+    checkFails(source, 29, /IH IH premise is/);
+  });
+
+  it('reports bad IH formula parse error', function() {
+    const source = `${preamble}
+
+prove len_zero_add by induction on xs
+
+${validNilCase}
+
+case cons(a, L):
+  given IH : @@@
+  prove 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
+  0 + len(cons(a, L))
+  defof len_2 = 0 + (1 + len(L))
+  = 1 + len(L)
+  ---
+  len(cons(a, L))
+  undef len_2 = 1 + len(L)`;
+    checkFails(source, 24, /bad IH formula/);
+  });
+
+  it('reports bad goal formula parse error in case block', function() {
+    const source = `${preamble}
+
+prove len_zero_add by induction on xs
+
+${validNilCase}
+
+case cons(a, L):
+  given IH : 0 + len(L) = len(L)
+  prove @@@ by calculation
+  0 + len(cons(a, L))`;
+    checkFails(source, 25, /bad goal formula/);
+  });
+
+  it('reports bad condition parse error in cases proof', function() {
+    const source = `theorem foo (x : Int)
+| x = x
+
+prove foo by cases on @@@
+
+case then:
+  prove x = x by calculation
+  x
+
+case else:
+  prove x = x by calculation
+  x`;
+    checkFails(source, 4, /bad condition/);
+  });
+
+  it('accepts a valid cases proof', function() {
+    const source = `theorem foo (x, y : Int)
+| x < y => x <= y
+
+prove foo by cases on x < y - 1
+given 1. x < y
+
+case then:
+  given 2. x < y - 1
+  prove x <= y by calculation
+  x
+  < y - 1 since 2
+  <= y
+
+case else:
+  given 2. y - 1 <= x
+  prove x <= y by calculation
+  x
+  < y since 1
+  <= y`;
+    check(source);
+  });
+
+  it('reports type error from env.check()', function() {
+    const source = `def foo : (Int) -> Int
+| foo(x) => badvar
+
+theorem bar (x : Int)
+| x = x
+
+prove bar by calculation
+  x`;
+    checkFails(source, 7, /type error/);
+  });
+
+  it('reports type error from checkProp', function() {
+    const source = `theorem bar (x : Int)
+| badvar = x
+
+prove bar by calculation
+  x`;
+    checkFails(source, 4, /type error/);
+  });
+
+  it('reports incomplete proof with no backward and no forward steps', function() {
+    const source = `theorem comm (x, y : Int)
+| x + y = y + x
+
+prove comm by calculation`;
+    checkFails(source, 0, /incomplete/);
+  });
+
+  it('reports incomplete proof with backward steps only', function() {
+    const source = `theorem comm (x, y : Int)
+| x + y = y + x
+
+prove comm by calculation
+  ---
+  y + x`;
+    checkFails(source, 0, /incomplete/);
+  });
+
+  it('reports wrong explicit result in backward start', function() {
+    const source = `theorem comm (x, y : Int)
+| x + y = y + x
+
+prove comm by calculation
+  x + y
+  = y + x
+  ---
+  999`;
+    checkFails(source, 8, /expected y \+ x, got 999/);
+  });
+
+  it('reports wrong IH param name (same length, different elements)', function() {
+    const source = `type List
+| nil : List
+| cons : (Int, List) -> List
+
+def concat : (List, List) -> List
+| concat(nil, R) => R
+| concat(cons(a, L), R) => cons(a, concat(L, R))
+
+theorem concat_assoc (R, S, T : List)
+| concat(concat(R, S), T) = concat(R, concat(S, T))
+
+prove concat_assoc by induction on R (a, L)
+
+case nil:
+  prove concat(concat(nil, S), T) = concat(nil, concat(S, T)) by calculation
+  concat(concat(nil, S), T)
+  defof concat_1 = concat(S, T)
+  ---
+  concat(nil, concat(S, T))
+  undef concat_1 = concat(S, T)
+
+case cons(a, L):
+  given IH (X, T : List) : concat(concat(L, S), T) = concat(L, concat(S, T))
+  prove concat(concat(cons(a, L), S), T) = concat(cons(a, L), concat(S, T)) by calculation
+  concat(concat(cons(a, L), S), T)
+  defof concat_2 => concat(cons(a, concat(L, S)), T)
+  defof concat_2 => cons(a, concat(concat(L, S), T))
+  apply IH = cons(a, concat(L, concat(S, T)))
+  ---
+  concat(cons(a, L), concat(S, T))
+  undef concat_2 => cons(a, concat(L, concat(S, T)))`;
+    // IH params should be (S, T : List) but stated (X, T : List) — same length, different name
+    checkFails(source, 23, /IH IH params should be/);
+  });
+
+  it('reports incomplete proof with backward steps (line from backward)', function() {
+    const source = `${preamble}
+
+prove len_zero_add by induction on xs
+
+case nil:
+  prove 0 + len(nil) = len(nil) by calculation
+  ---
+  len(nil)
+  undef len_1 = 0
+
+${validConsCase}`;
+    // backward goes from len(nil) to 0, but forward side has 0+len(nil), no match
+    checkFails(source, 18, /incomplete/);
+  });
+
+  it('reports invalid chain with no forward steps', function() {
+    const source = `theorem foo (x : Int)
+| x < x + 2 => x < x + 2
+
+prove foo by calculation
+given 1. x < x + 2
+  ---
+  x + 2
+  x <= since 1`;
+    // chain is complete (x ... x+2) but uses only <= for a < goal
+    checkFails(source, 0, /invalid chain/);
+  });
+
+  it('rejects calculation proof with non-formula goal', function() {
+    const source = `theorem foo (x : Int)
+| not x < 0
+
+prove foo by calculation
+  x`;
+    checkFails(source, 0, /calculation requires a formula goal/);
+  });
+
+  it('rejects induction proof with non-formula goal', function() {
+    const source = `type List
+| nil : List
+| cons : (Int, List) -> List
+
+theorem foo (xs : List)
+| not 0 < 0
+
+prove foo by induction on xs
+
+case nil:
+  prove not 0 < 0 by calculation
+  0`;
+    checkFails(source, 0, /induction requires a formula goal/);
+  });
+
+  it('rejects cases proof with non-formula goal in case block', function() {
+    const source = `theorem foo (x : Int)
+| not x < 0
+
+prove foo by cases on x < 0
+
+case then:
+  prove not x < 0 by calculation
+  x
+
+case else:
+  prove not x < 0 by calculation
+  x`;
+    checkFails(source, 7, /case block goal must be a formula/);
+  });
+
+  it('handles theorem with not-premise (non-atom premise)', function() {
+    const source = `theorem foo (x : Int)
+| not x < 0 => x = x
+
+prove foo by calculation
+  x`;
+    check(source);
+  });
+
+  it('handles induction theorem with not-premise', function() {
+    const source = `type List
+| nil : List
+| cons : (Int, List) -> List
+
+def len : (List) -> Int
+| len(nil) => 0
+| len(cons(a, L)) => 1 + len(L)
+
+theorem foo (xs : List)
+| not 0 < 0 => 0 + len(xs) = len(xs)
+
+prove foo by induction on xs
+
+case nil:
+  prove 0 + len(nil) = len(nil) by calculation
+  0 + len(nil)
+  defof len_1 => 0 + 0
+  = 0
+  ---
+  len(nil)
+  undef len_1 = 0
+
+case cons(a, L):
+  given IH : 0 + len(L) = len(L)
+  prove 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
+  0 + len(cons(a, L))
+  defof len_2 = 0 + (1 + len(L))
+  = 1 + len(L)
+  ---
+  len(cons(a, L))
+  undef len_2 = 1 + len(L)`;
+    check(source);
+  });
 });
 
 

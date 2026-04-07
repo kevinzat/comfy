@@ -239,8 +239,7 @@ function relToLiteral(c: RelAst): Literal {
   }
 }
 
-function negateLiteral(lit: ClauseLiteral): ClauseLiteral {
-  if (lit.tag === 'const') return new ConstProp(!lit.value);
+function negateLiteral(lit: Literal): Literal {
   return lit.tag === 'atom' ? new NotProp(lit.formula) : new AtomProp(lit.formula);
 }
 

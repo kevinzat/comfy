@@ -32,6 +32,9 @@ describe('gcd', function() {
     assert.strictEqual(mod(13n, 6n), 1n);
     assert.strictEqual(div(-13n, 6n), -3n);
     assert.strictEqual(mod(-13n, 6n), 5n);
+
+    assert.throws(() => divmod(5n, -3n), /must be positive/);
+    assert.throws(() => divmod(5n, 0n), /division by zero/);
   });
 
   it('gcd', function() {

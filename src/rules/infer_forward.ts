@@ -18,9 +18,12 @@ export function ParseForwardRule(text: string): RuleAst {
   } catch (_e) {
     throw new UserError(`syntax error in rule "${text}"`);
   }
+  /* v8 ignore start */
   if (parser.results.length > 1) {
-    throw new UserError(`ambiguous rule "${text}"`);
-  } else if (parser.results.length === 1) {
+    throw new Error(`ambiguous rule "${text}"`);
+  }
+  /* v8 ignore stop */
+  if (parser.results.length === 1) {
     const result: RuleAst = parser.results[0];
     return result;
   } else {

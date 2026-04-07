@@ -183,6 +183,16 @@ describe('NestedEnv', function() {
     assert.ok(!nested.hasVariable('y'));
   });
 
+  it('getConstructorDecl delegates to parent', function() {
+    const nested = new NestedEnv(top, []);
+    assert.equal(nested.getConstructorDecl('nil'), listType.constructors[0]);
+  });
+
+  it('isReadOnly returns false for variables from TopLevelEnv', function() {
+    const env = new TopLevelEnv([], []);
+    assert.equal(env.isReadOnly('x'), false);
+  });
+
 });
 
 
@@ -324,6 +334,14 @@ describe('TopLevelEnv theorems', function() {
         [], new AtomProp(ParseFormula('x = x')));
     assert.throws(
         () => new TopLevelEnv([], [], [], [thm, thm]),
+        DuplicateError);
+  });
+
+  it('rejects theorem name conflicting with constructor', function() {
+    const thm = new TheoremAst('nil', [['x', 'Int']],
+        [], new AtomProp(ParseFormula('x = x')));
+    assert.throws(
+        () => new TopLevelEnv([listType], [], [], [thm]),
         DuplicateError);
   });
 

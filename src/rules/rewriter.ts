@@ -259,7 +259,11 @@ export class InequalityRewriter extends Rewriter {
 
   /** Whether the chosen match was at a positive position. */
   get positive(): boolean {
-    if (this._chosen === undefined || !isPolarized(this._chosen)) throw new Error('unreachable');
+    /* v8 ignore start */
+    if (this._chosen === undefined || !isPolarized(this._chosen)) {
+      throw new Error('unreachable');
+    }
+    /* v8 ignore stop */
     return this._chosen.positive;
   }
 
@@ -477,7 +481,11 @@ export class TheoremInequalityRewriter extends Rewriter {
 
   /** Whether the chosen match was at a positive position. */
   get positive(): boolean {
-    if (this._chosen === undefined || !isPolarized(this._chosen)) throw new Error('unreachable');
+    /* v8 ignore start */
+    if (this._chosen === undefined || !isPolarized(this._chosen)) {
+      throw new Error('unreachable');
+    }
+    /* v8 ignore stop */
     return this._chosen.positive;
   }
 

@@ -135,6 +135,12 @@ describe('func_parser', function() {
     assert.ok(error);
   });
 
+  it('error on incomplete input', function() {
+    const { ast, error } = ParseFunc(`def f : (Int) -> Int`);
+    assert.equal(ast, undefined);
+    assert.ok(error);
+  });
+
   it('parse if/else with < condition', function() {
     const { ast: result } = ParseFunc(
         `def abs : (Int) -> Int

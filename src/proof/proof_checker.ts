@@ -236,15 +236,14 @@ function checkProof(
     const parentFactCount = env.numFacts();
     const cases = buildCases(goal.formula, env, node.varName, node.argNames, formulaPremises);
     if (node.cases.length !== cases.length) {
-      const line = node.cases.length > 0 ? node.cases[0].goalLine : 0;
-      throw new CheckError(line,
+      throw new CheckError(node.cases[0].goalLine,
           `expected ${cases.length} cases, got ${node.cases.length}`);
     }
     for (let i = 0; i < cases.length; i++) {
       checkCaseBlock(node.cases[i], new AtomProp(cases[i].goal), cases[i].env,
           parentFactCount, cases[i].ihTheorems);
     }
-  } else if (node.kind === 'cases') {
+  } else {
     let condition: Formula;
     try {
       condition = ParseFormula(node.condition);

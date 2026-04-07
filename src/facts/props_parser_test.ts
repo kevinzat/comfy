@@ -77,4 +77,12 @@ describe('props_parser', function() {
     assert.strictEqual((result as NotProp).formula.op, '<');
   });
 
+  it('throws syntax error on empty input', function() {
+    assert.throws(() => ParseProp(''), /syntax error/);
+  });
+
+  it('throws syntax error on incomplete proposition', function() {
+    assert.throws(() => ParseProp('x = '), /syntax error/);
+  });
+
 });

@@ -3,12 +3,40 @@ import { ParseExpr } from '../facts/exprs_parser';
 import { ParseFormula } from '../facts/formula_parser';
 import { Constant, Variable, Call } from '../facts/exprs';
 import { Formula, OP_LESS_THAN } from '../facts/formula';
-import { EquationRewriter, InequalityRewriter, DefinitionRewriter, TheoremEquationRewriter, TheoremInequalityRewriter } from './rewriter';
+import { Rewriter, EquationRewriter, InequalityRewriter, DefinitionRewriter, TheoremEquationRewriter, TheoremInequalityRewriter } from './rewriter';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
 import { FuncAst, TypeAst, CaseAst, ExprBody, IfElseBody, ParamVar, ParamConstructor } from '../lang/func_ast';
 import { funcToDefinitions } from '../lang/func_ast';
 import { TopLevelEnv } from '../types/env';
 import { TheoremAst } from '../lang/theorem_ast';
+
+
+describe('Rewriter base class', function() {
+
+  // Minimal concrete subclass for testing base behavior
+  class TestRewriter extends Rewriter {
+    tryMatch(node: Expression) {
+      return node.equals(Variable.of('x'))
+        ? { replacement: Constant.of(1n), conditions: [ParseFormula('a = b')] }
+        : undefined;
+    }
+  }
+
+  it('throws from result getter before rewrite()', function() {
+    const rw = new TestRewriter('test', Variable.of('x'));
+    assert.throws(() => rw.result, /rewrite\(\) has not been called/);
+  });
+
+  it('throws from default validateConditions', function() {
+    const rw = new TestRewriter('test', Variable.of('x'));
+    assert.throws(() => rw.rewrite(), /unexpected condition/);
+  });
+
+  it('validateConditions with empty array is a no-op', function() {
+    const rw = new TestRewriter('test', Variable.of('x'));
+    rw.validateConditions([]);  // should not throw
+  });
+});
 
 
 describe('EquationRewriter', function() {
@@ -129,10 +157,43 @@ describe('InequalityRewriter', function() {
     assert.throws(() => rw.rewrite(), /no matches found/);
   });
 
+  it('does not recurse into multiply of two non-constants', function() {
+    const ex = Call.multiply(Variable.of('y'), Variable.of('x'));
+    const rw = new InequalityRewriter('test', ex,
+      Variable.of('x'), Constant.of(3n));
+    assert.throws(() => rw.rewrite(), /no matches found/);
+  });
+
   it('does not recurse into exponentiation', function() {
     const rw = new InequalityRewriter('test', ParseExpr('x^2'),
       Variable.of('x'), Constant.of(3n));
     assert.throws(() => rw.rewrite(), /no matches found/);
+  });
+
+  it('replaces at negative position (multiply by negative constant, direct)', function() {
+    const ex = Call.multiply(Constant.of(-2n), Variable.of('x'));
+    const rw = new InequalityRewriter('test', ex,
+      Variable.of('x'), Constant.of(3n));
+    rw.rewrite();
+    assert.strictEqual(rw.result.to_string(), '(-2)*3');
+    assert.strictEqual(rw.positive, false);
+  });
+
+  it('replaces with constant on right side of multiply (positive)', function() {
+    const rw = new InequalityRewriter('test', ParseExpr('x*2'),
+      Variable.of('x'), Constant.of(3n));
+    rw.rewrite();
+    assert.strictEqual(rw.result.to_string(), '3*2');
+    assert.strictEqual(rw.positive, true);
+  });
+
+  it('replaces with constant on right side of multiply (negative)', function() {
+    const ex = Call.multiply(Variable.of('x'), Constant.of(-2n));
+    const rw = new InequalityRewriter('test', ex,
+      Variable.of('x'), Constant.of(3n));
+    rw.rewrite();
+    assert.strictEqual(rw.result.to_string(), '3*(-2)');
+    assert.strictEqual(rw.positive, false);
   });
 
   it('accepts explicit result for mixed positions', function() {
@@ -314,12 +375,21 @@ describe('TheoremEquationRewriter', function() {
     assert.strictEqual(rw.rewrite().to_string(), 'x');
   });
 
-  it('rejects when premise not implied', function() {
+  it('rejects when inequality premise not implied', function() {
     const premise = ParseFormula('0 < n');
     const conclusion = ParseFormula('n = n');
     const knownFacts = [ParseFormula('0 <= x')];
     const rw = new TheoremEquationRewriter('test', env,
       ParseExpr('x'), conclusion, true, [premise], knownFacts);
+    assert.throws(() => rw.rewrite(), /premise.*not implied/);
+  });
+
+  it('rejects when equality premise not implied', function() {
+    const premise = ParseFormula('n = 0');
+    const conclusion = ParseFormula('n + 1 = 1');
+    const knownFacts = [ParseFormula('x = 5')];
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('x + 1'), conclusion, true, [premise], knownFacts);
     assert.throws(() => rw.rewrite(), /premise.*not implied/);
   });
 });

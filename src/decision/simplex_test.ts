@@ -340,6 +340,57 @@ describe('simplex', function() {
       // A[0][2] = 0, so pivoting row=0, col=2 should throw
       assert.throws(() => Pivot(A, [0, 1], 0, 2), /cannot pivot on zero/);
     });
+
+    it('throws when old basis column has zero diagonal', function() {
+      // cols[0]=0 but A[0][0]=0 violates the basis invariant
+      let A = new Tableau(
+          [[0n, 1n, 0n],
+           [0n, 0n, 1n]],
+          [2n, 3n]);
+      assert.throws(() => Pivot(A, [0, 2], 0, 1), /zero value/);
+    });
+
+    it('throws when old basis column has nonzero off-diagonal', function() {
+      // cols[0]=0 but A[1][0]=1 violates the basis invariant
+      let A = new Tableau(
+          [[1n, 0n, 1n],
+           [1n, 1n, 0n]],
+          [2n, 3n]);
+      assert.throws(() => Pivot(A, [0, 1], 0, 2), /non-zero value/);
+    });
+
+    it('handles negative pivot element', function() {
+      // A[0][2]=-3 tests the gcd abs-value branch for b < 0
+      let A = new Tableau(
+          [[1n, 0n, -3n],
+           [0n, 1n,  2n]],
+          [6n, 3n]);
+      const cols = [0, 1];
+      Pivot(A, cols, 0, 2);
+      assert.deepStrictEqual(cols, [2, 1]);
+      assert.ok(A.entries[0][2] !== 0n);
+      assert.strictEqual(A.entries[1][2], 0n);
+    });
+
+    it('skips rescaling when col0 is absent', function() {
+      // Pivot without col0 takes the !A.col0 continue branch
+      let A = new Tableau(
+          [[2n, 1n, 1n, 0n],
+           [1n, 3n, 0n, 1n]]);
+      const cols = [2, 3];
+      Pivot(A, cols, 0, 0);
+      assert.deepStrictEqual(cols, [0, 3]);
+    });
+
+    it('throws when rescaling col0 makes basis diagonal negative', function() {
+      // After eliminating col=2 from row 1, col0[1] goes negative.
+      // Rescaling row 1 by -1 then makes its basis diagonal negative → throw.
+      let A = new Tableau(
+          [[1n, 0n,  2n],
+           [0n, 1n, -1n]],
+          [3n, -2n]);
+      assert.throws(() => Pivot(A, [0, 1], 0, 2), /invalid solution/);
+    });
   });
 
   // ---- SimplexMethod (end-to-end) ----
@@ -942,6 +993,20 @@ describe('simplex', function() {
       assert.strictEqual(IsImplied(
           [eq([], 5n)], [],
           ineq([], 100n)), true);
+    });
+
+    it('no variables: infeasible inequality vacuously implies', function() {
+      // 0 >= 1 is infeasible, so everything is vacuously implied
+      assert.strictEqual(IsImplied(
+          [], [ineq([], 1n)],
+          ineq([], 100n)), true);
+    });
+
+    it('no variables: feasible inequality falls through to conclusion check', function() {
+      // 0 >= 0 is feasible, so we check the conclusion: 0 >= 0 → true
+      assert.strictEqual(IsImplied(
+          [], [ineq([], 0n)],
+          ineq([], 0n)), true);
     });
 
     it('no variables: 0 >= 0 with consistent system', function() {

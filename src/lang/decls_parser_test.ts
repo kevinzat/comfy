@@ -4,7 +4,7 @@ import { Constant, Variable, Call } from '../facts/exprs';
 import { AtomProp, NotProp, OrProp } from '../facts/prop';
 import { ParamVar, ParamConstructor } from './func_ast';
 import { ConstructorAst } from './type_ast';
-import { ParseDecls } from './decls_parser';
+import { ParseDecls, ParsePremises } from './decls_parser';
 
 
 describe('decls_parser', function() {
@@ -70,6 +70,10 @@ describe('decls_parser', function() {
     const { ast, error } = ParseDecls('foo bar');
     assert.equal(ast, undefined);
     assert.ok(error);
+  });
+
+  it('ParsePremises throws on invalid premises', function() {
+    assert.throws(() => ParsePremises('not a valid premise ###'));
   });
 
   // --- Theorem declarations ---

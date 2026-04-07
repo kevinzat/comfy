@@ -5,8 +5,9 @@ import { FuncAst, TypeAst, CaseAst, ExprBody, IfElseBody, ParamVar, ParamConstru
 import { Constant, Variable, Call } from '../facts/exprs';
 import { TopLevelEnv, NestedEnv } from './env';
 import { Formula, OP_EQUAL, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
-import { getType, checkExpr, checkFuncDecl, checkFormula, UnknownTypeError,
+import { getType, checkExpr, checkFuncDecl, checkFormula, checkProp, UnknownTypeError,
     UnknownNameError, ArityError, TypeMismatchError } from './checker';
+import { AtomProp, OrProp, ConstProp } from '../facts/prop';
 import { NamedType, FunctionType } from './type';
 
 
@@ -135,6 +136,12 @@ describe('checkExpr', function() {
         ArityError);
   });
 
+  it('throws ArityError for multi-arg constructor referenced as a bare variable', function() {
+    assert.throws(
+        () => checkExpr(env, Variable.of('cons')),
+        ArityError);
+  });
+
   it('throws ArityError for calling zero-arg constructor with args', function() {
     assert.throws(
         () => checkExpr(env, Call.of('nil', Constant.of(1n))),
@@ -206,6 +213,24 @@ describe('checkFormula', function() {
 });
 
 
+describe('checkProp', function() {
+
+  const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['x', 'Int'], ['L', 'List']]);
+
+  it('accepts or-prop with valid formulas', function() {
+    const f1 = new Formula(Variable.of('x'), OP_EQUAL, Constant.of(1n));
+    const f2 = new Formula(Variable.of('x'), OP_EQUAL, Constant.of(2n));
+    assert.doesNotThrow(() => checkProp(env, new OrProp([new AtomProp(f1), new AtomProp(f2)])));
+  });
+
+  it('accepts const-prop without any type checking', function() {
+    assert.doesNotThrow(() => checkProp(env, new ConstProp(true)));
+    assert.doesNotThrow(() => checkProp(env, new ConstProp(false)));
+  });
+
+});
+
+
 describe('checkFuncDecl', function() {
 
   const env = new TopLevelEnv([listType], [lenFunc]);
@@ -265,6 +290,32 @@ describe('checkFuncDecl', function() {
     const bad = new FuncAst('bad', new TypeAst(['List'], 'Int'), [
       new CaseAst(
           [new ParamConstructor('cons', [new ParamVar('a')])],
+          new ExprBody(Constant.of(0n))),
+    ]);
+    assert.throws(() => checkFuncDecl(env, bad), ArityError);
+  });
+
+  it('accepts zero-arg constructor used explicitly as ParamConstructor with no args', function() {
+    const f = new FuncAst('f', new TypeAst(['List'], 'Int'), [
+      new CaseAst([new ParamConstructor('nil', [])], new ExprBody(Constant.of(0n))),
+      new CaseAst([new ParamVar('x')], new ExprBody(Constant.of(1n))),
+    ]);
+    assert.doesNotThrow(() => checkFuncDecl(env, f));
+  });
+
+  it('throws ArityError for zero-arg constructor pattern used with args', function() {
+    const bad = new FuncAst('bad', new TypeAst(['List'], 'Int'), [
+      new CaseAst(
+          [new ParamConstructor('nil', [new ParamVar('x')])],
+          new ExprBody(Constant.of(0n))),
+    ]);
+    assert.throws(() => checkFuncDecl(env, bad), ArityError);
+  });
+
+  it('throws ArityError for multi-arg constructor used as bare pattern variable', function() {
+    const bad = new FuncAst('bad', new TypeAst(['List'], 'Int'), [
+      new CaseAst(
+          [new ParamVar('cons')],
           new ExprBody(Constant.of(0n))),
     ]);
     assert.throws(() => checkFuncDecl(env, bad), ArityError);

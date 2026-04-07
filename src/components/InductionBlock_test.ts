@@ -299,6 +299,35 @@ describe('buildCases', function() {
     assert.equal(ih.conclusion.to_string(), `len(${argName}) = 0`);
   });
 
+  it('assigns distinct names to multiple Int params', function() {
+    const pairType = new TypeDeclAst('Pair', [
+      new ConstructorAst('mkpair', ['Int', 'Int'], 'Pair'),
+    ]);
+    const fstFunc = new FuncAst('fst', new TypeAst(['Pair'], 'Int'), [
+      new CaseAst([new ParamVar('x')], new ExprBody(Variable.of('x'))),
+    ]);
+    const formula = ParseFormula('fst(p) = fst(p)');
+    const env = new NestedEnv(
+        new TopLevelEnv([pairType], [fstFunc]), [['p', 'Pair']]);
+    const cases = buildCases(formula, env, 'p');
+    // mkpair has two Int params; they should get distinct lowercase names.
+    assert.equal(cases[0].argNames.length, 2);
+    assert.notEqual(cases[0].argNames[0], cases[0].argNames[1]);
+  });
+
+  it('renames IH to IH3 when IH and IH2 already exist', function() {
+    const formula = ParseFormula('len(xs) = len(xs)');
+    const ih1 = new TheoremAst('IH', [], [],
+        new AtomProp(ParseFormula('0 = 0')));
+    const ih2 = new TheoremAst('IH2', [], [],
+        new AtomProp(ParseFormula('0 = 0')));
+    const env = new NestedEnv(
+        new TopLevelEnv([listType], [lenFunc], [], [ih1, ih2]),
+        [['xs', 'List']]);
+    const cases = buildCases(formula, env, 'xs');
+    assert.equal(cases[1].ihTheorems[0].name, 'IH3');
+  });
+
   it('IH theorem has no premise when none is provided', function() {
     const formula = ParseFormula('len(xs) = len(xs)');
     const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['xs', 'List']]);

@@ -9,9 +9,12 @@
     "build": "vite build --base=/comfy",
     "preview": "vite preview",
     "lint": "eslint src/",
-    "test": "vitest run",
+    "check-ignores": "./scripts/check-ignores.sh src",
+    "pretest": "npm run check-ignores",
+    "test": "vitest run --coverage",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "deploy": "gh-pages -d dist",
+    "test-lean": "vitest run --config scripts/vitest-lean.config.ts --reporter=verbose"
   },
   "dependencies": {
     "@types/moo": "^0.5.0",
@@ -31,6 +34,7 @@
     "@typescript-eslint/eslint-plugin": "^8.58.0",
     "@typescript-eslint/parser": "^8.58.0",
     "@vitejs/plugin-react": "^4.1.1",
+    "@vitest/coverage-v8": "^4.1.2",
     "assert": "^2.0.0",
     "eslint": "^9.39.4",
     "gh-pages": "^6.3.0",
