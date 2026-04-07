@@ -5,7 +5,7 @@ import {
   PatternMatch,
   LongestCommonPrefix,
   SplitLine,
-} from './infer_complete';
+} from './calc_complete';
 
 
 describe('SplitLine', function() {

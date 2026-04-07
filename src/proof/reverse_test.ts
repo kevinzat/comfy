@@ -2,10 +2,10 @@ import * as assert from 'assert';
 import { Expression } from '../facts/exprs';
 import { Formula, FormulaOp } from '../facts/formula';
 import { AtomProp } from '../facts/prop';
-import { ParseForwardRule, CreateRule } from '../rules/infer_forward';
-import { ParseBackwardRule, CreateTactic } from '../rules/infer_backward';
-import { RuleAst } from '../rules/rules_ast';
-import { TacticAst } from '../rules/tactics_ast';
+import { ParseForwardRule, CreateCalcRule } from '../calc/calc_forward';
+import { ParseBackwardRule, CreateCalcTactic } from '../calc/calc_backward';
+import { RuleAst } from '../calc/rules_ast';
+import { TacticAst } from '../calc/tactics_ast';
 import { TopLevelEnv, NestedEnv, Environment } from '../types/env';
 import { TheoremAst } from '../lang/theorem_ast';
 import { ParseExpr } from '../facts/exprs_parser';
@@ -35,25 +35,25 @@ describe('Rule.reverse()', function() {
     const env = new TopLevelEnv([], []);
     const current = ParseExpr('x + y');
     const ast = ParseForwardRule('= y + x');
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const tacticAst = rule.reverse();
     assert.strictEqual(tacticAst.to_string(), '= x + y');
   });
 
   it('algebra rule with refs reverses preserving refs', function() {
-    const env = new TopLevelEnv([], [], [ParseFormula('x + y = 5')]);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x + y = 5'))]);
     const current = ParseExpr('x + y');
     const ast = ParseForwardRule('= 5 since 1');
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const tacticAst = rule.reverse();
     assert.strictEqual(tacticAst.to_string(), '= x + y since 1');
   });
 
   it('subst rule reverses to subst tactic', function() {
-    const env = new TopLevelEnv([], [], [ParseFormula('x = 3')]);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x = 3'))]);
     const current = ParseExpr('x + 1');
     const ast = ParseForwardRule('subst 1');
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const tacticAst = rule.reverse();
     assert.strictEqual(tacticAst.to_string(), 'subst 1');
   });
@@ -62,7 +62,7 @@ describe('Rule.reverse()', function() {
     const env = new TopLevelEnv([listType], [lenFunc]);
     const current = Call.of('len', Variable.of('nil'));
     const ast = ParseForwardRule('defof len_1');
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const tacticAst = rule.reverse();
     assert.strictEqual(tacticAst.to_string(), 'defof len_1');
   });
@@ -75,16 +75,16 @@ describe('Tactic.reverse()', function() {
     const env = new TopLevelEnv([], []);
     const goal = ParseExpr('x + y');
     const ast = ParseBackwardRule('(y + x) =');
-    const tactic = CreateTactic(ast, goal, env);
+    const tactic = CreateCalcTactic(ast, goal, env);
     const ruleAst = tactic.reverse();
     assert.strictEqual(ruleAst.to_string(), '= x + y');
   });
 
   it('subst tactic reverses to subst rule', function() {
-    const env = new TopLevelEnv([], [], [ParseFormula('x = 3')]);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x = 3'))]);
     const goal = ParseExpr('3 + 1');
     const ast = ParseBackwardRule('subst 1');
-    const tactic = CreateTactic(ast, goal, env);
+    const tactic = CreateCalcTactic(ast, goal, env);
     const ruleAst = tactic.reverse();
     assert.strictEqual(ruleAst.to_string(), 'subst 1');
   });
@@ -93,7 +93,7 @@ describe('Tactic.reverse()', function() {
     const env = new TopLevelEnv([listType], [lenFunc]);
     const goal = Call.of('len', Variable.of('nil'));
     const ast = ParseBackwardRule('undef len_1');
-    const tactic = CreateTactic(ast, goal, env);
+    const tactic = CreateCalcTactic(ast, goal, env);
     const ruleAst = tactic.reverse();
     assert.strictEqual(ruleAst.to_string(), 'undef len_1');
   });
@@ -124,8 +124,8 @@ function testAllSplits(
   // and uses .reverse() only when the step crosses the split boundary.
   interface ChainStep {
     nativeDir: 'forward' | 'backward';
-    nativeRule?: { ast: RuleAst; rule: ReturnType<typeof CreateRule> };
-    nativeTactic?: { ast: TacticAst; tactic: ReturnType<typeof CreateTactic> };
+    nativeRule?: { ast: RuleAst; rule: ReturnType<typeof CreateCalcRule> };
+    nativeTactic?: { ast: TacticAst; tactic: ReturnType<typeof CreateCalcTactic> };
     op: FormulaOp;
     from: Expression;
     to: Expression;
@@ -137,7 +137,7 @@ function testAllSplits(
   let current = goal.left;
   for (let i = 0; i < F; i++) {
     const ast = ParseForwardRule(forwardTexts[i]);
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const formula = rule.apply();
     chain.push({
       nativeDir: 'forward',
@@ -154,7 +154,7 @@ function testAllSplits(
   const bwdSteps: ChainStep[] = [];
   for (let i = 0; i < B; i++) {
     const ast = ParseBackwardRule(backwardTexts[i]);
-    const tactic = CreateTactic(ast, bwdGoal, env);
+    const tactic = CreateCalcTactic(ast, bwdGoal, env);
     const formula = tactic.apply();
     bwdSteps.push({
       nativeDir: 'backward',
@@ -187,7 +187,7 @@ function testAllSplits(
         const ruleAst = step.nativeDir === 'forward'
             ? step.nativeRule!.ast
             : step.nativeTactic!.tactic.reverse();
-        const rule = CreateRule(ruleAst, fwd, env);
+        const rule = CreateCalcRule(ruleAst, fwd, env);
         const formula = rule.apply();
         assert.ok(formula.left.equals(fwd),
             `forward step ${i}: left side mismatch`);
@@ -207,7 +207,7 @@ function testAllSplits(
         const tacticAst = step.nativeDir === 'backward'
             ? step.nativeTactic!.ast
             : step.nativeRule!.rule.reverse();
-        const tactic = CreateTactic(tacticAst, bwd, env);
+        const tactic = CreateCalcTactic(tacticAst, bwd, env);
         const formula = tactic.apply();
         assert.ok(formula.right.equals(bwd),
             `backward step ${i}: goal side mismatch`);
@@ -387,7 +387,7 @@ describe('testAllSplits: sum_positives.prf', function() {
   it('cons/then case', function() {
     const ih = new TheoremAst('IH', [], [],
         new AtomProp(ParseFormula('sum(L) <= sum(positives(L))')));
-    const cond = ParseFormula('a < 0');
+    const cond = new AtomProp(ParseFormula('a < 0'));
     const outerEnv = new NestedEnv(env, [['a', 'Int'], ['L', 'List']], [], [ih]);
     const caseEnv = new NestedEnv(outerEnv, [], [cond]);
     testAllSplits(caseEnv,
@@ -399,7 +399,7 @@ describe('testAllSplits: sum_positives.prf', function() {
   it('cons/else case', function() {
     const ih = new TheoremAst('IH', [], [],
         new AtomProp(ParseFormula('sum(L) <= sum(positives(L))')));
-    const cond = ParseFormula('0 <= a');
+    const cond = new AtomProp(ParseFormula('0 <= a'));
     const outerEnv = new NestedEnv(env, [['a', 'Int'], ['L', 'List']], [], [ih]);
     const caseEnv = new NestedEnv(outerEnv, [], [cond]);
     testAllSplits(caseEnv,

@@ -5,6 +5,7 @@ import { ParseFormula } from '../facts/formula_parser';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
 import { FuncAst, TypeAst, CaseAst, ExprBody, ParamVar } from '../lang/func_ast';
 import { Constant, Variable, Call } from '../facts/exprs';
+import { AtomProp } from '../facts/prop';
 
 
 const listType = new TypeDeclAst('List', [
@@ -45,7 +46,7 @@ describe('applyForwardRule', function() {
   });
 
   it('subst step', function() {
-    const env = new TopLevelEnv([], [], [ParseFormula('x = 3')]);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x = 3'))]);
     const goal = ParseFormula('x + 1 = 3 + 1');
     const step = applyForwardRule('subst 1', goal.left, env);
     assert.ok(isComplete(goal, [step], []));
@@ -89,7 +90,7 @@ describe('applyBackwardRule', function() {
 describe('multi-step proofs', function() {
 
   it('forward and backward meet in the middle', function() {
-    const env = new TopLevelEnv([], [], [ParseFormula('x = 3')]);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x = 3'))]);
     const goal = ParseFormula('x + 1 = 4');
     const top: Step[] = [];
     const bot: Step[] = [];
@@ -115,7 +116,7 @@ describe('multi-step proofs', function() {
   });
 
   it('inequality proof with < chain', function() {
-    const env = new TopLevelEnv([], [], [ParseFormula('x < y')]);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x < y'))]);
     const goal = ParseFormula('x < y + 1');
     const top: Step[] = [];
 
@@ -137,7 +138,7 @@ describe('topFrontier / botFrontier', function() {
   });
 
   it('returns last step expr after steps', function() {
-    const env = new TopLevelEnv([], [], [ParseFormula('a = b')]);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('a = b'))]);
     const goal = ParseFormula('a + 1 = b + 1');
     const step = applyForwardRule('subst 1', goal.left, env);
     assert.strictEqual(topFrontier(goal, [step]).to_string(), 'b + 1');

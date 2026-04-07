@@ -46,16 +46,21 @@ function verifyStep(step: CalcStep, actual: Step): void {
 }
 
 function checkCalc(
-    goal: Formula, env: Environment, node: CalcProofNode): void {
+    goal: Prop, env: Environment, node: CalcProofNode): void {
+  if (!(goal instanceof AtomProp)) {
+    throw new CheckError(0, `calculation requires a formula goal`);
+  }
+  const formula = goal.formula;
+
   // Check forward section.
   const top: Step[] = [];
   if (node.forwardStart) {
-    verifyExpr(node.forwardStart.line, node.forwardStart.text, goal.left);
+    verifyExpr(node.forwardStart.line, node.forwardStart.text, formula.left);
   }
   for (const step of node.forwardSteps) {
     let actual: Step;
     try {
-      actual = applyForwardRule(step.ruleText, topFrontier(goal, top), env);
+      actual = applyForwardRule(step.ruleText, topFrontier(formula, top), env);
     } catch (e: any) {
       throw new CheckError(step.line, e.message);
     }
@@ -66,12 +71,12 @@ function checkCalc(
   // Check backward section.
   const bot: Step[] = [];
   if (node.backwardStart) {
-    verifyExpr(node.backwardStart.line, node.backwardStart.text, goal.right);
+    verifyExpr(node.backwardStart.line, node.backwardStart.text, formula.right);
   }
   for (const step of node.backwardSteps) {
     let actual: Step;
     try {
-      actual = applyBackwardRule(step.ruleText, botFrontier(goal, bot), env);
+      actual = applyBackwardRule(step.ruleText, botFrontier(formula, bot), env);
     } catch (e: any) {
       throw new CheckError(step.line, e.message);
     }
@@ -79,9 +84,9 @@ function checkCalc(
     verifyStep(step, actual);
   }
 
-  if (!isComplete(goal, top, bot)) {
-    const topExpr = topFrontier(goal, top).to_string();
-    const botExpr = botFrontier(goal, bot).to_string();
+  if (!isComplete(formula, top, bot)) {
+    const topExpr = topFrontier(formula, top).to_string();
+    const botExpr = botFrontier(formula, bot).to_string();
     const lastLine = node.backwardSteps.length > 0
         ? node.backwardSteps[node.backwardSteps.length - 1].line
         : node.forwardSteps.length > 0
@@ -91,7 +96,7 @@ function checkCalc(
         `proof incomplete: top reached ${topExpr}, bottom reached ${botExpr}`);
   }
 
-  const err = checkValidity(goal, top, bot);
+  const err = checkValidity(formula, top, bot);
   if (err) {
     const lastLine = node.forwardSteps.length > 0
         ? node.forwardSteps[node.forwardSteps.length - 1].line : 0;
@@ -107,13 +112,13 @@ function checkGivens(
       throw new CheckError(g.line,
           `expected fact number ${expectedIdx}, got ${g.index}`);
     }
-    let parsed: Formula;
+    const actual = env.getFact(g.index);
+    let parsed;
     try {
       parsed = ParseFormula(g.text);
     } catch (e: any) {
       throw new CheckError(g.line, `bad given formula: ${e.message}`);
     }
-    const actual = env.getFact(g.index);
     if (parsed.to_string() !== actual.to_string()) {
       throw new CheckError(g.line,
           `given ${g.index} is ${actual.to_string()}, not ${parsed.to_string()}`);
@@ -201,19 +206,16 @@ function checkCaseBlock(
   checkGivens(block.givens, env, parentFactCount);
 
   // Check stated goal matches the expected goal.
-  if (!(goal instanceof AtomProp)) {
-    throw new CheckError(block.goalLine, `case block goal must be a formula`);
-  }
-  let statedGoal: Formula;
+  let statedGoal;
   try {
     statedGoal = ParseFormula(block.goal);
   } catch (e: any) {
     throw new CheckError(block.goalLine, `bad goal formula: ${e.message}`);
   }
-  if (statedGoal.to_string() !== goal.formula.to_string()) {
+  if (statedGoal.to_string() !== goal.to_string()) {
     throw new CheckError(block.goalLine,
         `stated goal ${statedGoal.to_string()} does not match ` +
-        `expected goal ${goal.formula.to_string()}`);
+        `expected goal ${goal.to_string()}`);
   }
 
   checkProof(goal, env, block.proof);
@@ -223,24 +225,16 @@ function checkProof(
     goal: Prop, env: Environment, node: ProofNode,
     premises: Prop[] = []): void {
   if (node.kind === 'calculate') {
-    if (!(goal instanceof AtomProp)) {
-      throw new CheckError(0, `calculation requires a formula goal`);
-    }
-    checkCalc(goal.formula, env, node);
+    checkCalc(goal, env, node);
   } else if (node.kind === 'induction') {
-    if (!(goal instanceof AtomProp)) {
-      throw new CheckError(0, `induction requires a formula goal`);
-    }
-    const formulaPremises = premises.flatMap(
-        p => p instanceof AtomProp ? [p.formula] : []);
     const parentFactCount = env.numFacts();
-    const cases = buildCases(goal.formula, env, node.varName, node.argNames, formulaPremises);
+    const cases = buildCases(goal, env, node.varName, node.argNames, premises);
     if (node.cases.length !== cases.length) {
       throw new CheckError(node.cases[0].goalLine,
           `expected ${cases.length} cases, got ${node.cases.length}`);
     }
     for (let i = 0; i < cases.length; i++) {
-      checkCaseBlock(node.cases[i], new AtomProp(cases[i].goal), cases[i].env,
+      checkCaseBlock(node.cases[i], cases[i].goal, cases[i].env,
           parentFactCount, cases[i].ihTheorems);
     }
   } else {
@@ -283,9 +277,8 @@ export function checkProofFile(pf: ProofFile): void {
     throw new CheckError(pf.theoremLine, `type error: ${e.message}`);
   }
 
-  // Build the proof env with theorem params as variables and atomic premises as givens.
-  const atomPremises = theorem.premises.flatMap(p => p.tag === 'atom' ? [p.formula] : []);
-  const proofEnv = new NestedEnv(env, theorem.params, atomPremises);
+  // Build the proof env with theorem params as variables and premises as givens.
+  const proofEnv = new NestedEnv(env, theorem.params, theorem.premises);
 
   // Type-check the theorem being proved (its formulas reference the params).
   try {

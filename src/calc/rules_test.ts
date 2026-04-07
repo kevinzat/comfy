@@ -1,7 +1,7 @@
 import * as assert from 'assert';
-import { ParseForwardRule, CreateRule } from './infer_forward';
+import { ParseForwardRule, CreateCalcRule } from './calc_forward';
 import { AlgebraAst, SubstituteAst, DefinitionAst, ApplyAst } from './rules_ast';
-import { AlgebraRule, SubstituteRule, DefinitionRule, ApplyRule } from './rules';
+import { AlgebraCalcRule, SubstituteCalcRule, DefinitionCalcRule, ApplyCalcRule } from './rules';
 import { TheoremAst } from '../lang/theorem_ast';
 import { TopLevelEnv } from '../types/env';
 import { OP_EQUAL, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
@@ -14,13 +14,13 @@ import { Constant, Variable, Call } from '../facts/exprs';
 import { TACTIC_ALGEBRA, TACTIC_SUBSTITUTE, TACTIC_DEFINITION, TACTIC_APPLY } from './tactics_ast';
 
 
-describe('AlgebraRule with inequality', function() {
+describe('AlgebraCalcRule with inequality', function() {
 
   it('algebra < succeeds when implied', function() {
     const ast = ParseForwardRule('< 3 since 1');
     const current = ParseExpr('x');
-    const env = new TopLevelEnv([], [], [ParseFormula('x < 3')]);
-    const rule = CreateRule(ast, current, env);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x < 3'))]);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.op, '<');
   });
@@ -28,11 +28,11 @@ describe('AlgebraRule with inequality', function() {
   it('algebra < rejects when not implied', function() {
     const ast = ParseForwardRule('< 5 since 1');
     const current = ParseExpr('x');
-    const env = new TopLevelEnv([], [], [ParseFormula('x < 3')]);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x < 3'))]);
     // x < 3 does NOT imply x < 5... wait, it does. Use a wrong direction.
     // x < 3 does NOT imply x < 2
     const ast2 = ParseForwardRule('< 2 since 1');
-    assert.throws(() => CreateRule(ast2, current, env), /algebra/);
+    assert.throws(() => CreateCalcRule(ast2, current, env), /algebra/);
   });
 
 });
@@ -40,25 +40,25 @@ describe('AlgebraRule with inequality', function() {
 
 describe('Rule.reverse()', function() {
 
-  it('AlgebraRule.reverse() returns AlgebraTacticAst', function() {
+  it('AlgebraCalcRule.reverse() returns AlgebraTacticAst', function() {
     const ast = ParseForwardRule('= x + y');
     const current = ParseExpr('y + x');
     const env = new TopLevelEnv([], []);
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const tactic = rule.reverse();
     assert.strictEqual(tactic.variety, TACTIC_ALGEBRA);
   });
 
-  it('SubstituteRule.reverse() returns SubstituteTacticAst', function() {
+  it('SubstituteCalcRule.reverse() returns SubstituteTacticAst', function() {
     const ast = ParseForwardRule('subst 1');
     const current = ParseExpr('x + 1');
-    const env = new TopLevelEnv([], [], [ParseFormula('x = 3')]);
-    const rule = CreateRule(ast, current, env);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x = 3'))]);
+    const rule = CreateCalcRule(ast, current, env);
     const tactic = rule.reverse();
     assert.strictEqual(tactic.variety, TACTIC_SUBSTITUTE);
   });
 
-  it('DefinitionRule.reverse() returns DefinitionTacticAst', function() {
+  it('DefinitionCalcRule.reverse() returns DefinitionTacticAst', function() {
     const listType = new TypeDeclAst('List', [
       new ConstructorAst('nil', [], 'List'),
       new ConstructorAst('cons', ['Int', 'List'], 'List'),
@@ -72,18 +72,18 @@ describe('Rule.reverse()', function() {
     const env = new TopLevelEnv([listType], [lenFunc]);
     const ast = ParseForwardRule('defof len_1');
     const current = Call.of('len', Variable.of('nil'));
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const tactic = rule.reverse();
     assert.strictEqual(tactic.variety, TACTIC_DEFINITION);
   });
 
-  it('ApplyRule.reverse() returns ApplyTacticAst', function() {
+  it('ApplyCalcRule.reverse() returns ApplyTacticAst', function() {
     const comm = new TheoremAst('comm', [['a', 'Int'], ['b', 'Int']],
         [], new AtomProp(ParseFormula('a + b = b + a')));
     const env = new TopLevelEnv([], [], [], [comm]);
     const ast = ParseForwardRule('apply comm');
     const current = ParseExpr('x + y');
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const tactic = rule.reverse();
     assert.strictEqual(tactic.variety, TACTIC_APPLY);
   });
@@ -91,7 +91,7 @@ describe('Rule.reverse()', function() {
 });
 
 
-describe('ApplyRule inequality negative position', function() {
+describe('ApplyCalcRule inequality negative position', function() {
 
   it('apply < theorem at negative position flips to <=', function() {
     const thm = new TheoremAst('succ', [['n', 'Int']],
@@ -99,7 +99,7 @@ describe('ApplyRule inequality negative position', function() {
     const env = new TopLevelEnv([], [], [], [thm]);
     const ast = ParseForwardRule('apply succ => 5 - (x + 1)');
     const current = ParseExpr('5 - x');
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.op, '<=');
     assert.strictEqual(result.left.to_string(), '5 - (x + 1)');
@@ -112,7 +112,7 @@ describe('ApplyRule inequality negative position', function() {
     const env = new TopLevelEnv([], [], [], [thm]);
     const ast = ParseForwardRule('apply bound => 5 - (x + 1)');
     const current = ParseExpr('5 - x');
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.op, '<');
     assert.strictEqual(result.left.to_string(), '5 - (x + 1)');
@@ -122,26 +122,25 @@ describe('ApplyRule inequality negative position', function() {
 });
 
 
-describe('ApplyRule edge cases', function() {
+describe('ApplyCalcRule edge cases', function() {
 
   it('apply rejects theorem with non-atomic conclusion', function() {
     const thm = new TheoremAst('bad', [['n', 'Int']],
         [], new NotProp(ParseFormula('n = 0')));
     const env = new TopLevelEnv([], [], [], [thm]);
     const ast = ParseForwardRule('apply bad');
-    assert.throws(() => CreateRule(ast, ParseExpr('x'), env), /non-atomic conclusion/);
+    assert.throws(() => CreateCalcRule(ast, ParseExpr('x'), env), /non-atomic conclusion/);
   });
 
-  it('apply with non-atom premise ignores it in atomPremises', function() {
+  it('apply with non-atom premise throws', function() {
     const thm = new TheoremAst('foo', [['n', 'Int']],
         [new NotProp(ParseFormula('n = 0'))],
         new AtomProp(ParseFormula('n + 1 = n + 1')));
-    const env = new TopLevelEnv([], [], [ParseFormula('x = 1')], [thm]);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x = 1'))], [thm]);
     const ast = ParseForwardRule('apply foo since 1');
     const current = ParseExpr('x + 1');
-    const rule = CreateRule(ast, current, env);
-    const result = rule.apply();
-    assert.strictEqual(result.op, OP_EQUAL);
+    assert.throws(() => CreateCalcRule(ast, current, env),
+        /non-atomic premise/);
   });
 
 });
@@ -153,7 +152,7 @@ describe('Rule.apply() caching', function() {
     const ast = ParseForwardRule('= x + y');
     const current = ParseExpr('y + x');
     const env = new TopLevelEnv([], []);
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const result1 = rule.apply();
     const result2 = rule.apply();
     assert.strictEqual(result1, result2);

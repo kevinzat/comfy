@@ -1,9 +1,9 @@
 import { UserError } from '../facts/user_error';
-import { Formula } from '../facts/formula';
+import { Prop, AtomProp } from '../facts/prop';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
 import { FuncAst, TypeAst } from '../lang/func_ast';
 import { TheoremAst } from '../lang/theorem_ast';
-import { getType, checkFormula, checkProp, checkFuncDecl } from './checker';
+import { getType, checkProp, checkFuncDecl } from './checker';
 import { Type, NamedType } from './type';
 
 export class DuplicateError extends UserError {
@@ -72,7 +72,7 @@ export interface Environment {
    * Returns the fact at the given 1-indexed position.
    * @throws UserError if the index is out of range.
    */
-  getFact(index: number): Formula;
+  getFact(index: number): Prop;
 
   /** Returns true if a theorem with the given name is defined. */
   hasTheorem(name: string): boolean;
@@ -94,7 +94,7 @@ export class TopLevelEnv implements Environment {
   private types: Map<string, TypeDeclAst | null>;
   private constructors: Map<string, [Type, ConstructorAst]>;
   private functions: Map<string, [Type, FuncAst]>;
-  private facts: Formula[];
+  private facts: Prop[];
   private theorems_: TheoremAst[];
 
   /**
@@ -109,7 +109,7 @@ export class TopLevelEnv implements Environment {
   constructor(
       types: TypeDeclAst[],
       functions: FuncAst[],
-      facts: Formula[] = [],
+      facts: Prop[] = [],
       theorems: TheoremAst[] = [],
   ) {
     this.types = new Map<string, TypeDeclAst | null>([['Int', null]]);
@@ -162,7 +162,7 @@ export class TopLevelEnv implements Environment {
       checkFuncDecl(this, entry[1]);
     }
     for (const f of this.facts) {
-      checkFormula(this, f);
+      checkProp(this, f);
     }
     for (const thm of this.theorems_) {
       const thmEnv = new NestedEnv(this, thm.params);
@@ -248,7 +248,7 @@ export class TopLevelEnv implements Environment {
     return this.facts.length;
   }
 
-  getFact(index: number): Formula {
+  getFact(index: number): Prop {
     if (index < 1 || index > this.facts.length)
       throw new UserError(
           `fact ${index} is out of range (have ${this.facts.length} facts)`);
@@ -266,7 +266,7 @@ export class NestedEnv implements Environment {
   private parent: Environment;
   private locals: Map<string, NamedType>;
   private readOnly_: Set<string>;
-  private localFacts: Formula[];
+  private localFacts: Prop[];
   private localTheorems: TheoremAst[];
 
   /**
@@ -276,7 +276,7 @@ export class NestedEnv implements Environment {
    * @throws UnknownTypeError if any variable references an unknown type.
    */
   constructor(parent: Environment, variables: [string, string][],
-      facts: Formula[] = [], theorems: TheoremAst[] = [],
+      facts: Prop[] = [], theorems: TheoremAst[] = [],
       readOnly: Set<string> = new Set()) {
     this.parent = parent;
     this.locals = new Map();
@@ -290,7 +290,7 @@ export class NestedEnv implements Environment {
 
   check(): void {
     for (const f of this.localFacts) {
-      checkFormula(this, f);
+      checkProp(this, f);
     }
   }
 
@@ -333,7 +333,7 @@ export class NestedEnv implements Environment {
     return this.parent.numFacts() + this.localFacts.length;
   }
 
-  getFact(index: number): Formula {
+  getFact(index: number): Prop {
     const total = this.numFacts();
     if (index < 1 || index > total)
       throw new UserError(

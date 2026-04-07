@@ -556,23 +556,7 @@ prove foo by calculation
     checkFails(source, 0, /calculation requires a formula goal/);
   });
 
-  it('rejects induction proof with non-formula goal', function() {
-    const source = `type List
-| nil : List
-| cons : (Int, List) -> List
-
-theorem foo (xs : List)
-| not 0 < 0
-
-prove foo by induction on xs
-
-case nil:
-  prove not 0 < 0 by calculation
-  0`;
-    checkFails(source, 0, /induction requires a formula goal/);
-  });
-
-  it('rejects cases proof with non-formula goal in case block', function() {
+  it('rejects cases proof with non-formula goal via calculation', function() {
     const source = `theorem foo (x : Int)
 | not x < 0
 
@@ -585,7 +569,7 @@ case then:
 case else:
   prove not x < 0 by calculation
   x`;
-    checkFails(source, 7, /case block goal must be a formula/);
+    checkFails(source, 7, /bad goal formula/);
   });
 
   it('handles theorem with not-premise (non-atom premise)', function() {
@@ -621,7 +605,7 @@ case nil:
   undef len_1 = 0
 
 case cons(a, L):
-  given IH : 0 + len(L) = len(L)
+  given IH : not 0 < 0 => 0 + len(L) = len(L)
   prove 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
   0 + len(cons(a, L))
   defof len_2 = 0 + (1 + len(L))

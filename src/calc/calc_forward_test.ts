@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { ParseForwardRule, CreateRule } from './infer_forward';
+import { ParseForwardRule, CreateCalcRule } from './calc_forward';
 import { lookupDefinition } from './rules';
 import { AlgebraAst, SubstituteAst, DefinitionAst, ApplyAst, RULE_ALGEBRA, RULE_SUBSTITUTE, RULE_DEFINITION, RULE_APPLY } from './rules_ast';
 import { TheoremAst } from '../lang/theorem_ast';
@@ -164,13 +164,13 @@ describe('ParseForwardRule', function() {
 });
 
 
-describe('CreateRule', function() {
+describe('CreateCalcRule', function() {
 
   it('algebra = tautology (no givens, no refs)', function() {
     const ast = ParseForwardRule('= x + y');
     const current = ParseExpr('y + x');
     const env = new TopLevelEnv([], []);
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.right.to_string(), 'x + y');
   });
@@ -178,8 +178,8 @@ describe('CreateRule', function() {
   it('algebra = citing a given', function() {
     const ast = ParseForwardRule('= 5 since 1');
     const current = ParseExpr('x + y');
-    const env = new TopLevelEnv([], [], [ParseFormula('x + y = 5')]);
-    const rule = CreateRule(ast, current, env);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x + y = 5'))]);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.right.to_string(), '5');
   });
@@ -187,23 +187,23 @@ describe('CreateRule', function() {
   it('algebra = rejects wrong equation', function() {
     const ast = ParseForwardRule('= 6 since 1');
     const current = ParseExpr('x + y');
-    const env = new TopLevelEnv([], [], [ParseFormula('x + y = 5')]);
-    assert.throws(() => CreateRule(ast, current, env), /algebra/);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x + y = 5'))]);
+    assert.throws(() => CreateCalcRule(ast, current, env), /algebra/);
   });
 
   it('algebra = rejects when ref not cited', function() {
     const ast = ParseForwardRule('= 5');
     const current = ParseExpr('x + y');
-    const env = new TopLevelEnv([], [], [ParseFormula('x + y = 5')]);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x + y = 5'))]);
     // No refs cited, so it's treated as a tautology check — which fails
-    assert.throws(() => CreateRule(ast, current, env), /algebra/);
+    assert.throws(() => CreateCalcRule(ast, current, env), /algebra/);
   });
 
   it('subst replaces left with right', function() {
     const ast = ParseForwardRule('subst 1');
     const current = ParseExpr('x + 1');
-    const env = new TopLevelEnv([], [], [ParseFormula('x = 3')]);
-    const rule = CreateRule(ast, current, env);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x = 3'))]);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.op, OP_EQUAL);
     assert.strictEqual(result.left.to_string(), 'x + 1');
@@ -213,8 +213,8 @@ describe('CreateRule', function() {
   it('unsub replaces right with left', function() {
     const ast = ParseForwardRule('unsub 1');
     const current = ParseExpr('3 + 1');
-    const env = new TopLevelEnv([], [], [ParseFormula('x = 3')]);
-    const rule = CreateRule(ast, current, env);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x = 3'))]);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.right.to_string(), 'x + 1');
   });
@@ -223,8 +223,8 @@ describe('CreateRule', function() {
     // Given x = 3, current is x + x, only replace first x
     const ast = ParseForwardRule('subst 1 => 3 + x');
     const current = ParseExpr('x + x');
-    const env = new TopLevelEnv([], [], [ParseFormula('x = 3')]);
-    const rule = CreateRule(ast, current, env);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x = 3'))]);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.right.to_string(), '3 + x');
   });
@@ -232,15 +232,15 @@ describe('CreateRule', function() {
   it('subst rejects invalid explicit result', function() {
     const ast = ParseForwardRule('subst 1 => y + 1');
     const current = ParseExpr('x + 1');
-    const env = new TopLevelEnv([], [], [ParseFormula('x = 3')]);
-    assert.throws(() => CreateRule(ast, current, env), /cannot be produced/);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x = 3'))]);
+    assert.throws(() => CreateCalcRule(ast, current, env), /cannot be produced/);
   });
 
   it('subst with inequality in positive position (add)', function() {
     const ast = ParseForwardRule('subst 1');
     const current = ParseExpr('x + 1');
-    const env = new TopLevelEnv([], [], [ParseFormula('x < 3')]);
-    const rule = CreateRule(ast, current, env);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x < 3'))]);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.op, '<');
     assert.ok(result.left.equals(ParseExpr('x + 1')));
@@ -252,8 +252,8 @@ describe('CreateRule', function() {
     // x < 3 means replacing x with 3 in negative position flips: result <= current
     const ast = ParseForwardRule('subst 1');
     const current = ParseExpr('5 - x');
-    const env = new TopLevelEnv([], [], [ParseFormula('x < 3')]);
-    const rule = CreateRule(ast, current, env);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x < 3'))]);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.op, '<=');
     assert.ok(result.left.equals(ParseExpr('5 - 3')));
@@ -263,8 +263,8 @@ describe('CreateRule', function() {
   it('subst with inequality in negative position (negate)', function() {
     const ast = ParseForwardRule('subst 1');
     const current = ParseExpr('-x');
-    const env = new TopLevelEnv([], [], [ParseFormula('x <= 3')]);
-    const rule = CreateRule(ast, current, env);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x <= 3'))]);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.op, '<');
     assert.ok(result.left.equals(ParseExpr('-3')));
@@ -274,8 +274,8 @@ describe('CreateRule', function() {
   it('subst with inequality in positive position (multiply by positive constant)', function() {
     const ast = ParseForwardRule('subst 1');
     const current = ParseExpr('2*x');
-    const env = new TopLevelEnv([], [], [ParseFormula('x <= 3')]);
-    const rule = CreateRule(ast, current, env);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x <= 3'))]);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.op, '<=');
     assert.ok(result.left.equals(ParseExpr('2*x')));
@@ -285,8 +285,8 @@ describe('CreateRule', function() {
   it('subst with inequality flips when multiplied by negative constant', function() {
     const ast = ParseForwardRule('subst 1');
     const current = ParseExpr('-2*x');
-    const env = new TopLevelEnv([], [], [ParseFormula('x <= 3')]);
-    const rule = CreateRule(ast, current, env);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x <= 3'))]);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.op, '<');
     assert.ok(result.left.equals(ParseExpr('-2*3')));
@@ -297,15 +297,15 @@ describe('CreateRule', function() {
     // x appears in both positive (first arg of -) and negative (second arg of -)
     const ast = ParseForwardRule('subst 1');
     const current = ParseExpr('x - x');
-    const env = new TopLevelEnv([], [], [ParseFormula('x < 3')]);
-    assert.throws(() => CreateRule(ast, current, env), /multiple matches/);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x < 3'))]);
+    assert.throws(() => CreateCalcRule(ast, current, env), /multiple matches/);
   });
 
   it('subst with <= produces <=', function() {
     const ast = ParseForwardRule('subst 1');
     const current = ParseExpr('x + 1');
-    const env = new TopLevelEnv([], [], [ParseFormula('x <= 3')]);
-    const rule = CreateRule(ast, current, env);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x <= 3'))]);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.op, '<=');
     assert.ok(result.left.equals(ParseExpr('x + 1')));
@@ -315,35 +315,35 @@ describe('CreateRule', function() {
   it('subst with inequality not found in expression', function() {
     const ast = ParseForwardRule('subst 1');
     const current = ParseExpr('y + 1');
-    const env = new TopLevelEnv([], [], [ParseFormula('x < 3')]);
-    assert.throws(() => CreateRule(ast, current, env), /no matches found/);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x < 3'))]);
+    assert.throws(() => CreateCalcRule(ast, current, env), /no matches found/);
   });
 
   it('subst with inequality does not recurse into user functions', function() {
     const ast = ParseForwardRule('subst 1');
     const current = ParseExpr('f(x)');
-    const env = new TopLevelEnv([], [], [ParseFormula('x < 3')]);
-    assert.throws(() => CreateRule(ast, current, env), /no matches found/);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x < 3'))]);
+    assert.throws(() => CreateCalcRule(ast, current, env), /no matches found/);
   });
 
   it('subst rejects when nothing to substitute', function() {
     const ast = ParseForwardRule('subst 1');
     const current = ParseExpr('y + 1');
-    const env = new TopLevelEnv([], [], [ParseFormula('x = 3')]);
-    assert.throws(() => CreateRule(ast, current, env), /no matches found/);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x = 3'))]);
+    assert.throws(() => CreateCalcRule(ast, current, env), /no matches found/);
   });
 
   it('subst rejects out of range index', function() {
     const ast = ParseForwardRule('subst 2');
     const current = ParseExpr('x + 1');
-    const env = new TopLevelEnv([], [], [ParseFormula('x = 3')]);
-    assert.throws(() => CreateRule(ast, current, env), /out of range/);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x = 3'))]);
+    assert.throws(() => CreateCalcRule(ast, current, env), /out of range/);
   });
 
 });
 
 
-describe('CreateRule - definition', function() {
+describe('CreateCalcRule - definition', function() {
 
   const listType = new TypeDeclAst('List', [
     new ConstructorAst('nil', [], 'List'),
@@ -370,7 +370,7 @@ describe('CreateRule - definition', function() {
   it('defof len_1 on len(nil) produces 0', function() {
     const ast = ParseForwardRule('defof len_1');
     const current = Call.of('len', Variable.of('nil'));
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.op, OP_EQUAL);
     assert.ok(result.right.equals(Constant.of(0n)));
@@ -379,7 +379,7 @@ describe('CreateRule - definition', function() {
   it('defof len_2 freshens variables (a appears in both pattern and target)', function() {
     const ast = ParseForwardRule('defof len_2');
     const current = Call.of('len', Call.of('cons', Variable.of('a'), Variable.of('nil')));
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.op, OP_EQUAL);
     // Should produce 1 + len(nil)
@@ -390,7 +390,7 @@ describe('CreateRule - definition', function() {
   it('undef len_1 on 0 produces len(nil)', function() {
     const ast = ParseForwardRule('undef len_1');
     const current = Constant.of(0n);
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.ok(result.right.equals(Call.of('len', Variable.of('nil'))));
   });
@@ -399,7 +399,7 @@ describe('CreateRule - definition', function() {
     const ast = new DefinitionAst('len_1', true, [],
         Call.add(Constant.of(1n), Constant.of(0n)));
     const current = Call.add(Constant.of(1n), Call.of('len', Variable.of('nil')));
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.ok(result.right.equals(Call.add(Constant.of(1n), Constant.of(0n))));
   });
@@ -407,26 +407,26 @@ describe('CreateRule - definition', function() {
   it('defof len_3 fails (only 2 cases)', function() {
     const ast = ParseForwardRule('defof len_3');
     const current = Call.of('len', Variable.of('nil'));
-    assert.throws(() => CreateRule(ast, current, env), /unknown definition/);
+    assert.throws(() => CreateCalcRule(ast, current, env), /unknown definition/);
   });
 
   it('defof unknown_1 fails for unknown function', function() {
     const ast = ParseForwardRule('defof unknown_1');
     const current = Constant.of(0n);
-    assert.throws(() => CreateRule(ast, current, env), /unknown function/);
+    assert.throws(() => CreateCalcRule(ast, current, env), /unknown function/);
   });
 
   it('defof len_1 fails when no matches', function() {
     const ast = ParseForwardRule('defof len_1');
     // len(cons(...)) doesn't match len(nil) pattern
     const current = Call.of('len', Call.of('cons', Variable.of('a'), Variable.of('nil')));
-    assert.throws(() => CreateRule(ast, current, env), /no matches/);
+    assert.throws(() => CreateCalcRule(ast, current, env), /no matches/);
   });
 
   it('defof echo_2 works with shared variable names', function() {
     const ast = ParseForwardRule('defof echo_2');
     const current = Call.of('echo', Call.of('cons', Variable.of('a'), Variable.of('nil')));
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     // echo(cons(a, nil)) = cons(a, cons(a, echo(nil)))
     assert.ok(result.right.equals(
@@ -437,7 +437,7 @@ describe('CreateRule - definition', function() {
 });
 
 
-describe('CreateRule - conditional definition', function() {
+describe('CreateCalcRule - conditional definition', function() {
 
   const listType = new TypeDeclAst('List', [
     new ConstructorAst('nil', [], 'List'),
@@ -465,10 +465,10 @@ describe('CreateRule - conditional definition', function() {
   it('defof positives_2a with satisfied condition', function() {
     // Known fact 1: a < 0
     const env = new TopLevelEnv([listType], [positivesFunc],
-        [ParseFormula('a < 0')]);
+        [new AtomProp(ParseFormula('a < 0'))]);
     const ast = ParseForwardRule('defof positives_2a since 1');
     const current = Call.of('positives', Call.of('cons', Variable.of('a'), Variable.of('L')));
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.op, '=');
     assert.ok(result.right.equals(Call.of('positives', Variable.of('L'))));
@@ -476,11 +476,11 @@ describe('CreateRule - conditional definition', function() {
 
   it('defof positives_2a inside a larger expression', function() {
     const env = new TopLevelEnv([listType], [positivesFunc],
-        [ParseFormula('a < 0')]);
+        [new AtomProp(ParseFormula('a < 0'))]);
     const ast = ParseForwardRule('defof positives_2a since 1');
     const current = Call.of('len', Call.of('positives',
         Call.of('cons', Variable.of('a'), Variable.of('L'))));
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.ok(result.right.equals(
         Call.of('len', Call.of('positives', Variable.of('L')))));
@@ -489,10 +489,10 @@ describe('CreateRule - conditional definition', function() {
   it('defof positives_2b with satisfied condition', function() {
     // positives_2b condition: 0 <= a
     const env = new TopLevelEnv([listType], [positivesFunc],
-        [ParseFormula('0 <= a')]);
+        [new AtomProp(ParseFormula('0 <= a'))]);
     const ast = ParseForwardRule('defof positives_2b since 1');
     const current = Call.of('positives', Call.of('cons', Variable.of('a'), Variable.of('L')));
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.ok(result.right.equals(
         Call.of('cons', Variable.of('a'), Call.of('positives', Variable.of('L')))));
@@ -501,34 +501,34 @@ describe('CreateRule - conditional definition', function() {
   it('defof conditional fails when condition not implied', function() {
     // Known fact is a <= 0, but condition requires a < 0
     const env = new TopLevelEnv([listType], [positivesFunc],
-        [ParseFormula('a <= 0')]);
+        [new AtomProp(ParseFormula('a <= 0'))]);
     const ast = ParseForwardRule('defof positives_2a since 1');
     const current = Call.of('positives', Call.of('cons', Variable.of('a'), Variable.of('L')));
-    assert.throws(() => CreateRule(ast, current, env), /condition/);
+    assert.throws(() => CreateCalcRule(ast, current, env), /condition/);
   });
 
   it('defof conditional fails when no knowns provided', function() {
     const env = new TopLevelEnv([listType], [positivesFunc]);
     const ast = ParseForwardRule('defof positives_2a');
     const current = Call.of('positives', Call.of('cons', Variable.of('a'), Variable.of('L')));
-    assert.throws(() => CreateRule(ast, current, env), /known facts must be provided/);
+    assert.throws(() => CreateCalcRule(ast, current, env), /known facts must be provided/);
   });
 
   it('defof unconditional fails when knowns provided', function() {
     const env = new TopLevelEnv([listType], [positivesFunc],
-        [ParseFormula('a < 0')]);
+        [new AtomProp(ParseFormula('a < 0'))]);
     const ast = ParseForwardRule('defof positives_1 since 1');
     const current = Call.of('positives', Variable.of('nil'));
-    assert.throws(() => CreateRule(ast, current, env), /must not be provided/);
+    assert.throws(() => CreateCalcRule(ast, current, env), /must not be provided/);
   });
 
   it('defof conditional with explicit result', function() {
     const env = new TopLevelEnv([listType], [positivesFunc],
-        [ParseFormula('a < 0')]);
+        [new AtomProp(ParseFormula('a < 0'))]);
     const ast = new DefinitionAst('positives_2a', true, [1],
         Call.of('positives', Variable.of('L')));
     const current = Call.of('positives', Call.of('cons', Variable.of('a'), Variable.of('L')));
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.ok(result.right.equals(Call.of('positives', Variable.of('L'))));
   });
@@ -537,7 +537,7 @@ describe('CreateRule - conditional definition', function() {
     const env = new TopLevelEnv([listType], [positivesFunc]);
     const ast = ParseForwardRule('defof positives_2c');
     const current = Call.of('positives', Variable.of('nil'));
-    assert.throws(() => CreateRule(ast, current, env), /unknown definition/);
+    assert.throws(() => CreateCalcRule(ast, current, env), /unknown definition/);
   });
 
 });
@@ -605,7 +605,7 @@ describe('lookupDefinition', function() {
 });
 
 
-describe('CreateRule - apply theorem', function() {
+describe('CreateCalcRule - apply theorem', function() {
 
   it('parses apply name', function() {
     const ast = ParseForwardRule('apply comm');
@@ -643,7 +643,7 @@ describe('CreateRule - apply theorem', function() {
     const env = new TopLevelEnv([], [], [], [comm]);
     const ast = ParseForwardRule('apply comm');
     const current = ParseExpr('x + y');
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.op, OP_EQUAL);
     assert.strictEqual(result.right.to_string(), 'y + x');
@@ -655,7 +655,7 @@ describe('CreateRule - apply theorem', function() {
     const env = new TopLevelEnv([], [], [], [comm]);
     const ast = ParseForwardRule('apply comm => (y + x) * 2');
     const current = ParseExpr('(x + y) * 2');
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.right.to_string(), '(y + x)*2');
   });
@@ -666,7 +666,7 @@ describe('CreateRule - apply theorem', function() {
     const env = new TopLevelEnv([], [], [], [comm]);
     const ast = ParseForwardRule('unapp comm');
     const current = ParseExpr('y + x');
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.right.to_string(), 'x + y');
   });
@@ -677,7 +677,7 @@ describe('CreateRule - apply theorem', function() {
     const env = new TopLevelEnv([], [], [], [thm]);
     const ast = ParseForwardRule('apply succ');
     const current = ParseExpr('x');
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.op, '<');
     assert.strictEqual(result.left.to_string(), 'x');
@@ -687,10 +687,10 @@ describe('CreateRule - apply theorem', function() {
   it('apply theorem with premise citing facts', function() {
     const thm = new TheoremAst('foo', [['n', 'Int']],
         [new AtomProp(ParseFormula('0 < n'))], new AtomProp(ParseFormula('n = n')));
-    const env = new TopLevelEnv([], [], [ParseFormula('0 < x')], [thm]);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('0 < x'))], [thm]);
     const ast = ParseForwardRule('apply foo since 1');
     const current = ParseExpr('x');
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.op, OP_EQUAL);
   });
@@ -698,10 +698,10 @@ describe('CreateRule - apply theorem', function() {
   it('apply theorem with equation premise', function() {
     const thm = new TheoremAst('foo', [['n', 'Int']],
         [new AtomProp(ParseFormula('n = 0'))], new AtomProp(ParseFormula('n + 1 = 1')));
-    const env = new TopLevelEnv([], [], [ParseFormula('x = 0')], [thm]);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x = 0'))], [thm]);
     const ast = ParseForwardRule('apply foo since 1');
     const current = ParseExpr('x + 1');
-    const rule = CreateRule(ast, current, env);
+    const rule = CreateCalcRule(ast, current, env);
     const result = rule.apply();
     assert.strictEqual(result.right.to_string(), '1');
   });
@@ -709,7 +709,7 @@ describe('CreateRule - apply theorem', function() {
   it('apply rejects unknown theorem', function() {
     const env = new TopLevelEnv([], []);
     const ast = ParseForwardRule('apply nonexistent');
-    assert.throws(() => CreateRule(ast, ParseExpr('x'), env), /unknown theorem/);
+    assert.throws(() => CreateCalcRule(ast, ParseExpr('x'), env), /unknown theorem/);
   });
 
   it('apply rejects when premise not cited', function() {
@@ -717,23 +717,23 @@ describe('CreateRule - apply theorem', function() {
         [new AtomProp(ParseFormula('0 < n'))], new AtomProp(ParseFormula('n = n')));
     const env = new TopLevelEnv([], [], [], [thm]);
     const ast = ParseForwardRule('apply foo');
-    assert.throws(() => CreateRule(ast, ParseExpr('x'), env), /premise.*must be provided/);
+    assert.throws(() => CreateCalcRule(ast, ParseExpr('x'), env), /premise.*must be provided/);
   });
 
   it('apply rejects when no premise but facts cited', function() {
     const thm = new TheoremAst('comm', [['a', 'Int'], ['b', 'Int']],
         [], new AtomProp(ParseFormula('a + b = b + a')));
-    const env = new TopLevelEnv([], [], [ParseFormula('x = 1')], [thm]);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x = 1'))], [thm]);
     const ast = ParseForwardRule('apply comm since 1');
-    assert.throws(() => CreateRule(ast, ParseExpr('x + y'), env), /no premise.*must not be provided/);
+    assert.throws(() => CreateCalcRule(ast, ParseExpr('x + y'), env), /no premise.*must not be provided/);
   });
 
   it('apply rejects when premise not implied', function() {
     const thm = new TheoremAst('foo', [['n', 'Int']],
         [new AtomProp(ParseFormula('0 < n'))], new AtomProp(ParseFormula('n = n')));
-    const env = new TopLevelEnv([], [], [ParseFormula('0 <= x')], [thm]);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('0 <= x'))], [thm]);
     const ast = ParseForwardRule('apply foo since 1');
-    assert.throws(() => CreateRule(ast, ParseExpr('x'), env), /premise.*not implied/);
+    assert.throws(() => CreateCalcRule(ast, ParseExpr('x'), env), /premise.*not implied/);
   });
 
 });

@@ -141,7 +141,7 @@ export default class ProofSetup
       const theorem = this.getTheorem();
       if (theorem) {
         const atomFacts = [...theorem.premises, theorem.conclusion]
-            .flatMap(p => p.tag === 'atom' ? [p.formula] : []);
+            .flatMap(p => p.tag === 'atom' ? [p] : []);
         const thmEnv = new NestedEnv(env, theorem.params, atomFacts);
         thmEnv.check();
         thmObligations.push(theoremToProofObligation(theorem));

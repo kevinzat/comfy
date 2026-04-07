@@ -1,7 +1,8 @@
-/** Backward rules (tactics) that work from the goal backward. */
+/** Backward calc tactics that work from the goal backward. */
 
 import { Expression } from '../facts/exprs';
 import { Formula, FormulaOp, OP_EQUAL, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
+import { AtomProp } from '../facts/prop';
 import { Environment } from '../types/env';
 import { EquationRewriter, InequalityRewriter, DefinitionRewriter, TheoremEquationRewriter, TheoremInequalityRewriter } from './rewriter';
 import { lookupDefinition } from './rules';
@@ -10,12 +11,21 @@ import { IsInequalityImplied } from '../decision/inequality';
 import { UserError } from '../facts/user_error';
 import { RuleAst, AlgebraAst, SubstituteAst, DefinitionAst, ApplyAst } from './rules_ast';
 
+function getFactFormula(env: Environment, index: number): Formula {
+  const prop = env.getFact(index);
+  /* v8 ignore start */
+  if (!(prop instanceof AtomProp))
+    throw new Error(`fact ${index} is not a formula`);
+  /* v8 ignore stop */
+  return prop.formula;
+}
+
 export const TACTIC_ALGEBRA = 2;
 export const TACTIC_SUBSTITUTE = 3;
 export const TACTIC_DEFINITION = 4;
 export const TACTIC_APPLY = 5;
 
-export abstract class Tactic {
+export abstract class CalcTactic {
   variety: number;
   goal: Expression;
 
@@ -36,14 +46,14 @@ export abstract class Tactic {
  * Opposite of forward: forward builds Formula(current, op, expr),
  * backward builds Formula(expr, op, goal). Premise is expr.
  */
-export class AlgebraTactic extends Tactic {
+export class AlgebraCalcTactic extends CalcTactic {
   formula: Formula;
   known: Formula[];
 
   constructor(env: Environment, formula: Formula, ...knowns: number[]) {
     super(TACTIC_ALGEBRA, formula.right);
     this.formula = formula;
-    this.known = knowns.map(i => env.getFact(i));
+    this.known = knowns.map(i => getFactFormula(env, i));
 
     const useInequality = formula.op !== OP_EQUAL ||
         this.known.some(f => f.op !== OP_EQUAL);
@@ -81,7 +91,7 @@ export class AlgebraTactic extends Tactic {
  * Forward unsub N (L=R): replaces R with L in current.
  * Backward unsub N (L=R): replaces L with R in goal (undoing a forward unsub).
  */
-export class SubstituteTactic extends Tactic {
+export class SubstituteCalcTactic extends CalcTactic {
   eq: Formula;
   right: boolean;
   known: number;
@@ -90,7 +100,7 @@ export class SubstituteTactic extends Tactic {
   constructor(env: Environment, goal: Expression, known: number, right: boolean, premise?: Expression) {
     super(TACTIC_SUBSTITUTE, goal);
 
-    this.eq = env.getFact(known);
+    this.eq = getFactFormula(env, known);
     this.right = right;
     this.known = known;
 
@@ -135,7 +145,7 @@ export class SubstituteTactic extends Tactic {
  * undef name (right = false): forward replaces body→pattern, so backward
  *   replaces pattern→body in the goal (undoing a forward undef).
  */
-export class DefinitionTactic extends Tactic {
+export class DefinitionCalcTactic extends CalcTactic {
   defFormula: Formula;
   right: boolean;
   name: string;
@@ -148,7 +158,7 @@ export class DefinitionTactic extends Tactic {
     this.right = right;
     const def = lookupDefinition(env, name);
     this.defFormula = def.formula;
-    const knownFacts = knowns.map(i => env.getFact(i));
+    const knownFacts = knowns.map(i => getFactFormula(env, i));
 
     if (def.condition && knowns.length === 0)
       throw new UserError(
@@ -181,7 +191,7 @@ export class DefinitionTactic extends Tactic {
  * unapp name (right = false): forward replaces right→left, so backward
  *   replaces left→right in the goal (undoing a forward unapp).
  */
-export class ApplyTactic extends Tactic {
+export class ApplyCalcTactic extends CalcTactic {
   name: string;
   right: boolean;
   _resultFormula: Formula;
@@ -195,7 +205,7 @@ export class ApplyTactic extends Tactic {
     if (!env.hasTheorem(name))
       throw new UserError(`apply/unapp: unknown theorem "${name}"`);
     const theorem = env.getTheorem(name);
-    const knownFacts = knowns.map(i => env.getFact(i));
+    const knownFacts = knowns.map(i => getFactFormula(env, i));
 
     if (theorem.premises.length > 0 && knowns.length === 0)
       throw new UserError(
@@ -208,7 +218,13 @@ export class ApplyTactic extends Tactic {
     if (theorem.conclusion.tag !== 'atom')
       throw new UserError(`apply/unapp: "${name}" has a non-atomic conclusion`);
     const concl = theorem.conclusion.formula;
-    const atomPremises = theorem.premises.flatMap(p => p.tag === 'atom' ? [p.formula] : []);
+    const atomPremises = theorem.premises.map(p => {
+      /* v8 ignore start */
+      if (!(p instanceof AtomProp))
+        throw new Error(`apply/unapp: "${name}" has a non-atomic premise`);
+      /* v8 ignore stop */
+      return p.formula;
+    });
 
     if (concl.op === OP_EQUAL) {
       const rewriter = new TheoremEquationRewriter(

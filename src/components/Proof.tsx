@@ -136,14 +136,14 @@ export default class Proof extends React.Component<ProofProps, ProofState> {
     }
 
     const goal: Formula = obligation.goal.formula;
-    const givens: Formula[] = obligation.premises
-      .flatMap(p => p instanceof AtomProp ? [p.formula] : []);
+    const givens: AtomProp[] = obligation.premises
+      .flatMap(p => p instanceof AtomProp ? [p] : []);
 
     const env = new TopLevelEnv(decls.types, decls.functions, [], decls.theorems);
     const proofEnv = new NestedEnv(env, obligation.params, givens);
 
     // Pass a single premise to ProofBlock for induction hypothesis support.
-    const premise = givens.length === 1 ? givens[0] : undefined;
+    const premise = givens.length === 1 ? givens[0].formula : undefined;
 
     const hasDecls = decls.types.length > 0 || decls.functions.length > 0;
 
@@ -163,13 +163,13 @@ export default class Proof extends React.Component<ProofProps, ProofState> {
             <div className="proof-givens-title">Given:</div>
             <table className="proof-givens-table">
               <tbody>
-                {givens.map((f, i) => (
+                {givens.map((g, i) => (
                   <tr key={i}>
                     <td className="proof-given-index">{i + 1}.</td>
                     <td className="proof-given-formula">
                       {this.state.showHtml
-                        ? <span>{ExprToHtml(f.left)} {OpToHtml(f.op)} {ExprToHtml(f.right)}</span>
-                        : f.to_string()}
+                        ? <span>{ExprToHtml(g.formula.left)} {OpToHtml(g.formula.op)} {ExprToHtml(g.formula.right)}</span>
+                        : g.to_string()}
                     </td>
                   </tr>
                 ))}

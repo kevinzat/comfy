@@ -1,6 +1,5 @@
 import { Expression, Variable, Call } from '../facts/exprs';
-import { Formula } from '../facts/formula';
-import { AtomProp } from '../facts/prop';
+import { Prop, AtomProp } from '../facts/prop';
 import { Environment, NestedEnv } from '../types/env';
 import { ConstructorAst } from '../lang/type_ast';
 import { TheoremAst } from '../lang/theorem_ast';
@@ -10,18 +9,28 @@ export interface CaseInfo {
   ctor: ConstructorAst;
   argNames: string[];
   argTypes: string[];
-  goal: Formula;
+  goal: Prop;
   ihTheorems: TheoremAst[];
   ihArgNames: string[];
   env: NestedEnv;
 }
 
-function formulaVars(formula: Formula): Set<string> {
-  const vars = formula.left.vars();
-  for (const v of formula.right.vars()) {
-    vars.add(v);
+function propVars(prop: Prop): Set<string> {
+  if (prop.tag === 'atom' || prop.tag === 'not') {
+    const vars = prop.formula.left.vars();
+    for (const v of prop.formula.right.vars()) vars.add(v);
+    return vars;
+  }
+  /* v8 ignore start */
+  if (prop.tag !== 'or')
+    throw new Error(`propVars: unexpected prop tag "${prop.tag}"`);
+  const vars = new Set<string>();
+  for (const d of prop.disjuncts) {
+    for (const v of d.formula.left.vars()) vars.add(v);
+    for (const v of d.formula.right.vars()) vars.add(v);
   }
   return vars;
+  /* v8 ignore stop */
 }
 
 /**
@@ -84,8 +93,8 @@ export function defaultArgNames(
  * quantified parameters of the IH theorems.
  */
 function computeIHParams(
-    formula: Formula, env: Environment, varName: string): [string, string][] {
-  const fvars = formulaVars(formula);
+    goal: Prop, env: Environment, varName: string): [string, string][] {
+  const fvars = propVars(goal);
   const params: [string, string][] = [];
   for (const name of fvars) {
     if (name === varName) continue;
@@ -109,15 +118,15 @@ function uniqueTheoremName(base: string, env: Environment): string {
 }
 
 export function buildCases(
-  formula: Formula,
+  goal: Prop,
   env: Environment,
   varName: string,
   argNames?: string[],
-  premises: Formula[] = [],
+  premises: Prop[] = [],
 ): CaseInfo[] {
   const varType = env.getVariable(varName);
   const typeName = varType.name;
-  const ihParams = computeIHParams(formula, env, varName);
+  const ihParams = computeIHParams(goal, env, varName);
 
   const typeDecl = env.getTypeDecl(typeName);
   if (typeDecl === null) {
@@ -142,8 +151,8 @@ export function buildCases(
     allNames = defaultArgNames(env, typeName, varName);
   }
 
-  // Check for clashes with formula variables.
-  const fvars = formulaVars(formula);
+  // Check for clashes with goal variables.
+  const fvars = propVars(goal);
   fvars.add(varName);
   for (const name of allNames) {
     if (fvars.has(name)) {
@@ -179,9 +188,7 @@ export function buildCases(
       ctorExpr = Call.of(ctor.name, ...ctorArgNames.map(n => Variable.of(n)));
     }
 
-    const goalLeft = formula.left.subst(varExpr, ctorExpr);
-    const goalRight = formula.right.subst(varExpr, ctorExpr);
-    const goal = new Formula(goalLeft, formula.op, goalRight);
+    const caseGoal = goal.subst(varExpr, ctorExpr);
 
     // Count recursive args to decide naming: IH if one, IH_<name> if multiple.
     const recursiveCount = ctor.paramTypes.filter(t => t === typeName).length;
@@ -191,13 +198,8 @@ export function buildCases(
     for (let i = 0; i < ctor.paramTypes.length; i++) {
       if (ctor.paramTypes[i] === typeName) {
         const argExpr = Variable.of(ctorArgNames[i]);
-        const ihLeft = formula.left.subst(varExpr, argExpr);
-        const ihRight = formula.right.subst(varExpr, argExpr);
-        const ihConclusion = new AtomProp(new Formula(ihLeft, formula.op, ihRight));
-        const ihPremises = premises.map(p => new AtomProp(new Formula(
-            p.left.subst(varExpr, argExpr),
-            p.op,
-            p.right.subst(varExpr, argExpr))));
+        const ihConclusion = goal.subst(varExpr, argExpr);
+        const ihPremises = premises.map(p => p.subst(varExpr, argExpr));
         const baseName = recursiveCount === 1
             ? 'IH' : 'IH_' + ctorArgNames[i];
         const ihName = uniqueTheoremName(baseName, env);
@@ -215,7 +217,7 @@ export function buildCases(
       ctor,
       argNames: ctorArgNames,
       argTypes: ctor.paramTypes,
-      goal,
+      goal: caseGoal,
       ihTheorems,
       ihArgNames,
       env: nestedEnv,

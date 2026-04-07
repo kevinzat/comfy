@@ -4,10 +4,10 @@ import { FuncAst, TypeAst, CaseAst, ExprBody, ParamVar } from '../lang/func_ast'
 import { TheoremAst } from '../lang/theorem_ast';
 import { Constant, Variable, Call } from '../facts/exprs';
 import { Formula, OP_EQUAL } from '../facts/formula';
-import { AtomProp } from '../facts/prop';
+import { AtomProp, NotProp, OrProp } from '../facts/prop';
 import { ParseFormula } from '../facts/formula_parser';
 import { TopLevelEnv, NestedEnv } from '../types/env';
-import { buildCases } from './InductionBlock';
+import { buildCases } from './induction';
 
 
 const listType = new TypeDeclAst('List', [
@@ -25,7 +25,7 @@ const lenFunc = new FuncAst('len', new TypeAst(['List'], 'Int'), [
 describe('buildCases', function() {
 
   it('generates cases for each constructor', function() {
-    const formula = ParseFormula('len(xs) = len(xs)');
+    const formula = new AtomProp(ParseFormula('len(xs) = len(xs)'));
     const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['xs', 'List']]);
     const cases = buildCases(formula, env, 'xs');
 
@@ -35,7 +35,7 @@ describe('buildCases', function() {
   });
 
   it('nil case has no args and no IH', function() {
-    const formula = ParseFormula('len(xs) = len(xs)');
+    const formula = new AtomProp(ParseFormula('len(xs) = len(xs)'));
     const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['xs', 'List']]);
     const cases = buildCases(formula, env, 'xs');
 
@@ -47,7 +47,7 @@ describe('buildCases', function() {
   });
 
   it('cons case has two args and one IH theorem for the recursive arg', function() {
-    const formula = ParseFormula('len(xs) = len(xs)');
+    const formula = new AtomProp(ParseFormula('len(xs) = len(xs)'));
     const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['xs', 'List']]);
     const cases = buildCases(formula, env, 'xs');
 
@@ -63,7 +63,7 @@ describe('buildCases', function() {
   });
 
   it('picks lowercase for Int args and uppercase for non-Int args', function() {
-    const formula = ParseFormula('len(xs) = len(xs)');
+    const formula = new AtomProp(ParseFormula('len(xs) = len(xs)'));
     const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['xs', 'List']]);
     const cases = buildCases(formula, env, 'xs');
 
@@ -79,7 +79,7 @@ describe('buildCases', function() {
 
   it('errors when default names clash with formula vars', function() {
     // Default Int arg is "a", which clashes with formula variable "a".
-    const formula = ParseFormula('a + b + c + len(xs) = 0');
+    const formula = new AtomProp(ParseFormula('a + b + c + len(xs) = 0'));
     const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]),
         [['a', 'Int'], ['b', 'Int'], ['c', 'Int'], ['xs', 'List']]);
     assert.throws(() => buildCases(formula, env, 'xs'),
@@ -87,7 +87,7 @@ describe('buildCases', function() {
   });
 
   it('uses explicit names to avoid formula var clash', function() {
-    const formula = ParseFormula('a + b + c + len(xs) = 0');
+    const formula = new AtomProp(ParseFormula('a + b + c + len(xs) = 0'));
     const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]),
         [['a', 'Int'], ['b', 'Int'], ['c', 'Int'], ['xs', 'List']]);
     const cases = buildCases(formula, env, 'xs', ['d', 'Y']);
@@ -98,7 +98,7 @@ describe('buildCases', function() {
   });
 
   it('goal substitutes constructor call for variable', function() {
-    const formula = ParseFormula('len(xs) + 1 = len(xs) + 1');
+    const formula = new AtomProp(ParseFormula('len(xs) + 1 = len(xs) + 1'));
     const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['xs', 'List']]);
     const cases = buildCases(formula, env, 'xs');
 
@@ -110,7 +110,7 @@ describe('buildCases', function() {
   });
 
   it('IH theorem replaces variable with recursive arg', function() {
-    const formula = ParseFormula('len(xs) + 1 = len(xs) + 1');
+    const formula = new AtomProp(ParseFormula('len(xs) + 1 = len(xs) + 1'));
     const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['xs', 'List']]);
     const cases = buildCases(formula, env, 'xs');
 
@@ -121,9 +121,9 @@ describe('buildCases', function() {
   });
 
   it('IH theorem is available via env.getTheorem', function() {
-    const given = ParseFormula('1 = 1');
+    const given = new AtomProp(ParseFormula('1 = 1'));
     const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['xs', 'List']], [given]);
-    const formula = ParseFormula('len(xs) = len(xs)');
+    const formula = new AtomProp(ParseFormula('len(xs) = len(xs)'));
     const cases = buildCases(formula, env, 'xs');
 
     // nil case: no IH theorems.
@@ -143,7 +143,7 @@ describe('buildCases', function() {
   });
 
   it('nested env has constructor arg variables', function() {
-    const formula = ParseFormula('len(xs) = len(xs)');
+    const formula = new AtomProp(ParseFormula('len(xs) = len(xs)'));
     const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['xs', 'List']]);
     const cases = buildCases(formula, env, 'xs');
 
@@ -155,7 +155,7 @@ describe('buildCases', function() {
   });
 
   it('throws for non-named type variable', function() {
-    const formula = ParseFormula('n = n');
+    const formula = new AtomProp(ParseFormula('n = n'));
     const env = new NestedEnv(new TopLevelEnv([], []), [['n', 'Int']]);
     assert.throws(() => buildCases(formula, env, 'n'),
         /cannot induct on built-in type/);
@@ -166,7 +166,7 @@ describe('buildCases', function() {
       new ConstructorAst('leaf', [], 'Tree'),
       new ConstructorAst('node', ['Tree', 'Int', 'Tree'], 'Tree'),
     ]);
-    const formula = ParseFormula('size(t) = size(t)');
+    const formula = new AtomProp(ParseFormula('size(t) = size(t)'));
     const sizeFunc = new FuncAst('size', new TypeAst(['Tree'], 'Int'), [
       new CaseAst([new ParamVar('leaf')], new ExprBody(Constant.of(0n))),
       new CaseAst([new ParamVar('x')], new ExprBody(Constant.of(1n))),
@@ -197,7 +197,7 @@ describe('buildCases', function() {
 
   it('single IH is named IH, multiple IH use IH_<name>', function() {
     // Single recursive arg: IH
-    const formula = ParseFormula('len(xs) = len(xs)');
+    const formula = new AtomProp(ParseFormula('len(xs) = len(xs)'));
     const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['xs', 'List']]);
     const cases = buildCases(formula, env, 'xs');
     assert.equal(cases[1].ihTheorems[0].name, 'IH');
@@ -211,7 +211,7 @@ describe('buildCases', function() {
       new CaseAst([new ParamVar('leaf')], new ExprBody(Constant.of(0n))),
       new CaseAst([new ParamVar('x')], new ExprBody(Constant.of(1n))),
     ]);
-    const treeFormula = ParseFormula('size(t) = size(t)');
+    const treeFormula = new AtomProp(ParseFormula('size(t) = size(t)'));
     const treeEnv = new NestedEnv(
         new TopLevelEnv([treeType], [sizeFunc]), [['t', 'Tree']]);
     const treeCases = buildCases(treeFormula, treeEnv, 't');
@@ -220,7 +220,7 @@ describe('buildCases', function() {
   });
 
   it('renames IH to IH2 when IH already exists as a theorem', function() {
-    const formula = ParseFormula('len(xs) = len(xs)');
+    const formula = new AtomProp(ParseFormula('len(xs) = len(xs)'));
     const existingIH = new TheoremAst('IH', [], [],
         new AtomProp(ParseFormula('0 = 0')));
     const env = new NestedEnv(
@@ -242,7 +242,7 @@ describe('buildCases', function() {
     ]);
     const existingIH = new TheoremAst('IH_T', [], [],
         new AtomProp(ParseFormula('0 = 0')));
-    const formula = ParseFormula('size(t) = size(t)');
+    const formula = new AtomProp(ParseFormula('size(t) = size(t)'));
     const env = new NestedEnv(
         new TopLevelEnv([treeType], [sizeFunc], [], [existingIH]),
         [['t', 'Tree']]);
@@ -259,7 +259,7 @@ describe('buildCases', function() {
       new CaseAst([new ParamVar('x'), new ParamVar('R')],
           new ExprBody(Variable.of('R'))),
     ]);
-    const formula = ParseFormula('len(concat(S, T)) = len(S) + len(T)');
+    const formula = new AtomProp(ParseFormula('len(concat(S, T)) = len(S) + len(T)'));
     const env = new NestedEnv(
         new TopLevelEnv([listType], [lenFunc, concatFunc]),
         [['S', 'List'], ['T', 'List']]);
@@ -275,14 +275,8 @@ describe('buildCases', function() {
   });
 
   it('IH theorem includes substituted premise when premise is provided', function() {
-    // Theorem: forall (xs : List) : xs = nil => len(xs) = 0
-    // Induction on xs, cons case with cons(a, L):
-    //   IH premise: cons(a, L) = nil  ... wait, that's wrong.
-    //   Actually the premise gets the *recursive arg* substituted:
-    //   IH premise: L = nil (replacing xs with L)
-    //   IH conclusion: len(L) = 0 (replacing xs with L)
-    const formula = ParseFormula('len(xs) = 0');
-    const premise = ParseFormula('xs = nil');
+    const formula = new AtomProp(ParseFormula('len(xs) = 0'));
+    const premise = new AtomProp(ParseFormula('xs = nil'));
     const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['xs', 'List']]);
     const cases = buildCases(formula, env, 'xs', undefined, [premise]);
 
@@ -306,7 +300,7 @@ describe('buildCases', function() {
     const fstFunc = new FuncAst('fst', new TypeAst(['Pair'], 'Int'), [
       new CaseAst([new ParamVar('x')], new ExprBody(Variable.of('x'))),
     ]);
-    const formula = ParseFormula('fst(p) = fst(p)');
+    const formula = new AtomProp(ParseFormula('fst(p) = fst(p)'));
     const env = new NestedEnv(
         new TopLevelEnv([pairType], [fstFunc]), [['p', 'Pair']]);
     const cases = buildCases(formula, env, 'p');
@@ -316,7 +310,7 @@ describe('buildCases', function() {
   });
 
   it('renames IH to IH3 when IH and IH2 already exist', function() {
-    const formula = ParseFormula('len(xs) = len(xs)');
+    const formula = new AtomProp(ParseFormula('len(xs) = len(xs)'));
     const ih1 = new TheoremAst('IH', [], [],
         new AtomProp(ParseFormula('0 = 0')));
     const ih2 = new TheoremAst('IH2', [], [],
@@ -329,12 +323,36 @@ describe('buildCases', function() {
   });
 
   it('IH theorem has no premise when none is provided', function() {
-    const formula = ParseFormula('len(xs) = len(xs)');
+    const formula = new AtomProp(ParseFormula('len(xs) = len(xs)'));
     const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['xs', 'List']]);
     const cases = buildCases(formula, env, 'xs');
 
     const consCase = cases[1];
     assert.deepEqual(consCase.ihTheorems[0].premises, []);
+  });
+
+  it('works with NotProp goal', function() {
+    const goal = new NotProp(ParseFormula('len(xs) = 0'));
+    const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['xs', 'List']]);
+    const cases = buildCases(goal, env, 'xs');
+
+    assert.equal(cases.length, 2);
+    assert.equal(cases[0].goal.to_string(), 'not len(nil) = 0');
+    assert.equal(cases[1].goal.to_string(), 'not len(cons(a, L)) = 0');
+  });
+
+  it('works with OrProp goal', function() {
+    const goal = new OrProp([
+      new AtomProp(ParseFormula('len(xs) = 0')),
+      new AtomProp(ParseFormula('0 < len(xs)')),
+    ]);
+    const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['xs', 'List']]);
+    const cases = buildCases(goal, env, 'xs');
+
+    assert.equal(cases.length, 2);
+    assert.equal(cases[0].goal.to_string(), 'len(nil) = 0 or 0 < len(nil)');
+    assert.equal(cases[1].goal.to_string(),
+        'len(cons(a, L)) = 0 or 0 < len(cons(a, L))');
   });
 
 });

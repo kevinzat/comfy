@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import { ParseExpr } from '../facts/exprs_parser';
 import { ParseFormula } from '../facts/formula_parser';
-import { Constant, Variable, Call } from '../facts/exprs';
+import { Expression, Constant, Variable, Call } from '../facts/exprs';
 import { Formula, OP_LESS_THAN } from '../facts/formula';
 import { Rewriter, EquationRewriter, InequalityRewriter, DefinitionRewriter, TheoremEquationRewriter, TheoremInequalityRewriter } from './rewriter';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';

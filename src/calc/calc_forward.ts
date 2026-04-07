@@ -1,11 +1,11 @@
-/** Parsing and creation of forward rules. */
+/** Parsing and creation of forward calc rules. */
 
 import * as nearley from 'nearley';
 import { Expression } from '../facts/exprs';
 import { Formula } from '../facts/formula';
 import { UserError } from '../facts/user_error';
 import { RuleAst, AlgebraAst, SubstituteAst, DefinitionAst, ApplyAst, RULE_ALGEBRA, RULE_SUBSTITUTE, RULE_DEFINITION, RULE_APPLY } from './rules_ast';
-import { Rule, AlgebraRule, SubstituteRule, DefinitionRule, ApplyRule } from './rules';
+import { CalcRule, AlgebraCalcRule, SubstituteCalcRule, DefinitionCalcRule, ApplyCalcRule } from './rules';
 import { Environment } from '../types/env';
 import grammar from './rules_grammar';
 
@@ -31,21 +31,21 @@ export function ParseForwardRule(text: string): RuleAst {
   }
 }
 
-/** Creates a Rule from the given AST, current expression, and environment. */
-export function CreateRule(ast: RuleAst, current: Expression, env: Environment): Rule {
+/** Creates a CalcRule from the given AST, current expression, and environment. */
+export function CreateCalcRule(ast: RuleAst, current: Expression, env: Environment): CalcRule {
   switch (ast.variety) {
     case RULE_ALGEBRA: {
       const formula = new Formula(current, ast.op, ast.expr);
-      return new AlgebraRule(env, formula, ...ast.refs);
+      return new AlgebraCalcRule(env, formula, ...ast.refs);
     }
     case RULE_SUBSTITUTE: {
-      return new SubstituteRule(env, current, ast.index, ast.right, ast.expr);
+      return new SubstituteCalcRule(env, current, ast.index, ast.right, ast.expr);
     }
     case RULE_DEFINITION: {
-      return new DefinitionRule(env, current, ast.name, ast.right, ast.refs, ast.expr);
+      return new DefinitionCalcRule(env, current, ast.name, ast.right, ast.refs, ast.expr);
     }
     case RULE_APPLY: {
-      return new ApplyRule(env, current, ast.name, ast.right, ast.refs, ast.expr);
+      return new ApplyCalcRule(env, current, ast.name, ast.right, ast.refs, ast.expr);
     }
   }
 }

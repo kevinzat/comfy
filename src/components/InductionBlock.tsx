@@ -1,5 +1,6 @@
 import React from 'react';
 import { Formula } from '../facts/formula';
+import { AtomProp } from '../facts/prop';
 import { TheoremAst } from '../lang/theorem_ast';
 import { Environment } from '../types/env';
 import { CaseInfo, buildCases } from '../proof/induction';
@@ -9,8 +10,6 @@ import ProofBlock from './ProofBlock';
 import './InductionBlock.css';
 
 
-export { buildCases } from '../proof/induction';
-export type { CaseInfo } from '../proof/induction';
 
 export interface InductionBlockProps {
   formula: Formula;
@@ -36,7 +35,7 @@ export default class InductionBlock
 
   constructor(props: InductionBlockProps) {
     super(props);
-    this.cases = buildCases(props.formula, props.env, props.varName, props.argNames, props.premise ? [props.premise] : []);
+    this.cases = buildCases(new AtomProp(props.formula), props.env, props.varName, props.argNames, props.premise ? [new AtomProp(props.premise)] : []);
     this.proofBlockRefs = this.cases.map(() => React.createRef<ProofBlock>());
     this.state = {
       caseComplete: this.cases.map(() => false),
@@ -107,6 +106,11 @@ export default class InductionBlock
           Proof by induction on <i>{varName}</i>:
         </div>
         {this.cases.map((c, idx) => {
+          /* v8 ignore start */
+          if (!(c.goal instanceof AtomProp))
+            throw new Error('case goal is not a formula');
+          /* v8 ignore stop */
+          const caseFormula = c.goal.formula;
           const ctorLabel = c.argNames.length === 0
             ? c.ctor.name
             : `${c.ctor.name}(${c.argNames.map((n, i) =>
@@ -140,7 +144,7 @@ export default class InductionBlock
               )}
               <ProofBlock
                 ref={this.proofBlockRefs[idx]}
-                formula={c.goal}
+                formula={caseFormula}
                 env={c.env}
                 defNames={this.props.defNames ?? []}
                 showHtml={showHtml}

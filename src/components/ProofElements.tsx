@@ -4,8 +4,8 @@ import { Expression, Call, Constant, Variable,
          FUNC_ADD, FUNC_SUBTRACT, FUNC_MULTIPLY, FUNC_NEGATE,
          FUNC_EXPONENTIATE } from '../facts/exprs';
 import { OP_LESS_EQUAL } from '../facts/formula';
-import { RuleAst, AlgebraAst, SubstituteAst, DefinitionAst, RULE_ALGEBRA, RULE_SUBSTITUTE, RULE_DEFINITION } from '../rules/rules_ast';
-import { TacticAst, AlgebraTacticAst, SubstituteTacticAst, DefinitionTacticAst, TACTIC_ALGEBRA, TACTIC_SUBSTITUTE, TACTIC_DEFINITION } from '../rules/tactics_ast';
+import { RuleAst, AlgebraAst, SubstituteAst, DefinitionAst, RULE_ALGEBRA, RULE_SUBSTITUTE, RULE_DEFINITION } from '../calc/rules_ast';
+import { TacticAst, AlgebraTacticAst, SubstituteTacticAst, DefinitionTacticAst, TACTIC_ALGEBRA, TACTIC_SUBSTITUTE, TACTIC_DEFINITION } from '../calc/tactics_ast';
 
 
 /** Returns the display string for a formula operator, using ≤ for <=. */

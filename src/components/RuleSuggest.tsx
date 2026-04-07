@@ -1,5 +1,5 @@
 import React from 'react';
-import { Match } from '../rules/infer_complete';
+import { Match } from '../calc/calc_complete';
 
 
 interface RuleSuggestProps {

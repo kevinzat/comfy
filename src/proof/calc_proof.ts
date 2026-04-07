@@ -1,8 +1,8 @@
 import { Expression } from '../facts/exprs';
 import { Formula, FormulaOp, OP_EQUAL } from '../facts/formula';
 import { Environment } from '../types/env';
-import { ParseForwardRule, CreateRule } from '../rules/infer_forward';
-import { ParseBackwardRule, CreateTactic } from '../rules/infer_backward';
+import { ParseForwardRule, CreateCalcRule } from '../calc/calc_forward';
+import { ParseBackwardRule, CreateCalcTactic } from '../calc/calc_backward';
 import { IsEquationChainValid } from '../decision/equation';
 import { IsInequalityChainValid } from '../decision/inequality';
 
@@ -15,7 +15,7 @@ export interface Step {
 export function applyForwardRule(
     text: string, current: Expression, env: Environment): Step {
   const parsed = ParseForwardRule(text);
-  const rule = CreateRule(parsed, current, env);
+  const rule = CreateCalcRule(parsed, current, env);
   const formula = rule.apply();
   return { op: formula.op, expr: formula.right };
 }
@@ -23,7 +23,7 @@ export function applyForwardRule(
 export function applyBackwardRule(
     text: string, goal: Expression, env: Environment): Step {
   const parsed = ParseBackwardRule(text);
-  const tactic = CreateTactic(parsed, goal, env);
+  const tactic = CreateCalcTactic(parsed, goal, env);
   const formula = tactic.apply();
   return { op: formula.op, expr: formula.left };
 }

@@ -1,7 +1,8 @@
-/** Forward rules (rules of inference) that transform expressions. */
+/** Forward calc rules that transform expressions. */
 
 import { Expression } from '../facts/exprs';
 import { Formula, FormulaOp, OP_EQUAL, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
+import { AtomProp, Prop } from '../facts/prop';
 import { Definition, funcToDefinitions } from '../lang/func_ast';
 import { Environment } from '../types/env';
 import { EquationRewriter, InequalityRewriter, DefinitionRewriter, TheoremEquationRewriter, TheoremInequalityRewriter } from './rewriter';
@@ -9,6 +10,15 @@ import { IsEquationImplied } from '../decision/equation';
 import { IsInequalityImplied } from '../decision/inequality';
 import { UserError } from '../facts/user_error';
 import { TacticAst, AlgebraTacticAst, SubstituteTacticAst, DefinitionTacticAst, ApplyTacticAst } from './tactics_ast';
+
+function getFactFormula(env: Environment, index: number): Formula {
+  const prop = env.getFact(index);
+  /* v8 ignore start */
+  if (!(prop instanceof AtomProp))
+    throw new Error(`fact ${index} is not a formula`);
+  /* v8 ignore stop */
+  return prop.formula;
+}
 
 export const RULE_ALGEBRA = 2;
 export const RULE_SUBSTITUTE = 3;
@@ -38,7 +48,7 @@ export function lookupDefinition(env: Environment, name: string): Definition {
 }
 
 
-export abstract class Rule {
+export abstract class CalcRule {
   variety: number;
   private result_?: Formula;
 
@@ -63,7 +73,7 @@ export abstract class Rule {
  * Algebra rule: asserts that a formula follows from the cited known facts.
  * Uses IsEquationImplied for pure equations and IsInequalityImplied otherwise.
  */
-export class AlgebraRule extends Rule {
+export class AlgebraCalcRule extends CalcRule {
   formula: Formula;
   known: Formula[];
   knownIndices: number[];
@@ -72,7 +82,7 @@ export class AlgebraRule extends Rule {
     super(RULE_ALGEBRA);
     this.formula = formula;
     this.knownIndices = knowns;
-    this.known = knowns.map(i => env.getFact(i));
+    this.known = knowns.map(i => getFactFormula(env, i));
 
     const useInequality = formula.op !== OP_EQUAL ||
         this.known.some(f => f.op !== OP_EQUAL);
@@ -114,7 +124,7 @@ export class AlgebraRule extends Rule {
  * right = true (subst): replace left side with right side.
  * right = false (unsub): replace right side with left side.
  */
-export class SubstituteRule extends Rule {
+export class SubstituteCalcRule extends CalcRule {
   ex: Expression;
   eq: Formula;
   right: boolean;
@@ -124,7 +134,7 @@ export class SubstituteRule extends Rule {
   constructor(env: Environment, ex: Expression, known: number, right: boolean, result?: Expression) {
     super(RULE_SUBSTITUTE);
 
-    this.eq = env.getFact(known);
+    this.eq = getFactFormula(env, known);
     this.ex = ex;
     this.right = right;
     this.knownIndex = known;
@@ -165,7 +175,7 @@ export class SubstituteRule extends Rule {
  * undef name (right = false): at each node, try to unify with the right side
  *   (the body) and replace with the left side (the pattern).
  */
-export class DefinitionRule extends Rule {
+export class DefinitionCalcRule extends CalcRule {
   ex: Expression;
   defFormula: Formula;
   name: string;
@@ -182,7 +192,7 @@ export class DefinitionRule extends Rule {
     this.knownIndices = knowns;
     const def = lookupDefinition(env, name);
     this.defFormula = def.formula;
-    const knownFacts = knowns.map(i => env.getFact(i));
+    const knownFacts = knowns.map(i => getFactFormula(env, i));
 
     if (def.condition && knowns.length === 0)
       throw new UserError(
@@ -216,7 +226,7 @@ export class DefinitionRule extends Rule {
  * For inequality conclusions: produces an inequality, uses polarity-aware walk.
  * If the theorem has a premise, the user must cite facts that imply it.
  */
-export class ApplyRule extends Rule {
+export class ApplyCalcRule extends CalcRule {
   ex: Expression;
   name: string;
   right: boolean;
@@ -234,7 +244,7 @@ export class ApplyRule extends Rule {
     if (!env.hasTheorem(name))
       throw new UserError(`apply/unapp: unknown theorem "${name}"`);
     const theorem = env.getTheorem(name);
-    const knownFacts = knowns.map(i => env.getFact(i));
+    const knownFacts = knowns.map(i => getFactFormula(env, i));
 
     if (theorem.premises.length > 0 && knowns.length === 0)
       throw new UserError(
@@ -246,7 +256,13 @@ export class ApplyRule extends Rule {
     if (theorem.conclusion.tag !== 'atom')
       throw new UserError(`apply/unapp: "${name}" has a non-atomic conclusion`);
     const concl = theorem.conclusion.formula;
-    const atomPremises = theorem.premises.flatMap(p => p.tag === 'atom' ? [p.formula] : []);
+    const atomPremises = theorem.premises.map(p => {
+      /* v8 ignore start */
+      if (!(p instanceof AtomProp))
+        throw new Error(`apply/unapp: "${name}" has a non-atomic premise`);
+      /* v8 ignore stop */
+      return p.formula;
+    });
 
     if (concl.op === OP_EQUAL) {
       const rewriter = new TheoremEquationRewriter(

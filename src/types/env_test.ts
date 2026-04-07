@@ -200,7 +200,7 @@ describe('TopLevelEnv facts', function() {
 
   it('numFacts returns correct count', function() {
     const env = new TopLevelEnv([], [], [
-      ParseFormula('x + y = 5'), ParseFormula('x = 3'),
+      new AtomProp(ParseFormula('x + y = 5')), new AtomProp(ParseFormula('x = 3')),
     ]);
     assert.equal(env.numFacts(), 2);
   });
@@ -211,33 +211,33 @@ describe('TopLevelEnv facts', function() {
   });
 
   it('getFact returns 1-indexed facts', function() {
-    const f1 = ParseFormula('x = 3');
-    const f2 = ParseFormula('y = 5');
+    const f1 = new AtomProp(ParseFormula('x = 3'));
+    const f2 = new AtomProp(ParseFormula('y = 5'));
     const env = new TopLevelEnv([], [], [f1, f2]);
     assert.equal(env.getFact(1), f1);
     assert.equal(env.getFact(2), f2);
   });
 
   it('getFact throws for index 0', function() {
-    const env = new TopLevelEnv([], [], [ParseFormula('x = 1')]);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x = 1'))]);
     assert.throws(() => env.getFact(0));
   });
 
   it('getFact throws for out of range', function() {
-    const env = new TopLevelEnv([], [], [ParseFormula('x = 1')]);
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x = 1'))]);
     assert.throws(() => env.getFact(2));
   });
 
   it('check succeeds for well-typed facts', function() {
     const env = new NestedEnv(new TopLevelEnv([], []), [['x', 'Int'], ['y', 'Int']], [
-      ParseFormula('x + y = 5'),
+      new AtomProp(ParseFormula('x + y = 5')),
     ]);
     env.check();
   });
 
   it('check throws for fact with unknown variable', function() {
     const env = new TopLevelEnv([], [], [
-      ParseFormula('z = 1'),
+      new AtomProp(ParseFormula('z = 1')),
     ]);
     assert.throws(() => env.check(), UnknownNameError);
   });
@@ -248,18 +248,18 @@ describe('TopLevelEnv facts', function() {
 describe('NestedEnv facts', function() {
 
   const parent = new NestedEnv(new TopLevelEnv([], []), [['x', 'Int']], [
-    ParseFormula('x = 3'),
-    ParseFormula('x + 1 = 4'),
+    new AtomProp(ParseFormula('x = 3')),
+    new AtomProp(ParseFormula('x + 1 = 4')),
   ]);
 
   it('numFacts includes parent and local facts', function() {
-    const localFact = new Formula(Variable.of('a'), OP_EQUAL, Constant.of(1n));
+    const localFact = new AtomProp(new Formula(Variable.of('a'), OP_EQUAL, Constant.of(1n)));
     const nested = new NestedEnv(parent, [['a', 'Int']], [localFact]);
     assert.equal(nested.numFacts(), 3);
   });
 
   it('parent facts come first in numbering', function() {
-    const localFact = new Formula(Variable.of('a'), OP_EQUAL, Constant.of(1n));
+    const localFact = new AtomProp(new Formula(Variable.of('a'), OP_EQUAL, Constant.of(1n)));
     const nested = new NestedEnv(parent, [['a', 'Int']], [localFact]);
     // Parent facts at 1 and 2
     assert.equal(nested.getFact(1).to_string(), 'x = 3');
@@ -276,13 +276,13 @@ describe('NestedEnv facts', function() {
   });
 
   it('check validates local facts', function() {
-    const goodFact = new Formula(Variable.of('a'), OP_EQUAL, Constant.of(1n));
+    const goodFact = new AtomProp(new Formula(Variable.of('a'), OP_EQUAL, Constant.of(1n)));
     const nested = new NestedEnv(parent, [['a', 'Int']], [goodFact]);
     nested.check();
   });
 
   it('check throws for bad local fact', function() {
-    const badFact = new Formula(Variable.of('unknown'), OP_EQUAL, Constant.of(1n));
+    const badFact = new AtomProp(new Formula(Variable.of('unknown'), OP_EQUAL, Constant.of(1n)));
     const nested = new NestedEnv(parent, [], [badFact]);
     assert.throws(() => nested.check(), UnknownNameError);
   });

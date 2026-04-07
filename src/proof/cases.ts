@@ -1,4 +1,5 @@
 import { Formula, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
+import { AtomProp } from '../facts/prop';
 import { Environment, NestedEnv } from '../types/env';
 
 export function negateCondition(f: Formula): Formula {
@@ -22,7 +23,7 @@ export function buildCasesOnCondition(
     throw new Error('cases condition must use < or <=');
   }
   const negated = negateCondition(condition);
-  const thenEnv = new NestedEnv(env, [], [condition]);
-  const elseEnv = new NestedEnv(env, [], [negated]);
+  const thenEnv = new NestedEnv(env, [], [new AtomProp(condition)]);
+  const elseEnv = new NestedEnv(env, [], [new AtomProp(negated)]);
   return { condition, negated, thenEnv, elseEnv };
 }

@@ -4,7 +4,7 @@ import { ParseFormula } from '../facts/formula_parser';
 import { Environment } from '../types/env';
 import { defaultArgNames } from '../proof/induction';
 import { ProofNode } from '../proof/proof_file';
-import { Match, LongestCommonPrefix } from '../rules/infer_complete';
+import { Match, LongestCommonPrefix } from '../calc/calc_complete';
 import { ExprToHtml, OpToHtml } from './ProofElements';
 import { RuleSuggest } from './RuleSuggest';
 import CalcBlock from './CalcBlock';

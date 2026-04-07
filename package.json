@@ -9,12 +9,12 @@
     "build": "vite build --base=/comfy",
     "preview": "vite preview",
     "lint": "eslint src/",
-    "check-ignores": "./scripts/check-ignores.sh src",
     "pretest": "npm run check-ignores",
+    "check-ignores": "./scripts/check-ignores.sh src",
     "test": "vitest run --coverage",
+    "test-lean": "vitest run --config scripts/vitest-lean.config.ts --reporter=verbose",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist",
-    "test-lean": "vitest run --config scripts/vitest-lean.config.ts --reporter=verbose"
+    "deploy": "gh-pages -d dist"
   },
   "dependencies": {
     "@types/moo": "^0.5.0",
