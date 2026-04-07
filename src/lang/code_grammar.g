@@ -16,13 +16,13 @@ FuncDef -> %typeName %ident %lparen Params %rparen RequiresClause EnsuresClause 
       new codeAst.FuncDef(ret.text, name.text, params, stmts, requires, ensures, ret.line, ret.col) %}
 
 RequiresClause -> null {% () => [] %}
-               | %kw_requires PropList {% ([_kw, cs]) => cs %}
+               | %kw_requires CondList {% ([_kw, cs]) => cs %}
 
 EnsuresClause -> null {% () => [] %}
-              | %kw_ensures PropList {% ([_kw, cs]) => cs %}
+              | %kw_ensures CondList {% ([_kw, cs]) => cs %}
 
-PropList -> Prop {% ([c]) => [c] %}
-          | PropList %comma Prop {% ([cs, _c, c]) => [...cs, c] %}
+CondList -> Cond {% ([c]) => [c] %}
+          | CondList %comma Cond {% ([cs, _c, c]) => [...cs, c] %}
 
 Params -> null {% () => [] %}
         | ParamList {% ([a]) => a %}
@@ -40,9 +40,9 @@ Stmt -> %typeName %ident %equal Expr %semi
   {% ([t, n, _eq, e, _s]) => new codeAst.DeclStmt(t.text, n.text, e, t.line, t.col) %}
       | %ident %equal Expr %semi
   {% ([n, _eq, e, _s]) => new codeAst.AssignStmt(n.text, e, n.line, n.col) %}
-      | %kw_while %lparen Prop %rparen %kw_invariant PropList %lbrace Stmts %rbrace
+      | %kw_while %lparen Cond %rparen %kw_invariant CondList %lbrace Stmts %rbrace
   {% ([kw, _lp, cond, _rp, _ki, inv, _lb, stmts, _rb]) => new codeAst.WhileStmt(cond, inv, stmts, kw.line, kw.col) %}
-      | %kw_if %lparen Prop %rparen %lbrace Stmts %rbrace %kw_else %lbrace Stmts %rbrace
+      | %kw_if %lparen Cond %rparen %lbrace Stmts %rbrace %kw_else %lbrace Stmts %rbrace
   {% ([kw, _lp, cond, _rp, _lb, then_, _rb, _e, _lb2, else_, _rb2]) =>
       new codeAst.IfStmt(cond, then_, else_, kw.line, kw.col) %}
       | %kw_pass %semi
@@ -50,20 +50,20 @@ Stmt -> %typeName %ident %equal Expr %semi
       | %kw_return Expr %semi
   {% ([kw, e, _s]) => new codeAst.ReturnStmt(e, kw.line, kw.col) %}
 
-Prop -> Prop %kw_or PropAnd
+Cond -> Cond %kw_or CondAnd
   {% ([l, op, r]) => new codeAst.OrCondAst(l, r, op.line, op.col) %}
-      | PropAnd {% ([p]) => p %}
+      | CondAnd {% ([p]) => p %}
 
-PropAnd -> PropAnd %kw_and PropNot
+CondAnd -> CondAnd %kw_and CondNot
   {% ([l, op, r]) => new codeAst.AndCondAst(l, r, op.line, op.col) %}
-         | PropNot {% ([p]) => p %}
+         | CondNot {% ([p]) => p %}
 
-PropNot -> %kw_not PropNot
+CondNot -> %kw_not CondNot
   {% ([op, p]) => new codeAst.NotCondAst(p, op.line, op.col) %}
-         | %lparen Prop %rparen {% ([_lp, p, _rp]) => p %}
-         | AtomicProp {% ([p]) => p %}
+         | %lparen Cond %rparen {% ([_lp, p, _rp]) => p %}
+         | AtomicCond {% ([p]) => p %}
 
-AtomicProp -> Expr %equalequal Expr
+AtomicCond -> Expr %equalequal Expr
   {% ([l, op, r]) => new codeAst.RelAst(l, '==', r, op.line, op.col) %}
             | Expr %notequal Expr
   {% ([l, op, r]) => new codeAst.RelAst(l, '!=', r, op.line, op.col) %}
