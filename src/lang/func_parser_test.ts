@@ -150,10 +150,15 @@ describe('func_parser', function() {
     const body = result.cases[0].body;
     assert.equal(body.tag, 'if');
     if (body.tag !== 'if') return;
-    assert.ok(body.condition.left.equals(Variable.of('x')));
-    assert.equal(body.condition.op, '<');
-    assert.ok(body.condition.right.equals(Constant.of(0n)));
-    assert.ok(body.thenBody.equals(Call.negate(Variable.of('x'))));
+    assert.equal(body.branches.length, 1);
+    const cond = body.branches[0].conditions[0];
+    assert.equal(cond.tag, 'atom');
+    if (cond.tag === 'atom') {
+      assert.ok(cond.formula.left.equals(Variable.of('x')));
+      assert.equal(cond.formula.op, '<');
+      assert.ok(cond.formula.right.equals(Constant.of(0n)));
+    }
+    assert.ok(body.branches[0].body.equals(Call.negate(Variable.of('x'))));
     assert.ok(body.elseBody.equals(Variable.of('x')));
   });
 
@@ -165,20 +170,64 @@ describe('func_parser', function() {
     const body = result.cases[0].body;
     assert.equal(body.tag, 'if');
     if (body.tag !== 'if') return;
-    assert.equal(body.condition.op, '<=');
-    assert.ok(body.thenBody.equals(Constant.of(0n)));
+    const cond = body.branches[0].conditions[0];
+    assert.equal(cond.tag, 'atom');
+    if (cond.tag === 'atom') assert.equal(cond.formula.op, '<=');
+    assert.ok(body.branches[0].body.equals(Constant.of(0n)));
     assert.ok(body.elseBody.equals(Variable.of('x')));
   });
 
-  it('error on if with = condition', function() {
-    const { ast, error } = ParseFunc(
+  it('parse if/else with = condition', function() {
+    const { ast: result } = ParseFunc(
         `def f : (Int) -> Int
          | f(x) => if x = 0 then 0 else x`);
-    assert.equal(ast, undefined);
-    assert.ok(error);
+    assert.ok(result);
+    const body = result.cases[0].body;
+    assert.equal(body.tag, 'if');
+    if (body.tag !== 'if') return;
+    const cond = body.branches[0].conditions[0];
+    assert.equal(cond.tag, 'atom');
+    if (cond.tag === 'atom') assert.equal(cond.formula.op, '=');
   });
 
-  it('error on nested if/else', function() {
+  it('parse if/else with not condition', function() {
+    const { ast: result } = ParseFunc(
+        `def f : (Int) -> Int
+         | f(x) => if not x = 0 then x else 0`);
+    assert.ok(result);
+    const body = result.cases[0].body;
+    assert.equal(body.tag, 'if');
+    if (body.tag !== 'if') return;
+    const cond = body.branches[0].conditions[0];
+    assert.equal(cond.tag, 'not');
+  });
+
+  it('parse if/else with multiple conditions', function() {
+    const { ast: result } = ParseFunc(
+        `def f : (Int, Int) -> Int
+         | f(x, y) => if x < 0, y < 0 then 1 else 0`);
+    assert.ok(result);
+    const body = result.cases[0].body;
+    assert.equal(body.tag, 'if');
+    if (body.tag !== 'if') return;
+    assert.equal(body.branches[0].conditions.length, 2);
+  });
+
+  it('parse if/else-if/else', function() {
+    const { ast: result } = ParseFunc(
+        `def f : (Int) -> Int
+         | f(x) => if x < 0 then -1 else if x = 0 then 0 else 1`);
+    assert.ok(result);
+    const body = result.cases[0].body;
+    assert.equal(body.tag, 'if');
+    if (body.tag !== 'if') return;
+    assert.equal(body.branches.length, 2);
+    assert.ok(body.branches[0].body.equals(Call.negate(Constant.of(1n))));
+    assert.ok(body.branches[1].body.equals(Constant.of(0n)));
+    assert.ok(body.elseBody.equals(Constant.of(1n)));
+  });
+
+  it('error on nested if in then-body', function() {
     const { ast, error } = ParseFunc(
         `def f : (Int) -> Int
          | f(x) => if x < 0 then if x < -1 then 0 else 1 else x`);

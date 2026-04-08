@@ -8,7 +8,7 @@ import { TopLevelEnv, NestedEnv } from '../types/env';
 import { ProofObligation } from '../program/obligations';
 import { ProofNode } from '../proof/proof_file';
 import { oblToLean } from '../proof/lean';
-import { ExprToHtml, OpToHtml } from './ProofElements';
+import { ExprToHtml, OpToHtml, PropToHtml } from './ProofElements';
 import ProofBlock from './ProofBlock';
 import './Proof.css';
 
@@ -72,7 +72,7 @@ function renderFuncDecl(func: FuncAst, showHtml: boolean): JSX.Element {
         <div className="decl-func-case" key={def.name}>
           <span className="decl-func-case-name">{def.name}: </span>
           <span>{ExprToHtml(def.formula.left)} = {ExprToHtml(def.formula.right)}
-            {def.condition && <>{' '}<span className="decl-func-condition">if {ExprToHtml(def.condition.left)} {OpToHtml(def.condition.op)} {ExprToHtml(def.condition.right)}</span></>}
+            {def.conditions.length > 0 && <>{' '}<span className="decl-func-condition">if {def.conditions.map((c, j) => <React.Fragment key={j}>{j > 0 && ', '}{PropToHtml(c)}</React.Fragment>)}</span></>}
           </span>
         </div>
       ))}
@@ -82,9 +82,7 @@ function renderFuncDecl(func: FuncAst, showHtml: boolean): JSX.Element {
     const lines = [`def ${func.name} : ${sigType}`];
     for (const c of func.cases) {
       const params = c.params.map(paramToString).join(', ');
-      const bodyStr = c.body.tag === 'expr'
-          ? c.body.expr.to_string()
-          : `if ${c.body.condition.to_string()} then ${c.body.thenBody.to_string()} else ${c.body.elseBody.to_string()}`;
+      const bodyStr = c.body.to_string();
       lines.push(`| ${func.name}(${params}) => ${bodyStr}`);
     }
     return <div className="decl-func decl-text" key={`func-${func.name}`}>

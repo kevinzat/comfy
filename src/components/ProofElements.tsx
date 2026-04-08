@@ -3,7 +3,8 @@ import { Expression, Call, Constant, Variable,
          EXPR_CONSTANT, EXPR_VARIABLE, EXPR_FUNCTION,
          FUNC_ADD, FUNC_SUBTRACT, FUNC_MULTIPLY, FUNC_NEGATE,
          FUNC_EXPONENTIATE } from '../facts/exprs';
-import { OP_LESS_EQUAL } from '../facts/formula';
+import { Formula, OP_LESS_EQUAL } from '../facts/formula';
+import { Prop } from '../facts/prop';
 import { RuleAst, AlgebraAst, SubstituteAst, DefinitionAst, RULE_ALGEBRA, RULE_SUBSTITUTE, RULE_DEFINITION } from '../calc/rules_ast';
 import { TacticAst, AlgebraTacticAst, SubstituteTacticAst, DefinitionTacticAst, TACTIC_ALGEBRA, TACTIC_SUBSTITUTE, TACTIC_DEFINITION } from '../calc/tactics_ast';
 
@@ -76,6 +77,27 @@ function AddExprHtml(expr: Expression, parts: any[]): void {
       }
       break;
     }
+  }
+}
+
+/** Returns HTML that displays a formula (Expr op Expr). */
+export function FormulaToHtml(f: Formula): JSX.Element {
+  return <span className="formula">{ExprToHtml(f.left)} {OpToHtml(f.op)} {ExprToHtml(f.right)}</span>;
+}
+
+/** Returns HTML that displays a Prop. */
+export function PropToHtml(p: Prop): JSX.Element {
+  switch (p.tag) {
+    case 'atom':
+      return FormulaToHtml(p.formula);
+    case 'not':
+      return <span className="prop-not">not {FormulaToHtml(p.formula)}</span>;
+    case 'or':
+      return <span className="prop-or">
+        {p.disjuncts.map((d, i) => <React.Fragment key={i}>{i > 0 && ' or '}{PropToHtml(d)}</React.Fragment>)}
+      </span>;
+    case 'const':
+      return <span className="prop-const">{p.value ? 'true' : 'false'}</span>;
   }
 }
 

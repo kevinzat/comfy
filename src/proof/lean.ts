@@ -143,10 +143,15 @@ function funcToLean(func: FuncAst, ctors: Set<string>): string {
     if (c.body.tag === 'expr') {
       body = exprToLean(c.body.expr, ctors);
     } else {
-      const cond = formulaToLean(c.body.condition, ctors);
-      const thenExpr = exprToLean(c.body.thenBody, ctors);
-      const elseExpr = exprToLean(c.body.elseBody, ctors);
-      body = `if ${cond} then ${thenExpr} else ${elseExpr}`;
+      const parts: string[] = [];
+      for (let j = 0; j < c.body.branches.length; j++) {
+        const branch = c.body.branches[j];
+        const keyword = j === 0 ? 'if' : 'else if';
+        const conds = branch.conditions.map(p => propToLean(p, ctors)).join(' ∧ ');
+        parts.push(`${keyword} ${conds} then ${exprToLean(branch.body, ctors)}`);
+      }
+      parts.push(`else ${exprToLean(c.body.elseBody, ctors)}`);
+      body = parts.join(' ');
     }
     lines.push(`  | ${params} => ${body}`);
   }

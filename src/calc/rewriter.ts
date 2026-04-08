@@ -13,6 +13,7 @@ import {
   Call,
   Constant,
   Expression,
+  Variable,
   EXPR_CONSTANT,
   EXPR_FUNCTION,
   FUNC_ADD,
@@ -20,16 +21,19 @@ import {
   FUNC_MULTIPLY,
   FUNC_NEGATE,
 } from '../facts/exprs';
-import { Formula, FormulaOp, OP_EQUAL } from '../facts/formula';
-import { UnifyExprs, ApplySubst, FreshenVarsMany } from '../facts/unify';
+import { Formula, FormulaOp, OP_EQUAL, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
+import { Prop, AtomProp, NotProp } from '../facts/prop';
+import { UnifyExprs, ApplySubst, FreshVarName } from '../facts/unify';
 import { IsEquationImplied } from '../decision/equation';
 import { IsInequalityImplied } from '../decision/inequality';
 import { UserError } from '../facts/user_error';
+import { Environment } from '../types/env';
+import { checkExpr } from '../types/checker';
 
 
 export interface RewriteCandidate {
   result: Expression;
-  conditions: Formula[];
+  conditions: Prop[];
 }
 
 export interface PolarizedCandidate extends RewriteCandidate {
@@ -64,7 +68,7 @@ export abstract class Rewriter {
    * Tests whether a rewrite applies at this node. Returns the replacement
    * expression and an optional condition, or undefined if no match.
    */
-  abstract tryMatch(node: Expression): { replacement: Expression; conditions: Formula[] } | undefined;
+  abstract tryMatch(node: Expression): { replacement: Expression; conditions: Prop[] } | undefined;
 
   /**
    * Enumerates all single-replacement candidates. The default implementation
@@ -75,7 +79,7 @@ export abstract class Rewriter {
   }
 
   /** Validates conditions on the chosen candidate. Override if needed. */
-  validateConditions(conditions: Formula[]): void {
+  validateConditions(conditions: Prop[]): void {
     if (conditions.length > 0) {
       throw new UserError(
         `${this.label}: unexpected condition ${conditions[0].to_string()}`);
@@ -282,35 +286,42 @@ function setupUnification(
   env: { hasConstructor(name: string): boolean },
   formula: Formula,
   right: boolean,
-  conditions: Formula[],
+  conditions: Prop[],
 ): {
   matchSide: Expression;
   replSide: Expression;
   freeVars: Set<string>;
-  conditionsFreshened: [Expression, Expression][];
-  conditionOps: FormulaOp[];
+  conditionsFreshened: Prop[];
 } {
   const origMatch = right ? formula.left : formula.right;
   const origRepl = right ? formula.right : formula.left;
   const origVars = new Set(
     origMatch.var_refs().filter(v => !env.hasConstructor(v)));
 
-  const toFreshen = [origMatch, origRepl];
-  for (const c of conditions) {
-    toFreshen.push(c.left, c.right);
+  // Freshen variables in both expressions and conditions together.
+  let matchSide = origMatch;
+  let replSide = origRepl;
+  let conditionsFreshened = conditions;
+  const freeVars = new Set<string>();
+  for (const v of origVars) {
+    const fresh = FreshVarName();
+    freeVars.add(fresh);
+    const vExpr = Variable.of(v);
+    const freshExpr = Variable.of(fresh);
+    matchSide = matchSide.subst(vExpr, freshExpr);
+    replSide = replSide.subst(vExpr, freshExpr);
+    conditionsFreshened = conditionsFreshened.map(c => c.subst(vExpr, freshExpr));
   }
-  const [freshened, freeVars] = FreshenVarsMany(toFreshen, origVars);
 
-  const conditionsFreshened: [Expression, Expression][] = conditions.map(
-    (_, i) => [freshened[2 + i * 2], freshened[2 + i * 2 + 1]]);
+  return { matchSide, replSide, freeVars, conditionsFreshened };
+}
 
-  return {
-    matchSide: freshened[0],
-    replSide: freshened[1],
-    freeVars,
-    conditionsFreshened,
-    conditionOps: conditions.map(c => c.op),
-  };
+function applySubstProp(prop: Prop, subst: Map<string, Expression>): Prop {
+  let r = prop;
+  for (const [v, val] of subst) {
+    r = r.subst(Variable.of(v), val);
+  }
+  return r;
 }
 
 function unifyTryMatch(
@@ -318,36 +329,89 @@ function unifyTryMatch(
   matchSide: Expression,
   replSide: Expression,
   freeVars: Set<string>,
-  conditionsFreshened: [Expression, Expression][],
-  conditionOps: FormulaOp[],
-): { replacement: Expression; conditions: Formula[] } | undefined {
+  conditionsFreshened: Prop[],
+): { replacement: Expression; conditions: Prop[] } | undefined {
   const subst = UnifyExprs(node, matchSide, freeVars);
   if (subst === undefined) return undefined;
   const replacement = ApplySubst(replSide, subst);
-  const conditions = conditionsFreshened.map((pair, i) =>
-    new Formula(ApplySubst(pair[0], subst), conditionOps[i], ApplySubst(pair[1], subst)));
+  const conditions = conditionsFreshened.map(c => applySubstProp(c, subst));
   return { replacement, conditions };
 }
 
-function validateWithInequalityImplied(
-  label: string, knownFacts: Formula[], condition: Formula,
-): void {
-  if (!IsInequalityImplied(knownFacts, condition)) {
-    throw new UserError(
-      `${label}: condition ${condition.to_string()} is not implied by the cited facts: ${knownFacts.map(f => f.to_string()).join(' | ')}`);
+/**
+ * Converts a Prop to a Formula for use in implication checking.
+ * AtomProp: returns the formula directly.
+ * NotProp: negates the inequality (not (a < b) → b <= a, not (a <= b) → b < a).
+ * Returns undefined for Props that cannot be converted.
+ */
+function propToFormula(prop: Prop): Formula | undefined {
+  if (prop.tag === 'atom')
+    return prop.formula;
+  if (prop.tag === 'not') {
+    const f = prop.formula;
+    if (f.op === OP_LESS_THAN)
+      return new Formula(f.right, OP_LESS_EQUAL, f.left);
+    if (f.op === OP_LESS_EQUAL)
+      return new Formula(f.right, OP_LESS_THAN, f.left);
   }
+  return undefined;
 }
 
-function validatePremise(
-  label: string, knownFacts: Formula[], condition: Formula,
+/** Checks whether a single formula is implied by the known formulas. */
+function isFormulaImplied(knownFormulas: Formula[], formula: Formula): boolean {
+  if (formula.op === OP_EQUAL)
+    return IsEquationImplied(knownFormulas, formula);
+  return IsInequalityImplied(knownFormulas, formula);
+}
+
+/** Checks whether a condition is implied by the known facts. */
+function isConditionImplied(
+  env: Environment, knownFacts: Prop[], knownFormulas: Formula[],
+  condition: Prop,
+): boolean {
+  // Exact match: condition is directly among known facts.
+  if (knownFacts.some(k => k.equivalent(condition)))
+    return true;
+
+  // ConstProp: true is trivially satisfied, false is never.
+  if (condition.tag === 'const')
+    return condition.value;
+
+  // OrProp: satisfied if any disjunct is implied.
+  if (condition.tag === 'or')
+    return condition.disjuncts.some(d =>
+        isConditionImplied(env, knownFacts, knownFormulas, d));
+
+  // Try converting to a formula for implication checking.
+  const formula = propToFormula(condition);
+  if (formula !== undefined)
+    return isFormulaImplied(knownFormulas, formula);
+
+  // NotProp(a = b) for Int: check a < b or b < a.
+  /* v8 ignore start */
+  if (condition.tag !== 'not' || condition.formula.op !== OP_EQUAL)
+    throw new Error('unreachable');
+  /* v8 ignore stop */
+  const { left, right } = condition.formula;
+  if (checkExpr(env, left).name === 'Int' && checkExpr(env, right).name === 'Int') {
+    return isFormulaImplied(knownFormulas, new Formula(left, OP_LESS_THAN, right)) ||
+        isFormulaImplied(knownFormulas, new Formula(right, OP_LESS_THAN, left));
+  }
+
+  return false;
+}
+
+function validateConditionsImplied(
+  env: Environment, label: string, knownFacts: Prop[], conditions: Prop[],
 ): void {
-  if (condition.op === OP_EQUAL) {
-    if (!IsEquationImplied(knownFacts, condition)) {
-      throw new UserError(
-        `${label}: premise ${condition.to_string()} is not implied by the cited facts: ${knownFacts.map(f => f.to_string()).join(' | ')}`);
-    }
-  } else {
-    if (!IsInequalityImplied(knownFacts, condition)) {
+  const knownFormulas: Formula[] = [];
+  for (const fact of knownFacts) {
+    const f = propToFormula(fact);
+    if (f !== undefined) knownFormulas.push(f);
+  }
+
+  for (const condition of conditions) {
+    if (!isConditionImplied(env, knownFacts, knownFormulas, condition)) {
       throw new UserError(
         `${label}: premise ${condition.to_string()} is not implied by the cited facts: ${knownFacts.map(f => f.to_string()).join(' | ')}`);
     }
@@ -360,39 +424,39 @@ function validatePremise(
  * full tree walk. Conditions are checked with IsInequalityImplied.
  */
 export class DefinitionRewriter extends Rewriter {
+  private env: Environment;
   private matchSide: Expression;
   private replSide: Expression;
   private freeVars: Set<string>;
-  private conditionsFreshened: [Expression, Expression][];
-  private conditionOps: FormulaOp[];
-  private knownFacts: Formula[];
+  private conditionsFreshened: Prop[];
+  private knownFacts: Prop[];
 
   constructor(
     label: string,
-    env: { hasConstructor(name: string): boolean },
+    env: Environment,
     ex: Expression,
     defFormula: Formula,
     right: boolean,
-    condition: Formula | undefined,
-    knownFacts: Formula[],
+    conditions: Prop[],
+    knownFacts: Prop[],
   ) {
     super(label, ex);
+    this.env = env;
     this.knownFacts = knownFacts;
-    const u = setupUnification(env, defFormula, right, condition ? [condition] : []);
+    const u = setupUnification(env, defFormula, right, conditions);
     this.matchSide = u.matchSide;
     this.replSide = u.replSide;
     this.freeVars = u.freeVars;
     this.conditionsFreshened = u.conditionsFreshened;
-    this.conditionOps = u.conditionOps;
   }
 
   tryMatch(node: Expression) {
     return unifyTryMatch(node, this.matchSide, this.replSide, this.freeVars,
-        this.conditionsFreshened, this.conditionOps);
+        this.conditionsFreshened);
   }
 
-  validateConditions(conditions: Formula[]): void {
-    validateWithInequalityImplied(this.label, this.knownFacts, conditions[0]);
+  validateConditions(conditions: Prop[]): void {
+    validateConditionsImplied(this.env, this.label, this.knownFacts, conditions);
   }
 }
 
@@ -403,41 +467,39 @@ export class DefinitionRewriter extends Rewriter {
  * IsInequalityImplied depending on the premise type.
  */
 export class TheoremEquationRewriter extends Rewriter {
+  private env: Environment;
   private matchSide: Expression;
   private replSide: Expression;
   private freeVars: Set<string>;
-  private conditionsFreshened: [Expression, Expression][];
-  private conditionOps: FormulaOp[];
-  private knownFacts: Formula[];
+  private conditionsFreshened: Prop[];
+  private knownFacts: Prop[];
 
   constructor(
     label: string,
-    env: { hasConstructor(name: string): boolean },
+    env: Environment,
     ex: Expression,
     conclusion: Formula,
     right: boolean,
-    premises: Formula[],
-    knownFacts: Formula[],
+    premises: Prop[],
+    knownFacts: Prop[],
   ) {
     super(label, ex);
+    this.env = env;
     this.knownFacts = knownFacts;
     const u = setupUnification(env, conclusion, right, premises);
     this.matchSide = u.matchSide;
     this.replSide = u.replSide;
     this.freeVars = u.freeVars;
     this.conditionsFreshened = u.conditionsFreshened;
-    this.conditionOps = u.conditionOps;
   }
 
   tryMatch(node: Expression) {
     return unifyTryMatch(node, this.matchSide, this.replSide, this.freeVars,
-        this.conditionsFreshened, this.conditionOps);
+        this.conditionsFreshened);
   }
 
-  validateConditions(conditions: Formula[]): void {
-    for (const condition of conditions) {
-      validatePremise(this.label, this.knownFacts, condition);
-    }
+  validateConditions(conditions: Prop[]): void {
+    validateConditionsImplied(this.env, this.label, this.knownFacts, conditions);
   }
 }
 
@@ -448,35 +510,35 @@ export class TheoremEquationRewriter extends Rewriter {
  * IsInequalityImplied depending on the premise type.
  */
 export class TheoremInequalityRewriter extends Rewriter {
+  private env: Environment;
   private matchSide: Expression;
   private replSide: Expression;
   private freeVars: Set<string>;
-  private conditionsFreshened: [Expression, Expression][];
-  private conditionOps: FormulaOp[];
-  private knownFacts: Formula[];
+  private conditionsFreshened: Prop[];
+  private knownFacts: Prop[];
 
   constructor(
     label: string,
-    env: { hasConstructor(name: string): boolean },
+    env: Environment,
     ex: Expression,
     conclusion: Formula,
     right: boolean,
-    premises: Formula[],
-    knownFacts: Formula[],
+    premises: Prop[],
+    knownFacts: Prop[],
   ) {
     super(label, ex);
+    this.env = env;
     this.knownFacts = knownFacts;
     const u = setupUnification(env, conclusion, right, premises);
     this.matchSide = u.matchSide;
     this.replSide = u.replSide;
     this.freeVars = u.freeVars;
     this.conditionsFreshened = u.conditionsFreshened;
-    this.conditionOps = u.conditionOps;
   }
 
   tryMatch(node: Expression) {
     return unifyTryMatch(node, this.matchSide, this.replSide, this.freeVars,
-        this.conditionsFreshened, this.conditionOps);
+        this.conditionsFreshened);
   }
 
   /** Whether the chosen match was at a positive position. */
@@ -493,9 +555,7 @@ export class TheoremInequalityRewriter extends Rewriter {
     return this.enumerateWithPolarity(this.ex, true);
   }
 
-  validateConditions(conditions: Formula[]): void {
-    for (const condition of conditions) {
-      validatePremise(this.label, this.knownFacts, condition);
-    }
+  validateConditions(conditions: Prop[]): void {
+    validateConditionsImplied(this.env, this.label, this.knownFacts, conditions);
   }
 }

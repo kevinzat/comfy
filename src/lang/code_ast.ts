@@ -247,7 +247,7 @@ function negateLiteral(lit: Literal): Literal {
  * Distributes OR over AND: given two CNF forms (lists of clauses), produces
  * the CNF of their disjunction via the cross product of clauses.
  */
-function distribute(left: ClauseLiteral[][], right: ClauseLiteral[][]): ClauseLiteral[][] {
+export function distribute(left: ClauseLiteral[][], right: ClauseLiteral[][]): ClauseLiteral[][] {
   const result: ClauseLiteral[][] = [];
   for (const l of left) {
     for (const r of right) {

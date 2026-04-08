@@ -8,7 +8,7 @@ import { AtomProp } from '../facts/prop';
 import { ParseExpr } from '../facts/exprs_parser';
 import { ParseFormula } from '../facts/formula_parser';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
-import { FuncAst, TypeAst, CaseAst, ExprBody, IfElseBody, ParamVar, ParamConstructor } from '../lang/func_ast';
+import { FuncAst, TypeAst, CaseAst, ExprBody, IfBranch, IfElseBody, ParamVar, ParamConstructor } from '../lang/func_ast';
 import { Constant, Variable, Call } from '../facts/exprs';
 
 
@@ -387,8 +387,9 @@ describe('CreateCalcTactic - conditional definition', function() {
     new CaseAst(
         [new ParamConstructor('cons', [new ParamVar('a'), new ParamVar('L')])],
         new IfElseBody(
-            new Formula(Variable.of('a'), OP_LESS_THAN, Constant.of(0n)),
-            Call.of('positives', Variable.of('L')),
+            [new IfBranch(
+                [new AtomProp(new Formula(Variable.of('a'), OP_LESS_THAN, Constant.of(0n)))],
+                Call.of('positives', Variable.of('L')))],
             Call.of('cons', Variable.of('a'), Call.of('positives', Variable.of('L'))))),
   ]);
 
@@ -408,7 +409,7 @@ describe('CreateCalcTactic - conditional definition', function() {
         [new AtomProp(ParseFormula('a <= 0'))]);
     const ast = ParseBackwardRule('defof positives_2a since 1');
     const goal = Call.of('positives', Variable.of('L'));
-    assert.throws(() => CreateCalcTactic(ast, goal, env), /condition/);
+    assert.throws(() => CreateCalcTactic(ast, goal, env), /not implied/);
   });
 
   it('backward defof conditional fails when no knowns provided', function() {

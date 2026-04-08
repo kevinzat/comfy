@@ -16,13 +16,29 @@ Case -> %pipe %variable %lparen Params %rparen %fatArrow Body
 
 Body -> Expr
       {% ([e]) => new funcAst.ExprBody(e) %}
-    | %kw_if Condition %kw_then Expr %kw_else Expr
-      {% ([_if, cond, _then, thenBody, _else, elseBody]) => new funcAst.IfElseBody(cond, thenBody, elseBody) %}
+    | IfChain
+      {% ([chain]) => chain %}
 
-Condition -> Expr %lessthan Expr
-      {% ([left, _op, right]) => new formula.Formula(left, '<', right) %}
-    | Expr %lessequal Expr
-      {% ([left, _op, right]) => new formula.Formula(left, '<=', right) %}
+IfChain -> %kw_if CondList %kw_then Expr %kw_else ElseBody
+      {% ([_if, conds, _then, body, _else, elseBody]) => {
+          if (elseBody instanceof funcAst.IfElseBody) {
+            return new funcAst.IfElseBody(
+              [new funcAst.IfBranch(conds, body), ...elseBody.branches],
+              elseBody.elseBody);
+          } else {
+            return new funcAst.IfElseBody(
+              [new funcAst.IfBranch(conds, body)],
+              elseBody);
+          }
+      } %}
+
+ElseBody -> Expr {% ([e]) => e %}
+          | IfChain {% ([chain]) => chain %}
+
+CondList -> Prop
+      {% ([p]) => [p] %}
+    | CondList %comma Prop
+      {% ([list, _comma, p]) => list.concat([p]) %}
 
 Params -> Param
       {% ([a]) => a %}

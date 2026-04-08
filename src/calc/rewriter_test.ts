@@ -5,9 +5,10 @@ import { Expression, Constant, Variable, Call } from '../facts/exprs';
 import { Formula, OP_LESS_THAN } from '../facts/formula';
 import { Rewriter, EquationRewriter, InequalityRewriter, DefinitionRewriter, TheoremEquationRewriter, TheoremInequalityRewriter } from './rewriter';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
-import { FuncAst, TypeAst, CaseAst, ExprBody, IfElseBody, ParamVar, ParamConstructor } from '../lang/func_ast';
+import { FuncAst, TypeAst, CaseAst, ExprBody, IfBranch, IfElseBody, ParamVar, ParamConstructor } from '../lang/func_ast';
 import { funcToDefinitions } from '../lang/func_ast';
-import { TopLevelEnv } from '../types/env';
+import { AtomProp, NotProp, OrProp, ConstProp } from '../facts/prop';
+import { TopLevelEnv, NestedEnv } from '../types/env';
 import { TheoremAst } from '../lang/theorem_ast';
 
 
@@ -17,7 +18,7 @@ describe('Rewriter base class', function() {
   class TestRewriter extends Rewriter {
     tryMatch(node: Expression) {
       return node.equals(Variable.of('x'))
-        ? { replacement: Constant.of(1n), conditions: [ParseFormula('a = b')] }
+        ? { replacement: Constant.of(1n), conditions: [new AtomProp(ParseFormula('a = b'))] }
         : undefined;
     }
   }
@@ -225,8 +226,9 @@ describe('DefinitionRewriter', function() {
     new CaseAst(
         [new ParamConstructor('cons', [new ParamVar('a'), new ParamVar('L')])],
         new IfElseBody(
-            new Formula(Variable.of('a'), OP_LESS_THAN, Constant.of(0n)),
-            Call.of('positives', Variable.of('L')),
+            [new IfBranch(
+                [new AtomProp(new Formula(Variable.of('a'), OP_LESS_THAN, Constant.of(0n)))],
+                Call.of('positives', Variable.of('L')))],
             Call.of('cons', Variable.of('a'), Call.of('positives', Variable.of('L'))))),
   ]);
 
@@ -243,7 +245,7 @@ describe('DefinitionRewriter', function() {
     const def = getDef('len_1');
     const rw = new DefinitionRewriter('test', env,
       Call.of('len', Variable.of('nil')),
-      def.formula, true, def.condition, []);
+      def.formula, true, def.conditions, []);
     assert.strictEqual(rw.rewrite().to_string(), '0');
   });
 
@@ -251,7 +253,7 @@ describe('DefinitionRewriter', function() {
     const def = getDef('len_2');
     const ex = Call.of('len', Call.of('cons', Variable.of('a'), Variable.of('nil')));
     const rw = new DefinitionRewriter('test', env, ex,
-      def.formula, true, def.condition, []);
+      def.formula, true, def.conditions, []);
     assert.ok(rw.rewrite().equals(
       Call.add(Constant.of(1n), Call.of('len', Variable.of('nil')))));
   });
@@ -260,7 +262,7 @@ describe('DefinitionRewriter', function() {
     const def = getDef('len_1');
     const rw = new DefinitionRewriter('test', env,
       Constant.of(0n),
-      def.formula, false, def.condition, []);
+      def.formula, false, def.conditions, []);
     assert.ok(rw.rewrite().equals(Call.of('len', Variable.of('nil'))));
   });
 
@@ -268,7 +270,7 @@ describe('DefinitionRewriter', function() {
     const def = getDef('len_1');
     const rw = new DefinitionRewriter('test', env,
       Constant.of(5n),
-      def.formula, true, def.condition, []);
+      def.formula, true, def.conditions, []);
     assert.throws(() => rw.rewrite(), /no matches found/);
   });
 
@@ -276,7 +278,7 @@ describe('DefinitionRewriter', function() {
     const def = getDef('len_1');
     const ex = Call.add(Constant.of(1n), Call.of('len', Variable.of('nil')));
     const rw = new DefinitionRewriter('test', env, ex,
-      def.formula, true, def.condition, []);
+      def.formula, true, def.conditions, []);
     const result = rw.rewrite(Call.add(Constant.of(1n), Constant.of(0n)));
     assert.strictEqual(result.to_string(), '1 + 0');
   });
@@ -285,26 +287,26 @@ describe('DefinitionRewriter', function() {
     const def = getDef('len_1');
     const rw = new DefinitionRewriter('test', env,
       Call.of('len', Variable.of('nil')),
-      def.formula, true, def.condition, []);
+      def.formula, true, def.conditions, []);
     assert.throws(() => rw.rewrite(Constant.of(99n)), /cannot be produced/);
   });
 
   it('applies conditional definition with satisfied condition', function() {
     const def = getDef('positives_2a');
-    const knownFacts = [ParseFormula('a < 0')];
+    const knownFacts = [new AtomProp(ParseFormula('a < 0'))];
     const ex = Call.of('positives', Call.of('cons', Variable.of('a'), Variable.of('L')));
     const rw = new DefinitionRewriter('test', env, ex,
-      def.formula, true, def.condition, knownFacts);
+      def.formula, true, def.conditions, knownFacts);
     assert.ok(rw.rewrite().equals(Call.of('positives', Variable.of('L'))));
   });
 
   it('rejects conditional definition when condition not implied', function() {
     const def = getDef('positives_2a');
-    const knownFacts = [ParseFormula('a <= 0')];
+    const knownFacts = [new AtomProp(ParseFormula('a <= 0'))];
     const ex = Call.of('positives', Call.of('cons', Variable.of('a'), Variable.of('L')));
     const rw = new DefinitionRewriter('test', env, ex,
-      def.formula, true, def.condition, knownFacts);
-    assert.throws(() => rw.rewrite(), /condition.*not implied/);
+      def.formula, true, def.conditions, knownFacts);
+    assert.throws(() => rw.rewrite(), /not implied/);
   });
 });
 
@@ -312,6 +314,7 @@ describe('DefinitionRewriter', function() {
 describe('TheoremEquationRewriter', function() {
 
   const env = new TopLevelEnv([], []);
+  const envWithVars = new NestedEnv(env, [['x', 'Int'], ['y', 'Int']]);
 
   it('applies equation theorem by unification', function() {
     const conclusion = ParseFormula('a + b = b + a');
@@ -358,40 +361,222 @@ describe('TheoremEquationRewriter', function() {
   });
 
   it('validates equation premise with IsEquationImplied', function() {
-    const premise = ParseFormula('n = 0');
+    const premise = new AtomProp(ParseFormula('n = 0'));
     const conclusion = ParseFormula('n + 1 = 1');
-    const knownFacts = [ParseFormula('x = 0')];
+    const knownFacts = [new AtomProp(ParseFormula('x = 0'))];
     const rw = new TheoremEquationRewriter('test', env,
       ParseExpr('x + 1'), conclusion, true, [premise], knownFacts);
     assert.strictEqual(rw.rewrite().to_string(), '1');
   });
 
   it('validates inequality premise with IsInequalityImplied', function() {
-    const premise = ParseFormula('0 < n');
+    const premise = new AtomProp(ParseFormula('0 < n'));
     const conclusion = ParseFormula('n = n');
-    const knownFacts = [ParseFormula('0 < x')];
+    const knownFacts = [new AtomProp(ParseFormula('0 < x'))];
     const rw = new TheoremEquationRewriter('test', env,
       ParseExpr('x'), conclusion, true, [premise], knownFacts);
     assert.strictEqual(rw.rewrite().to_string(), 'x');
   });
 
   it('rejects when inequality premise not implied', function() {
-    const premise = ParseFormula('0 < n');
+    const premise = new AtomProp(ParseFormula('0 < n'));
     const conclusion = ParseFormula('n = n');
-    const knownFacts = [ParseFormula('0 <= x')];
+    const knownFacts = [new AtomProp(ParseFormula('0 <= x'))];
     const rw = new TheoremEquationRewriter('test', env,
       ParseExpr('x'), conclusion, true, [premise], knownFacts);
     assert.throws(() => rw.rewrite(), /premise.*not implied/);
   });
 
   it('rejects when equality premise not implied', function() {
-    const premise = ParseFormula('n = 0');
+    const premise = new AtomProp(ParseFormula('n = 0'));
     const conclusion = ParseFormula('n + 1 = 1');
-    const knownFacts = [ParseFormula('x = 5')];
+    const knownFacts = [new AtomProp(ParseFormula('x = 5'))];
     const rw = new TheoremEquationRewriter('test', env,
       ParseExpr('x + 1'), conclusion, true, [premise], knownFacts);
     assert.throws(() => rw.rewrite(), /premise.*not implied/);
   });
+
+  it('validates NotProp premise with equivalent known fact', function() {
+    // theorem: not (n < 0) => n + 1 = n + 1
+    // known: 0 <= x  (equivalent to not (x < 0))
+    const premise = new NotProp(ParseFormula('n < 0'));
+    const conclusion = ParseFormula('n + 1 = n + 1');
+    const knownFacts = [new AtomProp(ParseFormula('0 <= x'))];
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('x + 1'), conclusion, true, [premise], knownFacts);
+    assert.strictEqual(rw.rewrite().to_string(), 'x + 1');
+  });
+
+  it('rejects NotProp premise when not implied', function() {
+    const premise = new NotProp(ParseFormula('n < 0'));
+    const conclusion = ParseFormula('n + 1 = n + 1');
+    const knownFacts = [new AtomProp(ParseFormula('x < 0'))];
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('x + 1'), conclusion, true, [premise], knownFacts);
+    assert.throws(() => rw.rewrite(), /premise.*not implied/);
+  });
+
+  it('validates not-less-equal premise via implication', function() {
+    // not (n <= 0) becomes 0 < n, implied by x = 5
+    const premise = new NotProp(ParseFormula('n <= 0'));
+    const conclusion = ParseFormula('n = n');
+    const knownFacts = [new AtomProp(ParseFormula('x = 5'))];
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('x'), conclusion, true, [premise], knownFacts);
+    assert.strictEqual(rw.rewrite().to_string(), 'x');
+  });
+
+  it('rejects negated equality premise when not known', function() {
+    const premise = new NotProp(ParseFormula('n = 0'));
+    const conclusion = ParseFormula('n = n');
+    const rw = new TheoremEquationRewriter('test', envWithVars,
+      ParseExpr('x'), conclusion, true, [premise], []);
+    assert.throws(() => rw.rewrite(), /not implied/);
+  });
+
+  it('validates negated equality premise by exact match', function() {
+    const premise = new NotProp(ParseFormula('n = 0'));
+    const conclusion = ParseFormula('n + 1 = n + 1');
+    const knownFacts = [new NotProp(ParseFormula('x = 0'))];
+    const rw = new TheoremEquationRewriter('test', envWithVars,
+      ParseExpr('x + 1'), conclusion, true, [premise], knownFacts);
+    assert.strictEqual(rw.rewrite().to_string(), 'x + 1');
+  });
+
+  it('validates negated equality premise via strict inequality for Int', function() {
+    // not (n = 0) is satisfied by 0 < x (since n unifies with x)
+    const premise = new NotProp(ParseFormula('n = 0'));
+    const conclusion = ParseFormula('n + 1 = n + 1');
+    const knownFacts = [new AtomProp(ParseFormula('0 < x'))];
+    const rw = new TheoremEquationRewriter('test', envWithVars,
+      ParseExpr('x + 1'), conclusion, true, [premise], knownFacts);
+    assert.strictEqual(rw.rewrite().to_string(), 'x + 1');
+  });
+
+  it('validates OrProp premise when known fact is equivalent NotProp equality', function() {
+    // premise: n < 0 or 0 < n, known: not(x = 0) — equivalent via not(a=b) ≡ a<b or b<a
+    const premise = new OrProp([new AtomProp(ParseFormula('n < 0')), new AtomProp(ParseFormula('0 < n'))]);
+    const conclusion = ParseFormula('n + 1 = n + 1');
+    const knownFacts = [new NotProp(ParseFormula('x = 0'))];
+    const rw = new TheoremEquationRewriter('test', envWithVars,
+      ParseExpr('x + 1'), conclusion, true, [premise], knownFacts);
+    assert.strictEqual(rw.rewrite().to_string(), 'x + 1');
+  });
+
+  it('validates NotProp equality premise when known fact is equivalent OrProp', function() {
+    // premise: not(n = 0), known: x < 0 or 0 < x — equivalent via not(a=b) ≡ a<b or b<a
+    const premise = new NotProp(ParseFormula('n = 0'));
+    const conclusion = ParseFormula('n + 1 = n + 1');
+    const knownFacts = [new OrProp([new AtomProp(ParseFormula('x < 0')), new AtomProp(ParseFormula('0 < x'))])];
+    const rw = new TheoremEquationRewriter('test', envWithVars,
+      ParseExpr('x + 1'), conclusion, true, [premise], knownFacts);
+    assert.strictEqual(rw.rewrite().to_string(), 'x + 1');
+  });
+
+  it('rejects negated equality premise for non-Int type', function() {
+    const listType = new TypeDeclAst('List', [
+      new ConstructorAst('nil', [], 'List'),
+      new ConstructorAst('cons', ['Int', 'List'], 'List'),
+    ]);
+    const listEnv = new NestedEnv(new TopLevelEnv([listType], []),
+        [['L', 'List'], ['M', 'List']]);
+    // not (L = M) cannot be checked via < for List type
+    const premise = new NotProp(ParseFormula('a = b'));
+    const conclusion = ParseFormula('a = a');
+    const rw = new TheoremEquationRewriter('test', listEnv,
+      ParseExpr('L'), conclusion, true, [premise], []);
+    assert.throws(() => rw.rewrite(), /not implied/);
+  });
+
+  it('validates OrProp premise by exact match with reordered disjuncts', function() {
+    const premise = new OrProp([new AtomProp(ParseFormula('n = 0')), new AtomProp(ParseFormula('0 < n'))]);
+    const conclusion = ParseFormula('n + 1 = n + 1');
+    // Known fact has disjuncts in opposite order from the premise
+    const knownFacts = [new OrProp([new AtomProp(ParseFormula('0 < x')), new AtomProp(ParseFormula('x = 0'))])];
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('x + 1'), conclusion, true, [premise], knownFacts);
+    assert.strictEqual(rw.rewrite().to_string(), 'x + 1');
+  });
+
+  it('validates OrProp premise when one disjunct is implied', function() {
+    const premise = new OrProp([new AtomProp(ParseFormula('n = 0')), new AtomProp(ParseFormula('0 < n'))]);
+    const conclusion = ParseFormula('n + 1 = n + 1');
+    const knownFacts = [new AtomProp(ParseFormula('x = 0'))];
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('x + 1'), conclusion, true, [premise], knownFacts);
+    assert.strictEqual(rw.rewrite().to_string(), 'x + 1');
+  });
+
+  it('validates OrProp premise when NotProp disjunct is implied', function() {
+    // OrProp([NotProp(n < 0), AtomProp(n = 0)]) — satisfied because not(x < 0) is implied by 0 <= x
+    const premise = new OrProp([new NotProp(ParseFormula('n < 0')), new AtomProp(ParseFormula('n = 0'))]);
+    const conclusion = ParseFormula('n + 1 = n + 1');
+    const knownFacts = [new AtomProp(ParseFormula('0 <= x'))];
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('x + 1'), conclusion, true, [premise], knownFacts);
+    assert.strictEqual(rw.rewrite().to_string(), 'x + 1');
+  });
+
+  it('rejects OrProp premise when no disjunct implied', function() {
+    const premise = new OrProp([new AtomProp(ParseFormula('n = 0'))]);
+    const conclusion = ParseFormula('n = n');
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('x'), conclusion, true, [premise], []);
+    assert.throws(() => rw.rewrite(), /not implied/);
+  });
+
+  it('ConstProp(true) premise is trivially satisfied', function() {
+    const premise = new ConstProp(true);
+    const conclusion = ParseFormula('n + 1 = n + 1');
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('x + 1'), conclusion, true, [premise], []);
+    assert.strictEqual(rw.rewrite().to_string(), 'x + 1');
+  });
+
+  it('ConstProp(false) premise always fails', function() {
+    const premise = new ConstProp(false);
+    const conclusion = ParseFormula('n = n');
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('x'), conclusion, true, [premise], []);
+    assert.throws(() => rw.rewrite(), /not implied/);
+  });
+
+  it('ConstProp(true) known fact is harmless', function() {
+    const premise = new AtomProp(ParseFormula('n = 0'));
+    const conclusion = ParseFormula('n + 1 = 1');
+    const knownFacts = [new ConstProp(true), new AtomProp(ParseFormula('x = 0'))];
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('x + 1'), conclusion, true, [premise], knownFacts);
+    assert.strictEqual(rw.rewrite().to_string(), '1');
+  });
+
+  it('ConstProp(false) known fact is filtered out', function() {
+    const premise = new AtomProp(ParseFormula('n = 0'));
+    const conclusion = ParseFormula('n + 1 = 1');
+    const knownFacts = [new ConstProp(false), new AtomProp(ParseFormula('x = 0'))];
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('x + 1'), conclusion, true, [premise], knownFacts);
+    assert.strictEqual(rw.rewrite().to_string(), '1');
+  });
+
+  it('OrProp known fact is filtered out', function() {
+    const premise = new AtomProp(ParseFormula('n = 0'));
+    const conclusion = ParseFormula('n + 1 = 1');
+    const knownFacts = [new OrProp([new AtomProp(ParseFormula('x = 0'))]), new AtomProp(ParseFormula('x = 0'))];
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('x + 1'), conclusion, true, [premise], knownFacts);
+    assert.strictEqual(rw.rewrite().to_string(), '1');
+  });
+
+  it('NotProp equality known fact is filtered out', function() {
+    const premise = new AtomProp(ParseFormula('n = 0'));
+    const conclusion = ParseFormula('n + 1 = 1');
+    const knownFacts = [new NotProp(ParseFormula('y = 5')), new AtomProp(ParseFormula('x = 0'))];
+    const rw = new TheoremEquationRewriter('test', env,
+      ParseExpr('x + 1'), conclusion, true, [premise], knownFacts);
+    assert.strictEqual(rw.rewrite().to_string(), '1');
+  });
+
 });
 
 
@@ -435,9 +620,9 @@ describe('TheoremInequalityRewriter', function() {
   });
 
   it('validates premise', function() {
-    const premise = ParseFormula('0 < n');
+    const premise = new AtomProp(ParseFormula('0 < n'));
     const conclusion = ParseFormula('n < n + 1');
-    const knownFacts = [ParseFormula('0 < x')];
+    const knownFacts = [new AtomProp(ParseFormula('0 < x'))];
     const rw = new TheoremInequalityRewriter('test', env,
       ParseExpr('x'), conclusion, true, [premise], knownFacts);
     rw.rewrite();
@@ -445,9 +630,9 @@ describe('TheoremInequalityRewriter', function() {
   });
 
   it('rejects when premise not implied', function() {
-    const premise = ParseFormula('0 < n');
+    const premise = new AtomProp(ParseFormula('0 < n'));
     const conclusion = ParseFormula('n < n + 1');
-    const knownFacts = [ParseFormula('0 <= x')];
+    const knownFacts = [new AtomProp(ParseFormula('0 <= x'))];
     const rw = new TheoremInequalityRewriter('test', env,
       ParseExpr('x'), conclusion, true, [premise], knownFacts);
     assert.throws(() => rw.rewrite(), /premise.*not implied/);

@@ -30,6 +30,11 @@ export class Formula {
     this.right = right;
   }
 
+  equivalent(other: Formula): boolean {
+    return this.op === other.op &&
+        this.left.equals(other.left) && this.right.equals(other.right);
+  }
+
   to_string(): string {
     return `${this.left.to_string()} ${this.op} ${this.right.to_string()}`;
   }

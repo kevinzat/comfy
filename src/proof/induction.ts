@@ -1,5 +1,5 @@
 import { Expression, Variable, Call } from '../facts/exprs';
-import { Prop, AtomProp } from '../facts/prop';
+import { Prop } from '../facts/prop';
 import { Environment, NestedEnv } from '../types/env';
 import { ConstructorAst } from '../lang/type_ast';
 import { TheoremAst } from '../lang/theorem_ast';
@@ -15,23 +15,6 @@ export interface CaseInfo {
   env: NestedEnv;
 }
 
-function propVars(prop: Prop): Set<string> {
-  if (prop.tag === 'atom' || prop.tag === 'not') {
-    const vars = prop.formula.left.vars();
-    for (const v of prop.formula.right.vars()) vars.add(v);
-    return vars;
-  }
-  /* v8 ignore start */
-  if (prop.tag !== 'or')
-    throw new Error(`propVars: unexpected prop tag "${prop.tag}"`);
-  const vars = new Set<string>();
-  for (const d of prop.disjuncts) {
-    for (const v of d.formula.left.vars()) vars.add(v);
-    for (const v of d.formula.right.vars()) vars.add(v);
-  }
-  return vars;
-  /* v8 ignore stop */
-}
 
 /**
  * Computes the default variable name for a constructor parameter based on its
@@ -94,7 +77,7 @@ export function defaultArgNames(
  */
 function computeIHParams(
     goal: Prop, env: Environment, varName: string): [string, string][] {
-  const fvars = propVars(goal);
+  const fvars = goal.vars();
   const params: [string, string][] = [];
   for (const name of fvars) {
     if (name === varName) continue;
@@ -152,7 +135,7 @@ export function buildCases(
   }
 
   // Check for clashes with goal variables.
-  const fvars = propVars(goal);
+  const fvars = goal.vars();
   fvars.add(varName);
   for (const name of allNames) {
     if (fvars.has(name)) {

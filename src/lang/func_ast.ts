@@ -1,5 +1,7 @@
 import { Expression, Variable, Call } from '../facts/exprs';
 import { Formula, FormulaOp, OP_EQUAL, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
+import { Prop, Literal, AtomProp, NotProp, OrProp, ConstProp } from '../facts/prop';
+import { ClauseLiteral, distribute, clauseToProp } from './code_ast';
 
 export class FuncAst {
   name: string;
@@ -30,18 +32,42 @@ export class ExprBody {
   constructor(expr: Expression) {
     this.expr = expr;
   }
+
+  to_string(): string {
+    return this.expr.to_string();
+  }
+}
+
+export class IfBranch {
+  conditions: Prop[];
+  body: Expression;
+
+  constructor(conditions: Prop[], body: Expression) {
+    this.conditions = conditions;
+    this.body = body;
+  }
 }
 
 export class IfElseBody {
   tag: 'if' = 'if';
-  condition: Formula;
-  thenBody: Expression;
+  branches: IfBranch[];
   elseBody: Expression;
 
-  constructor(condition: Formula, thenBody: Expression, elseBody: Expression) {
-    this.condition = condition;
-    this.thenBody = thenBody;
+  constructor(branches: IfBranch[], elseBody: Expression) {
+    this.branches = branches;
     this.elseBody = elseBody;
+  }
+
+  to_string(): string {
+    const parts: string[] = [];
+    for (let i = 0; i < this.branches.length; i++) {
+      const branch = this.branches[i];
+      const keyword = i === 0 ? 'if' : 'else if';
+      const conds = branch.conditions.map(c => c.to_string()).join(', ');
+      parts.push(`${keyword} ${conds} then ${branch.body.to_string()}`);
+    }
+    parts.push(`else ${this.elseBody.to_string()}`);
+    return parts.join(' ');
   }
 }
 
@@ -79,7 +105,7 @@ export class ParamConstructor {
 
 export interface Definition {
   name: string;
-  condition?: Formula;
+  conditions: Prop[];
   formula: Formula;
 }
 
@@ -91,13 +117,54 @@ function paramToExpr(param: Param): Expression {
   }
 }
 
-function negateCondition(f: Formula): Formula {
-  if (f.op === OP_LESS_THAN) {
-    return new Formula(f.right, OP_LESS_EQUAL, f.left);
+function negateLiteral(lit: Literal): Literal {
+  if (lit.tag === 'atom') {
+    const f = lit.formula;
+    if (f.op === OP_LESS_THAN)
+      return new AtomProp(new Formula(f.right, OP_LESS_EQUAL, f.left));
+    if (f.op === OP_LESS_EQUAL)
+      return new AtomProp(new Formula(f.right, OP_LESS_THAN, f.left));
+    // OP_EQUAL
+    return new NotProp(f);
   } else {
-    return new Formula(f.right, OP_LESS_THAN, f.left);
+    // NotProp: double negation
+    return new AtomProp(lit.formula);
   }
 }
+
+/** Negate a Prop, returning a conjunction of ClauseLiterals equivalent to NOT(p). */
+function negateProp(p: Prop): ClauseLiteral[] {
+  if (p.tag === 'atom' || p.tag === 'not')
+    return [negateLiteral(p)];
+  if (p.tag === 'or')
+    return p.disjuncts.map(d => negateLiteral(d));
+  // ConstProp
+  return [new ConstProp(!p.value)];
+}
+
+/**
+ * Negate a conjunction of Props, returning a conjunction (Prop[]) equivalent to
+ * NOT(P1 AND P2 AND ...) = NOT(P1) OR NOT(P2) OR ...
+ *
+ * Each NOT(Pi) is a conjunction of ClauseLiterals. The disjunction of these
+ * conjunctions is converted to CNF using distribute/clauseToProp from code_ast.
+ */
+function negateConjunction(conditions: Prop[]): Prop[] {
+  if (conditions.length === 1) {
+    return negateProp(conditions[0]).map(c => clauseToProp([c]));
+  }
+  // Each NOT(Pi) is a CNF with singleton clauses.
+  const cnfs: ClauseLiteral[][][] = conditions.map(
+      cond => negateProp(cond).map(lit => [lit]));
+  // Fold with distribute to get CNF of the disjunction.
+  let result = cnfs[0];
+  for (let i = 1; i < cnfs.length; i++) {
+    result = distribute(result, cnfs[i]);
+  }
+  return result.map(clauseToProp);
+}
+
+const LETTERS = 'abcdefghijklmnopqrstuvwxyz';
 
 export function funcToDefinitions(func: FuncAst): Definition[] {
   const defs: Definition[] = [];
@@ -108,18 +175,27 @@ export function funcToDefinitions(func: FuncAst): Definition[] {
     if (body.tag === 'expr') {
       defs.push({
         name: `${func.name}_${i + 1}`,
+        conditions: [],
         formula: new Formula(lhs, OP_EQUAL, body.expr),
       });
     } else {
+      const { branches, elseBody } = body;
+      // Accumulated negations of prior branches' conditions.
+      const priorNegated: Prop[] = [];
+      for (let j = 0; j < branches.length; j++) {
+        const branch = branches[j];
+        defs.push({
+          name: `${func.name}_${i + 1}${LETTERS[j]}`,
+          conditions: [...priorNegated, ...branch.conditions],
+          formula: new Formula(lhs, OP_EQUAL, branch.body),
+        });
+        priorNegated.push(...negateConjunction(branch.conditions));
+      }
+      // Final else branch: all prior conditions negated.
       defs.push({
-        name: `${func.name}_${i + 1}a`,
-        condition: body.condition,
-        formula: new Formula(lhs, OP_EQUAL, body.thenBody),
-      });
-      defs.push({
-        name: `${func.name}_${i + 1}b`,
-        condition: negateCondition(body.condition),
-        formula: new Formula(lhs, OP_EQUAL, body.elseBody),
+        name: `${func.name}_${i + 1}${LETTERS[branches.length]}`,
+        conditions: priorNegated,
+        formula: new Formula(lhs, OP_EQUAL, elseBody),
       });
     }
   }

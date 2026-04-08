@@ -11,7 +11,7 @@ import { TheoremAst } from '../lang/theorem_ast';
 import { ParseExpr } from '../facts/exprs_parser';
 import { ParseFormula } from '../facts/formula_parser';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
-import { FuncAst, TypeAst, CaseAst, ExprBody, ParamVar, ParamConstructor } from '../lang/func_ast';
+import { FuncAst, TypeAst, CaseAst, ExprBody, IfBranch, IfElseBody, ParamVar, ParamConstructor } from '../lang/func_ast';
 import { Constant, Variable, Call } from '../facts/exprs';
 import { Step, applyForwardRule, applyBackwardRule } from './calc_proof';
 
@@ -267,12 +267,11 @@ const positivesFunc = new FuncAst('positives', new TypeAst(['List'], 'List'), [
   new CaseAst([new ParamVar('nil')], new ExprBody(Variable.of('nil'))),
   new CaseAst(
       [new ParamConstructor('cons', [new ParamVar('a'), new ParamVar('L')])],
-      {
-        tag: 'if' as const,
-        condition: ParseFormula('a < 0'),
-        thenBody: Call.of('positives', Variable.of('L')),
-        elseBody: Call.of('cons', Variable.of('a'), Call.of('positives', Variable.of('L'))),
-      }),
+      new IfElseBody(
+          [new IfBranch(
+              [new AtomProp(ParseFormula('a < 0'))],
+              Call.of('positives', Variable.of('L')))],
+          Call.of('cons', Variable.of('a'), Call.of('positives', Variable.of('L'))))),
 ]);
 
 const treeType = new TypeDeclAst('Tree', [

@@ -410,6 +410,17 @@ describe('oblToLean', function() {
     assert.ok(lean.includes('.nil'));
   });
 
+  it('oblToLean with if/else-if/else function', function() {
+    const declResult = ParseDecls(
+        `def f : (Int) -> Int
+         | f(x) => if x < 0 then -1 else if x = 0 then 0 else 1`);
+    assert.ok(declResult.ast);
+    const goal = new AtomProp(new Formula(Constant.of(0n), '=', Constant.of(0n)));
+    const obl = new ProofObligation([], goal, 1, [['x', 'Int']]);
+    const lean = oblToLean(obl, declResult.ast!, makeCalcProof());
+    assert.ok(lean.includes('else if'));
+  });
+
   it('oblToLean with constructor variable', function() {
     // Variable with ctor name should use dot notation
     const declResult = ParseDecls(`type Color | red : Color | blue : Color`);

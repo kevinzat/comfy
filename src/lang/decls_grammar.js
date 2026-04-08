@@ -61,9 +61,22 @@ var grammar = {
     {"name": "Cases", "symbols": ["Cases", "Case"], "postprocess": ([cs, c]) => cs.concat([c])},
     {"name": "Case", "symbols": [(lexer2.has("pipe") ? {type: "pipe"} : pipe), (lexer2.has("variable") ? {type: "variable"} : variable), (lexer2.has("lparen") ? {type: "lparen"} : lparen), "Params", (lexer2.has("rparen") ? {type: "rparen"} : rparen), (lexer2.has("fatArrow") ? {type: "fatArrow"} : fatArrow), "Body"], "postprocess": ([_pipe, name, _lp, params, _rp, _arrow, body]) => ({name: name.text, token: name, ast: new funcAst.CaseAst(list_to_array(params, true), body)})},
     {"name": "Body", "symbols": ["Expr"], "postprocess": ([e]) => new funcAst.ExprBody(e)},
-    {"name": "Body", "symbols": [(lexer2.has("kw_if") ? {type: "kw_if"} : kw_if), "Condition", (lexer2.has("kw_then") ? {type: "kw_then"} : kw_then), "Expr", (lexer2.has("kw_else") ? {type: "kw_else"} : kw_else), "Expr"], "postprocess": ([_if, cond, _then, thenBody, _else, elseBody]) => new funcAst.IfElseBody(cond, thenBody, elseBody)},
-    {"name": "Condition", "symbols": ["Expr", (lexer2.has("lessthan") ? {type: "lessthan"} : lessthan), "Expr"], "postprocess": ([left, _op, right]) => new formula.Formula(left, '<', right)},
-    {"name": "Condition", "symbols": ["Expr", (lexer2.has("lessequal") ? {type: "lessequal"} : lessequal), "Expr"], "postprocess": ([left, _op, right]) => new formula.Formula(left, '<=', right)},
+    {"name": "Body", "symbols": ["IfChain"], "postprocess": ([chain]) => chain},
+    {"name": "IfChain", "symbols": [(lexer2.has("kw_if") ? {type: "kw_if"} : kw_if), "CondList", (lexer2.has("kw_then") ? {type: "kw_then"} : kw_then), "Expr", (lexer2.has("kw_else") ? {type: "kw_else"} : kw_else), "ElseBody"], "postprocess":  ([_if, conds, _then, body, _else, elseBody]) => {
+            if (elseBody instanceof funcAst.IfElseBody) {
+              return new funcAst.IfElseBody(
+                [new funcAst.IfBranch(conds, body), ...elseBody.branches],
+                elseBody.elseBody);
+            } else {
+              return new funcAst.IfElseBody(
+                [new funcAst.IfBranch(conds, body)],
+                elseBody);
+            }
+        } },
+    {"name": "ElseBody", "symbols": ["Expr"], "postprocess": ([e]) => e},
+    {"name": "ElseBody", "symbols": ["IfChain"], "postprocess": ([chain]) => chain},
+    {"name": "CondList", "symbols": ["Prop"], "postprocess": ([p]) => [p]},
+    {"name": "CondList", "symbols": ["CondList", (lexer2.has("comma") ? {type: "comma"} : comma), "Prop"], "postprocess": ([list, _comma, p]) => list.concat([p])},
     {"name": "Params", "symbols": ["Param"], "postprocess": ([a]) => a},
     {"name": "Params", "symbols": ["Params", (lexer2.has("comma") ? {type: "comma"} : comma), "Param"], "postprocess": ([a, _comma, b]) => [b, a]},
     {"name": "Param", "symbols": [(lexer2.has("variable") ? {type: "variable"} : variable)], "postprocess": ([a]) => new funcAst.ParamVar(a.text)},

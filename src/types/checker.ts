@@ -172,13 +172,20 @@ function checkBody(env: Environment, body: CaseBody): NamedType {
   if (body.tag === 'expr') {
     return checkExpr(env, body.expr);
   }
-  checkFormula(env, body.condition);
-  const thenType = checkExpr(env, body.thenBody);
+  for (const branch of body.branches)
+    for (const cond of branch.conditions) checkProp(env, cond);
+  const resultType = checkExpr(env, body.branches[0].body);
+  for (let i = 1; i < body.branches.length; i++) {
+    const branchType = checkExpr(env, body.branches[i].body);
+    if (branchType.name !== resultType.name)
+      throw new TypeMismatchError(resultType.name, branchType.name,
+          'branch of if/else');
+  }
   const elseType = checkExpr(env, body.elseBody);
-  if (thenType.name !== elseType.name)
-    throw new TypeMismatchError(thenType.name, elseType.name,
+  if (elseType.name !== resultType.name)
+    throw new TypeMismatchError(resultType.name, elseType.name,
         'else branch of if/else');
-  return thenType;
+  return resultType;
 }
 
 /**

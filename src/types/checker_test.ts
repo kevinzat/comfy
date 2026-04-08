@@ -1,7 +1,7 @@
 
 import * as assert from 'assert';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
-import { FuncAst, TypeAst, CaseAst, ExprBody, IfElseBody, ParamVar, ParamConstructor } from '../lang/func_ast';
+import { FuncAst, TypeAst, CaseAst, ExprBody, IfBranch, IfElseBody, ParamVar, ParamConstructor } from '../lang/func_ast';
 import { Constant, Variable, Call } from '../facts/exprs';
 import { TopLevelEnv, NestedEnv } from './env';
 import { Formula, OP_EQUAL, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
@@ -356,8 +356,9 @@ describe('checkFuncDecl', function() {
     const f = new FuncAst('f', new TypeAst(['Int'], 'Int'), [
       new CaseAst([new ParamVar('x')],
           new IfElseBody(
-              new Formula(Variable.of('x'), OP_LESS_THAN, Constant.of(0n)),
-              Call.negate(Variable.of('x')),
+              [new IfBranch(
+                  [new AtomProp(new Formula(Variable.of('x'), OP_LESS_THAN, Constant.of(0n)))],
+                  Call.negate(Variable.of('x')))],
               Variable.of('x'))),
     ]);
     checkFuncDecl(env, f);
@@ -367,9 +368,40 @@ describe('checkFuncDecl', function() {
     const f = new FuncAst('f', new TypeAst(['List'], 'Int'), [
       new CaseAst([new ParamVar('x')],
           new IfElseBody(
-              new Formula(Constant.of(0n), OP_LESS_THAN, Constant.of(1n)),
-              Constant.of(0n),
+              [new IfBranch(
+                  [new AtomProp(new Formula(Constant.of(0n), OP_LESS_THAN, Constant.of(1n)))],
+                  Constant.of(0n))],
               Variable.of('nil'))),
+    ]);
+    assert.throws(() => checkFuncDecl(env, f), TypeMismatchError);
+  });
+
+  it('accepts valid if/else-if/else body', function() {
+    const f = new FuncAst('f', new TypeAst(['Int'], 'Int'), [
+      new CaseAst([new ParamVar('x')],
+          new IfElseBody(
+              [new IfBranch(
+                  [new AtomProp(new Formula(Variable.of('x'), OP_LESS_THAN, Constant.of(0n)))],
+                  Constant.of(0n)),
+               new IfBranch(
+                  [new AtomProp(new Formula(Variable.of('x'), OP_LESS_THAN, Constant.of(10n)))],
+                  Constant.of(1n))],
+              Constant.of(2n))),
+    ]);
+    checkFuncDecl(env, f);
+  });
+
+  it('throws TypeMismatchError when if/else-if branches differ', function() {
+    const f = new FuncAst('f', new TypeAst(['Int', 'List'], 'Int'), [
+      new CaseAst([new ParamVar('x'), new ParamVar('L')],
+          new IfElseBody(
+              [new IfBranch(
+                  [new AtomProp(new Formula(Variable.of('x'), OP_LESS_THAN, Constant.of(0n)))],
+                  Constant.of(0n)),
+               new IfBranch(
+                  [new AtomProp(new Formula(Variable.of('x'), OP_LESS_THAN, Constant.of(10n)))],
+                  Variable.of('L'))],
+              Constant.of(1n))),
     ]);
     assert.throws(() => checkFuncDecl(env, f), TypeMismatchError);
   });
@@ -378,8 +410,9 @@ describe('checkFuncDecl', function() {
     const f = new FuncAst('f', new TypeAst(['List'], 'List'), [
       new CaseAst([new ParamVar('x')],
           new IfElseBody(
-              new Formula(Variable.of('nil'), OP_LESS_THAN, Variable.of('nil')),
-              Variable.of('x'),
+              [new IfBranch(
+                  [new AtomProp(new Formula(Variable.of('nil'), OP_LESS_THAN, Variable.of('nil')))],
+                  Variable.of('x'))],
               Variable.of('x'))),
     ]);
     assert.throws(() => checkFuncDecl(env, f), TypeMismatchError);

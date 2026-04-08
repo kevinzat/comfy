@@ -1,15 +1,70 @@
 import * as assert from 'assert';
 import { ParseBackwardRule, CreateCalcTactic } from './calc_backward';
-import { TopLevelEnv } from '../types/env';
+import { TopLevelEnv, NestedEnv } from '../types/env';
 import { TheoremAst } from '../lang/theorem_ast';
 import { Formula, OP_EQUAL, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
 import { AtomProp, NotProp } from '../facts/prop';
 import { ParseExpr } from '../facts/exprs_parser';
 import { ParseFormula } from '../facts/formula_parser';
+import { UserError } from '../facts/user_error';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
-import { FuncAst, TypeAst, CaseAst, ExprBody, IfElseBody, ParamVar, ParamConstructor } from '../lang/func_ast';
+import { FuncAst, TypeAst, CaseAst, ExprBody, IfBranch, IfElseBody, ParamVar, ParamConstructor } from '../lang/func_ast';
 import { Constant, Variable, Call } from '../facts/exprs';
 import { RULE_ALGEBRA, RULE_SUBSTITUTE, RULE_DEFINITION, RULE_APPLY } from './rules_ast';
+
+
+describe('non-atom fact cited', function() {
+
+  it('algebra rejects non-atom known fact', function() {
+    const ast = ParseBackwardRule('(x) = since 1');
+    const goal = ParseExpr('x');
+    const env = new TopLevelEnv([], [], [new NotProp(ParseFormula('x = y'))]);
+    assert.throws(() => CreateCalcTactic(ast, goal, env),
+        (e: any) => e instanceof UserError && /algebra: fact 1 is not a formula/.test(e.message));
+  });
+
+  it('substitute rejects non-atom known fact', function() {
+    const ast = ParseBackwardRule('subst 1');
+    const goal = ParseExpr('x');
+    const env = new TopLevelEnv([], [], [new NotProp(ParseFormula('x = y'))]);
+    assert.throws(() => CreateCalcTactic(ast, goal, env),
+        (e: any) => e instanceof UserError && /subst: fact 1 is not a formula/.test(e.message));
+  });
+
+  it('defof rejects negated equality known fact', function() {
+    const listType = new TypeDeclAst('List', [
+      new ConstructorAst('nil', [], 'List'),
+      new ConstructorAst('cons', ['Int', 'List'], 'List'),
+    ]);
+    const positivesFunc = new FuncAst('positives', new TypeAst(['List'], 'List'), [
+      new CaseAst([new ParamVar('nil')], new ExprBody(Variable.of('nil'))),
+      new CaseAst(
+          [new ParamConstructor('cons', [new ParamVar('a'), new ParamVar('L')])],
+          new IfElseBody(
+              [new IfBranch(
+                  [new AtomProp(ParseFormula('a < 0'))],
+                  Call.of('positives', Variable.of('L')))],
+              Call.of('cons', Variable.of('a'), Call.of('positives', Variable.of('L'))))),
+    ]);
+    const env = new TopLevelEnv([listType], [positivesFunc],
+        [new NotProp(ParseFormula('x = y'))]);
+    const ast = ParseBackwardRule('defof positives_2a since 1');
+    const goal = Call.of('positives', Variable.of('L'));
+    assert.throws(() => CreateCalcTactic(ast, goal, env),
+        (e: any) => e instanceof UserError && /not implied/.test(e.message));
+  });
+
+  it('apply rejects non-atom known fact when premise not implied', function() {
+    const thm = new TheoremAst('foo', [['n', 'Int']],
+        [new AtomProp(ParseFormula('0 < n'))], new AtomProp(ParseFormula('n = n')));
+    const env = new TopLevelEnv([], [], [new NotProp(ParseFormula('x = y'))], [thm]);
+    const ast = ParseBackwardRule('apply foo since 1');
+    const goal = ParseExpr('x');
+    assert.throws(() => CreateCalcTactic(ast, goal, env),
+        (e: any) => e instanceof UserError && /not implied/.test(e.message));
+  });
+
+});
 
 
 describe('AlgebraCalcTactic with inequality', function() {
@@ -94,15 +149,17 @@ describe('ApplyCalcTactic edge cases', function() {
     assert.throws(() => CreateCalcTactic(ast, ParseExpr('x'), env), /non-atomic conclusion/);
   });
 
-  it('backward apply with non-atom premise throws', function() {
+  it('backward apply with negated equality premise not implied throws', function() {
     const thm = new TheoremAst('foo', [['n', 'Int']],
         [new NotProp(ParseFormula('n = 0'))],
         new AtomProp(ParseFormula('n + 1 = n + 1')));
-    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x = 1'))], [thm]);
+    const topEnv = new TopLevelEnv([], [], [], [thm]);
+    const env = new NestedEnv(topEnv, [['x', 'Int']],
+        [new AtomProp(ParseFormula('0 <= x'))]);
     const ast = ParseBackwardRule('apply foo since 1');
     const goal = ParseExpr('x + 1');
     assert.throws(() => CreateCalcTactic(ast, goal, env),
-        /non-atomic premise/);
+        /not implied/);
   });
 
   it('backward apply < theorem at negative position flips to <=', function() {

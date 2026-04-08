@@ -9,7 +9,7 @@ import { AtomProp } from '../facts/prop';
 import { ParseExpr } from '../facts/exprs_parser';
 import { ParseFormula } from '../facts/formula_parser';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
-import { FuncAst, TypeAst, CaseAst, ExprBody, IfElseBody, ParamVar, ParamConstructor } from '../lang/func_ast';
+import { FuncAst, TypeAst, CaseAst, ExprBody, IfBranch, IfElseBody, ParamVar, ParamConstructor } from '../lang/func_ast';
 import { Constant, Variable, Call } from '../facts/exprs';
 
 
@@ -457,8 +457,9 @@ describe('CreateCalcRule - conditional definition', function() {
     new CaseAst(
         [new ParamConstructor('cons', [new ParamVar('a'), new ParamVar('L')])],
         new IfElseBody(
-            new Formula(Variable.of('a'), OP_LESS_THAN, Constant.of(0n)),
-            Call.of('positives', Variable.of('L')),
+            [new IfBranch(
+                [new AtomProp(new Formula(Variable.of('a'), OP_LESS_THAN, Constant.of(0n)))],
+                Call.of('positives', Variable.of('L')))],
             Call.of('cons', Variable.of('a'), Call.of('positives', Variable.of('L'))))),
   ]);
 
@@ -504,7 +505,7 @@ describe('CreateCalcRule - conditional definition', function() {
         [new AtomProp(ParseFormula('a <= 0'))]);
     const ast = ParseForwardRule('defof positives_2a since 1');
     const current = Call.of('positives', Call.of('cons', Variable.of('a'), Variable.of('L')));
-    assert.throws(() => CreateCalcRule(ast, current, env), /condition/);
+    assert.throws(() => CreateCalcRule(ast, current, env), /not implied/);
   });
 
   it('defof conditional fails when no knowns provided', function() {
@@ -562,8 +563,9 @@ describe('lookupDefinition', function() {
     new CaseAst(
         [new ParamConstructor('cons', [new ParamVar('a'), new ParamVar('L')])],
         new IfElseBody(
-            new Formula(Variable.of('a'), OP_LESS_THAN, Constant.of(0n)),
-            Call.of('positives', Variable.of('L')),
+            [new IfBranch(
+                [new AtomProp(new Formula(Variable.of('a'), OP_LESS_THAN, Constant.of(0n)))],
+                Call.of('positives', Variable.of('L')))],
             Call.of('cons', Variable.of('a'), Call.of('positives', Variable.of('L'))))),
   ]);
 
@@ -572,22 +574,26 @@ describe('lookupDefinition', function() {
   it('finds unconditional definition by name', function() {
     const def = lookupDefinition(env, 'len_1');
     assert.strictEqual(def.name, 'len_1');
-    assert.strictEqual(def.condition, undefined);
+    assert.deepEqual(def.conditions, []);
     assert.strictEqual(def.formula.op, '=');
   });
 
   it('finds conditional definition _2a', function() {
     const def = lookupDefinition(env, 'positives_2a');
     assert.strictEqual(def.name, 'positives_2a');
-    assert.ok(def.condition !== undefined);
-    assert.strictEqual(def.condition!.op, '<');
+    assert.equal(def.conditions.length, 1);
+    assert.equal(def.conditions[0].tag, 'atom');
+    if (def.conditions[0].tag === 'atom')
+      assert.strictEqual(def.conditions[0].formula.op, '<');
   });
 
   it('finds conditional definition _2b', function() {
     const def = lookupDefinition(env, 'positives_2b');
     assert.strictEqual(def.name, 'positives_2b');
-    assert.ok(def.condition !== undefined);
-    assert.strictEqual(def.condition!.op, '<=');
+    assert.equal(def.conditions.length, 1);
+    assert.equal(def.conditions[0].tag, 'atom');
+    if (def.conditions[0].tag === 'atom')
+      assert.strictEqual(def.conditions[0].formula.op, '<=');
   });
 
   it('rejects unknown definition name', function() {

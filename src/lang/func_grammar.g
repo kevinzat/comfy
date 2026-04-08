@@ -1,6 +1,7 @@
 @{%
 const exprs = require('../facts/exprs');
 const formula = require('../facts/formula');
+const prop = require('../facts/prop');
 const funcAst = require('./func_ast');
 const moo = require('moo');
 const util = require('./grammar_util');
@@ -21,6 +22,8 @@ Types -> %typeName
 @include "func_def_rules.g"
 
 @include "../facts/expr_rules.g"
+
+@include "../facts/prop_rules.g"
 
 Primary -> %typeName
       {% ([a]) => new exprs.Variable(a.text, a.line, a.col) %}

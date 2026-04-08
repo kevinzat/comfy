@@ -11,14 +11,6 @@ import { IsInequalityImplied } from '../decision/inequality';
 import { UserError } from '../facts/user_error';
 import { RuleAst, AlgebraAst, SubstituteAst, DefinitionAst, ApplyAst } from './rules_ast';
 
-function getFactFormula(env: Environment, index: number): Formula {
-  const prop = env.getFact(index);
-  /* v8 ignore start */
-  if (!(prop instanceof AtomProp))
-    throw new Error(`fact ${index} is not a formula`);
-  /* v8 ignore stop */
-  return prop.formula;
-}
 
 export const TACTIC_ALGEBRA = 2;
 export const TACTIC_SUBSTITUTE = 3;
@@ -53,7 +45,12 @@ export class AlgebraCalcTactic extends CalcTactic {
   constructor(env: Environment, formula: Formula, ...knowns: number[]) {
     super(TACTIC_ALGEBRA, formula.right);
     this.formula = formula;
-    this.known = knowns.map(i => getFactFormula(env, i));
+    this.known = knowns.map(i => {
+      const prop = env.getFact(i);
+      if (!(prop instanceof AtomProp))
+        throw new UserError(`algebra: fact ${i} is not a formula`);
+      return prop.formula;
+    });
 
     const useInequality = formula.op !== OP_EQUAL ||
         this.known.some(f => f.op !== OP_EQUAL);
@@ -100,7 +97,10 @@ export class SubstituteCalcTactic extends CalcTactic {
   constructor(env: Environment, goal: Expression, known: number, right: boolean, premise?: Expression) {
     super(TACTIC_SUBSTITUTE, goal);
 
-    this.eq = getFactFormula(env, known);
+    const prop = env.getFact(known);
+    if (!(prop instanceof AtomProp))
+      throw new UserError(`subst: fact ${known} is not a formula`);
+    this.eq = prop.formula;
     this.right = right;
     this.known = known;
 
@@ -158,19 +158,19 @@ export class DefinitionCalcTactic extends CalcTactic {
     this.right = right;
     const def = lookupDefinition(env, name);
     this.defFormula = def.formula;
-    const knownFacts = knowns.map(i => getFactFormula(env, i));
+    const knownFacts = knowns.map(i => env.getFact(i));
 
-    if (def.condition && knowns.length === 0)
+    if (def.conditions.length > 0 && knowns.length === 0)
       throw new UserError(
           `defof/undef: "${name}" has a condition; known facts must be provided`);
-    if (!def.condition && knowns.length > 0)
+    if (def.conditions.length === 0 && knowns.length > 0)
       throw new UserError(
           `defof/undef: "${name}" has no condition; known facts must not be provided`);
 
     // Backward is opposite direction from forward
     const rewriter = new DefinitionRewriter(
         'defof/undef', env, goal, def.formula, !right,
-        def.condition, knownFacts);
+        def.conditions, knownFacts);
     this._premise = rewriter.rewrite(premise);
   }
 
@@ -205,7 +205,7 @@ export class ApplyCalcTactic extends CalcTactic {
     if (!env.hasTheorem(name))
       throw new UserError(`apply/unapp: unknown theorem "${name}"`);
     const theorem = env.getTheorem(name);
-    const knownFacts = knowns.map(i => getFactFormula(env, i));
+    const knownFacts = knowns.map(i => env.getFact(i));
 
     if (theorem.premises.length > 0 && knowns.length === 0)
       throw new UserError(
@@ -218,23 +218,15 @@ export class ApplyCalcTactic extends CalcTactic {
     if (theorem.conclusion.tag !== 'atom')
       throw new UserError(`apply/unapp: "${name}" has a non-atomic conclusion`);
     const concl = theorem.conclusion.formula;
-    const atomPremises = theorem.premises.map(p => {
-      /* v8 ignore start */
-      if (!(p instanceof AtomProp))
-        throw new Error(`apply/unapp: "${name}" has a non-atomic premise`);
-      /* v8 ignore stop */
-      return p.formula;
-    });
-
     if (concl.op === OP_EQUAL) {
       const rewriter = new TheoremEquationRewriter(
           'apply/unapp', env, goal, concl, !right,
-          atomPremises, knownFacts);
+          theorem.premises, knownFacts);
       this._resultFormula = new Formula(rewriter.rewrite(premise), OP_EQUAL, goal);
     } else {
       const rewriter = new TheoremInequalityRewriter(
           'apply/unapp', env, goal, concl, !right,
-          atomPremises, knownFacts);
+          theorem.premises, knownFacts);
       rewriter.rewrite(premise);
       if (rewriter.positive) {
         this._resultFormula = new Formula(rewriter.result, concl.op, goal);
