@@ -9,6 +9,7 @@ import { InductionTactic, inductionParser } from './induction';
 import { CasesTactic, casesParser } from './cases';
 import { calculationParser } from './calc_proof';
 import { VerumTactic, verumParser, ExfalsoTactic, exfalsoParser, ContradictionTactic, contradictionParser, AbsurdumTactic, absurdumParser, LeftTactic, leftParser, RightTactic, rightParser, DisjCasesTactic, disjCasesParser } from './prop_tactics';
+import { TypeCasesTactic, typeCasesParser } from './type_cases';
 
 
 export interface ProofGoal {
@@ -35,7 +36,8 @@ export type TacticMethod =
   | { kind: 'absurdum' }
   | { kind: 'left' }
   | { kind: 'right' }
-  | { kind: 'disj_cases'; condition: string };
+  | { kind: 'disj_cases'; condition: string }
+  | { kind: 'type_cases'; varName: string; argNames?: string[] };
 
 export function parseTacticMethod(text: string): TacticMethod | null {
   const trimmed = text.trim();
@@ -45,6 +47,14 @@ export function parseTacticMethod(text: string): TacticMethod | null {
   if (trimmed === 'absurdum') return { kind: 'absurdum' };
   if (trimmed === 'left') return { kind: 'left' };
   if (trimmed === 'right') return { kind: 'right' };
+
+  const typeCasesMatch = trimmed.match(/^cases\s+on\s+(\S+)(?:\s+\(([^)]+)\))?$/);
+  if (typeCasesMatch) {
+    const argNames = typeCasesMatch[2]
+        ? typeCasesMatch[2].split(',').map(s => s.trim())
+        : undefined;
+    return { kind: 'type_cases', varName: typeCasesMatch[1], argNames };
+  }
 
   const disjMatch = trimmed.match(/^cases\s+(.+)$/);
   if (disjMatch) {
@@ -95,6 +105,7 @@ const parsers: ProofMethodParser[] = [
   leftParser,
   rightParser,
   disjCasesParser,
+  typeCasesParser,
 ];
 
 export function ParseProofMethod(
@@ -164,5 +175,7 @@ export function CreateProofTactic(
       });
       return new DisjCasesTactic(env, goal, disjuncts);
     }
+    case 'type_cases':
+      return new TypeCasesTactic(goal, env, method);
   }
 }

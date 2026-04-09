@@ -1,4 +1,4 @@
-import { Formula } from '../facts/formula';
+import { Formula, OP_LESS_THAN, OP_LESS_EQUAL, OP_EQUAL } from '../facts/formula';
 import { Prop, AtomProp, NotProp, ConstProp, OrProp, Literal } from '../facts/prop';
 import { NestedEnv } from '../types/env';
 import { ParseFormula } from '../facts/formula_parser';
@@ -260,6 +260,56 @@ export const rightParser: ProofMethodParser = {
 };
 
 
+// --- Tautology recognition for disjunctions ---
+
+/** Checks if two formulas are complementary (one is the negation of the other). */
+function areComplementary(a: Literal, b: Literal): boolean {
+  // a < b and b <= a (or vice versa)
+  if (a.tag === 'atom' && b.tag === 'atom') {
+    const f = a.formula, g = b.formula;
+    if (f.op === OP_LESS_THAN && g.op === OP_LESS_EQUAL)
+      return f.left.equals(g.right) && f.right.equals(g.left);
+    if (f.op === OP_LESS_EQUAL && g.op === OP_LESS_THAN)
+      return f.left.equals(g.right) && f.right.equals(g.left);
+    return false;
+  }
+  // a = b and not(a = b) — equality decidability
+  if (a.tag === 'atom' && b.tag === 'not')
+    return a.formula.op === OP_EQUAL && a.formula.equivalent(b.formula);
+  if (a.tag === 'not' && b.tag === 'atom')
+    return b.formula.op === OP_EQUAL && b.formula.equivalent(a.formula);
+  return false;
+}
+
+/** Checks if three disjuncts form integer trichotomy: a < b, a = b, b < a. */
+function isTrichotomy(ds: Literal[]): boolean {
+  if (!ds.every((d): d is AtomProp => d.tag === 'atom')) return false;
+  const fs = ds.map(d => d.formula);
+  // Find the = formula
+  const eqIdx = fs.findIndex(f => f.op === OP_EQUAL);
+  if (eqIdx === -1) return false;
+  const eq = fs[eqIdx];
+  const others = fs.filter((_, i) => i !== eqIdx);
+  // The other two must be a < b and b < a for the same a, b as in a = b
+  if (!others.every(f => f.op === OP_LESS_THAN)) return false;
+  const a = eq.left, b = eq.right;
+  const hasAB = others.some(f => f.left.equals(a) && f.right.equals(b));
+  const hasBA = others.some(f => f.left.equals(b) && f.right.equals(a));
+  return hasAB && hasBA;
+}
+
+/** Checks if the disjuncts form a recognized tautology (any ordering). */
+function isTautologicalDisjunction(disjuncts: Literal[]): boolean {
+  if (disjuncts.length === 2) {
+    return areComplementary(disjuncts[0], disjuncts[1]);
+  }
+  if (disjuncts.length === 3) {
+    return isTrichotomy(disjuncts);
+  }
+  return false;
+}
+
+
 // --- DisjCases: proves R from known P or Q, with subgoals [P or Q, R+P, R+Q] ---
 
 export class DisjCasesTactic implements ProofTactic {
@@ -270,14 +320,17 @@ export class DisjCasesTactic implements ProofTactic {
   ) {}
 
   decompose(): ProofGoal[] {
-    const orProp = new OrProp(this.disjuncts);
-    const goals: ProofGoal[] = [{
-      label: orProp.to_string(),
-      goal: orProp,
-      env: this.env,
-      newTheorems: [],
-      newFacts: [],
-    }];
+    const goals: ProofGoal[] = [];
+    if (!isTautologicalDisjunction(this.disjuncts)) {
+      const orProp = new OrProp(this.disjuncts);
+      goals.push({
+        label: orProp.to_string(),
+        goal: orProp,
+        env: this.env,
+        newTheorems: [],
+        newFacts: [],
+      });
+    }
     for (const d of this.disjuncts) {
       const newEnv = new NestedEnv(this.env, [], [d]);
       goals.push({
@@ -295,7 +348,7 @@ export class DisjCasesTactic implements ProofTactic {
 export const disjCasesParser: ProofMethodParser = {
   tryParse(text: string, _formula: Formula, env: Environment): ParsedMethod | string | null {
     const method = parseTacticMethod(text);
-    if (method?.kind !== 'disj_cases') return null;
+    if (method === null || method.kind !== 'disj_cases') return null;
     const parts = method.condition.split(' or ');
     if (parts.length < 2) return 'expected "cases P or Q"';
     const disjuncts: Literal[] = [];

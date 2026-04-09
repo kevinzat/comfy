@@ -281,6 +281,11 @@ describe('cases (disjunction)', function() {
   const env = new NestedEnv(new TopLevelEnv([], []), [['x', 'Int']]);
   const formula = ParseFormula('x = x');
 
+  it('returns error for unrecognized method text', function() {
+    const result = ParseProofMethod('blah', formula, env, []);
+    assert.ok(typeof result === 'string');
+  });
+
   it('parses "cases x < 0 or 0 <= x"', function() {
     const result = ParseProofMethod('cases x < 0 or 0 <= x', formula, env, []);
     assert.ok(typeof result !== 'string');
@@ -297,16 +302,17 @@ describe('cases (disjunction)', function() {
     assert.ok(typeof result === 'string');
   });
 
-  it('decompose returns three goals: P or Q, R+P, R+Q', function() {
+  it('decompose returns three goals for non-tautological disjunction', function() {
+    // x < 0 or x < 1 is NOT a tautology
     const p: Literal = new AtomProp(ParseFormula('x < 0'));
-    const q: Literal = new AtomProp(ParseFormula('0 <= x'));
+    const q: Literal = new AtomProp(ParseFormula('x < 1'));
     const goalProp = new AtomProp(ParseFormula('x = x'));
     const tactic = new DisjCasesTactic(env, goalProp, [p, q]);
     const goals = tactic.decompose();
     assert.strictEqual(goals.length, 3);
     // First goal: the disjunction itself
     assert.ok(goals[0].goal.equivalent(new OrProp([p, q])));
-    assert.strictEqual(goals[0].label, 'x < 0 or 0 <= x');
+    assert.strictEqual(goals[0].label, 'x < 0 or x < 1');
     // Second goal: R in env+P
     assert.strictEqual(goals[1].goal.to_string(), 'x = x');
     assert.strictEqual(goals[1].label, 'x < 0');
@@ -314,14 +320,14 @@ describe('cases (disjunction)', function() {
     assert.strictEqual(goals[1].newFacts[0].to_string(), 'x < 0');
     // Third goal: R in env+Q
     assert.strictEqual(goals[2].goal.to_string(), 'x = x');
-    assert.strictEqual(goals[2].label, '0 <= x');
+    assert.strictEqual(goals[2].label, 'x < 1');
     assert.strictEqual(goals[2].newFacts.length, 1);
-    assert.strictEqual(goals[2].newFacts[0].to_string(), '0 <= x');
+    assert.strictEqual(goals[2].newFacts[0].to_string(), 'x < 1');
   });
 
   it('disjunction goal auto-discharged when P or Q is known', function() {
     const p: Literal = new AtomProp(ParseFormula('x < 0'));
-    const q: Literal = new AtomProp(ParseFormula('0 <= x'));
+    const q: Literal = new AtomProp(ParseFormula('x < 1'));
     const orProp = new OrProp([p, q]);
     const envWithOr = new NestedEnv(env, [], [orProp]);
     const goalProp = new AtomProp(ParseFormula('x = x'));
@@ -329,6 +335,144 @@ describe('cases (disjunction)', function() {
     const goals = tactic.decompose();
     const remaining = filterDischargedGoals(goals);
     assert.strictEqual(remaining.length, 2);  // only R+P and R+Q remain
+  });
+
+  // --- Tautology recognition: dichotomy ---
+
+  it('skips disjunction goal for integer dichotomy a < b or b <= a', function() {
+    const p: Literal = new AtomProp(ParseFormula('x < 0'));
+    const q: Literal = new AtomProp(ParseFormula('0 <= x'));
+    const goalProp = new AtomProp(ParseFormula('x = x'));
+    const tactic = new DisjCasesTactic(env, goalProp, [p, q]);
+    const goals = tactic.decompose();
+    assert.strictEqual(goals.length, 2);  // no disjunction goal
+    assert.strictEqual(goals[0].label, 'x < 0');
+    assert.strictEqual(goals[1].label, '0 <= x');
+  });
+
+  it('skips disjunction goal for integer dichotomy b <= a or a < b', function() {
+    const p: Literal = new AtomProp(ParseFormula('0 <= x'));
+    const q: Literal = new AtomProp(ParseFormula('x < 0'));
+    const goalProp = new AtomProp(ParseFormula('x = x'));
+    const tactic = new DisjCasesTactic(env, goalProp, [p, q]);
+    const goals = tactic.decompose();
+    assert.strictEqual(goals.length, 2);
+  });
+
+  it('skips disjunction goal for integer dichotomy a <= b or b < a', function() {
+    const p: Literal = new AtomProp(ParseFormula('x <= 0'));
+    const q: Literal = new AtomProp(ParseFormula('0 < x'));
+    const goalProp = new AtomProp(ParseFormula('x = x'));
+    const tactic = new DisjCasesTactic(env, goalProp, [p, q]);
+    const goals = tactic.decompose();
+    assert.strictEqual(goals.length, 2);
+  });
+
+  // --- Tautology recognition: equality decidability ---
+
+  it('skips disjunction goal for a = b or not (a = b)', function() {
+    const p: Literal = new AtomProp(ParseFormula('x = 0'));
+    const q: Literal = new NotProp(ParseFormula('x = 0'));
+    const goalProp = new AtomProp(ParseFormula('x = x'));
+    const tactic = new DisjCasesTactic(env, goalProp, [p, q]);
+    const goals = tactic.decompose();
+    assert.strictEqual(goals.length, 2);
+    assert.strictEqual(goals[0].label, 'x = 0');
+    assert.strictEqual(goals[1].label, 'not x = 0');
+  });
+
+  it('skips disjunction goal for not (a = b) or a = b (reversed)', function() {
+    const p: Literal = new NotProp(ParseFormula('x = 0'));
+    const q: Literal = new AtomProp(ParseFormula('x = 0'));
+    const goalProp = new AtomProp(ParseFormula('x = x'));
+    const tactic = new DisjCasesTactic(env, goalProp, [p, q]);
+    const goals = tactic.decompose();
+    assert.strictEqual(goals.length, 2);
+  });
+
+  // --- Tautology recognition: trichotomy ---
+
+  it('skips disjunction goal for a < b or a = b or b < a', function() {
+    const p: Literal = new AtomProp(ParseFormula('x < 0'));
+    const q: Literal = new AtomProp(ParseFormula('x = 0'));
+    const r: Literal = new AtomProp(ParseFormula('0 < x'));
+    const goalProp = new AtomProp(ParseFormula('x = x'));
+    const tactic = new DisjCasesTactic(env, goalProp, [p, q, r]);
+    const goals = tactic.decompose();
+    assert.strictEqual(goals.length, 3);  // 3 branch goals, no disjunction goal
+    assert.strictEqual(goals[0].label, 'x < 0');
+    assert.strictEqual(goals[1].label, 'x = 0');
+    assert.strictEqual(goals[2].label, '0 < x');
+  });
+
+  it('skips disjunction goal for trichotomy in any order', function() {
+    const p: Literal = new AtomProp(ParseFormula('x = 0'));
+    const q: Literal = new AtomProp(ParseFormula('0 < x'));
+    const r: Literal = new AtomProp(ParseFormula('x < 0'));
+    const goalProp = new AtomProp(ParseFormula('x = x'));
+    const tactic = new DisjCasesTactic(env, goalProp, [p, q, r]);
+    const goals = tactic.decompose();
+    assert.strictEqual(goals.length, 3);
+  });
+
+  it('does not skip disjunction goal for not-not pair', function() {
+    const p: Literal = new NotProp(ParseFormula('x = 0'));
+    const q: Literal = new NotProp(ParseFormula('x = 1'));
+    const goalProp = new AtomProp(ParseFormula('x = x'));
+    const tactic = new DisjCasesTactic(env, goalProp, [p, q]);
+    const goals = tactic.decompose();
+    assert.strictEqual(goals.length, 3);  // includes disjunction goal
+  });
+
+  it('does not skip disjunction goal for four disjuncts', function() {
+    const a: Literal = new AtomProp(ParseFormula('x < 0'));
+    const b: Literal = new AtomProp(ParseFormula('x = 0'));
+    const c: Literal = new AtomProp(ParseFormula('0 < x'));
+    const d: Literal = new AtomProp(ParseFormula('x < 1'));
+    const goalProp = new AtomProp(ParseFormula('x = x'));
+    const tactic = new DisjCasesTactic(env, goalProp, [a, b, c, d]);
+    const goals = tactic.decompose();
+    assert.strictEqual(goals.length, 5);  // includes disjunction goal
+  });
+
+  it('does not skip disjunction goal for non-tautological triple', function() {
+    const p: Literal = new AtomProp(ParseFormula('x < 0'));
+    const q: Literal = new AtomProp(ParseFormula('x = 0'));
+    const r: Literal = new AtomProp(ParseFormula('x < 1'));
+    const goalProp = new AtomProp(ParseFormula('x = x'));
+    const tactic = new DisjCasesTactic(env, goalProp, [p, q, r]);
+    const goals = tactic.decompose();
+    assert.strictEqual(goals.length, 4);  // includes disjunction goal
+  });
+
+  it('does not skip disjunction goal for triple with not (not atom)', function() {
+    const p: Literal = new AtomProp(ParseFormula('x < 0'));
+    const q: Literal = new NotProp(ParseFormula('x = 0'));
+    const r: Literal = new AtomProp(ParseFormula('0 < x'));
+    const goalProp = new AtomProp(ParseFormula('x = x'));
+    const tactic = new DisjCasesTactic(env, goalProp, [p, q, r]);
+    const goals = tactic.decompose();
+    assert.strictEqual(goals.length, 4);  // not all atoms, so not trichotomy
+  });
+
+  it('does not skip disjunction goal for triple with no equality', function() {
+    const p: Literal = new AtomProp(ParseFormula('x < 0'));
+    const q: Literal = new AtomProp(ParseFormula('0 < x'));
+    const r: Literal = new AtomProp(ParseFormula('x < 1'));
+    const goalProp = new AtomProp(ParseFormula('x = x'));
+    const tactic = new DisjCasesTactic(env, goalProp, [p, q, r]);
+    const goals = tactic.decompose();
+    assert.strictEqual(goals.length, 4);  // no = formula, so not trichotomy
+  });
+
+  it('does not skip disjunction goal for triple with = but non-< others', function() {
+    const p: Literal = new AtomProp(ParseFormula('x = 0'));
+    const q: Literal = new AtomProp(ParseFormula('0 <= x'));
+    const r: Literal = new AtomProp(ParseFormula('x <= 0'));
+    const goalProp = new AtomProp(ParseFormula('x = x'));
+    const tactic = new DisjCasesTactic(env, goalProp, [p, q, r]);
+    const goals = tactic.decompose();
+    assert.strictEqual(goals.length, 4);  // others are <=, not <
   });
 
   it('parses "cases" with not disjunct', function() {

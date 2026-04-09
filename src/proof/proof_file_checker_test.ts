@@ -578,6 +578,30 @@ prove foo by cases x < 0 or not 0 < x`;
     check(source);
   });
 
+  it('accepts cases on for inductive type', function() {
+    const source = `type List
+| nil : List
+| cons : (Int, List) -> List
+
+def len : (List) -> Int
+| len(nil) => 0
+| len(cons(a, L)) => 1 + len(L)
+
+theorem foo (xs : List)
+| len(xs) = len(xs)
+
+prove foo by cases on xs
+
+case nil:
+  prove len(nil) = len(nil) by calculation
+  len(nil)
+
+case cons(a, L):
+  prove len(cons(a, L)) = len(cons(a, L)) by calculation
+  len(cons(a, L))`;
+    check(source);
+  });
+
   it('reports type error from env.check()', function() {
     const source = `def foo : (Int) -> Int
 | foo(x) => badvar

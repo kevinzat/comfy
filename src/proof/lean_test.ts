@@ -597,6 +597,34 @@ describe('oblToLean', function() {
     assert.ok(lean.includes('x < 0'));
   });
 
+  it('generates type cases in Lean', function() {
+    const source = `type List
+| nil : List
+| cons : (Int, List) -> List
+
+def len : (List) -> Int
+| len(nil) => 0
+| len(cons(a, L)) => 1 + len(L)
+
+theorem foo (xs : List)
+| len(xs) = len(xs)
+
+prove foo by cases on xs
+
+case nil:
+  prove len(nil) = len(nil) by calculation
+  len(nil)
+
+case cons(a, L):
+  prove len(cons(a, L)) = len(cons(a, L)) by calculation
+  len(cons(a, L))`;
+    const pf = parseProofFile(source);
+    const lean = toLean(pf);
+    assert.ok(lean.includes('cases xs with'));
+    assert.ok(lean.includes('| nil =>'));
+    assert.ok(lean.includes('| cons a L =>'));
+  });
+
   it('generates left tactic in Lean', function() {
     const calcProof: CalcProofNode = {
       kind: 'calculate',

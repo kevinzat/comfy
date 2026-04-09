@@ -293,6 +293,15 @@ function proofToLean(
       lines.push(proofToLean(node.cases[i].proof, ctors, indent + '  ', ihNames, `h${i - 1}`));
     }
     return lines.join('\n');
+  } else if (method.kind === 'type_cases') {
+    const lines: string[] = [];
+    lines.push(`${indent}cases ${method.varName} with`);
+    for (const block of node.cases) {
+      const { name, args } = parseCaseLabel(block.label);
+      lines.push(`${indent}| ${[name, ...args].join(' ')} =>`);
+      lines.push(proofToLean(block.proof, ctors, indent + '  ', []));
+    }
+    return lines.join('\n');
   } else {
     // simple_cases
     const condFormula = ParseFormula(method.condition);
