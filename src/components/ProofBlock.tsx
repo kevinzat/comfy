@@ -176,7 +176,7 @@ export default class ProofBlock
                 <input
                   type="text"
                   value={methodText}
-                  placeholder="calculation / induction on ... / cases on ..."
+                  placeholder="calculation / induction on ... / simple cases on ..."
                   onChange={(evt) => this.setText(evt.target.value)}
                   onKeyDown={(evt) => this.handleKeyDown(evt)}
                   onFocus={() => this.setState({ focus: true })}

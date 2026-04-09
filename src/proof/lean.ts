@@ -240,7 +240,20 @@ function proofToLean(
     throw new Error(`unexpected tactic method: ${node.method}`);
   /* v8 ignore stop */
 
-  if (method.kind === 'induction') {
+  if (method.kind === 'verum') {
+    return `${indent}trivial`;
+  } else if (method.kind === 'exfalso') {
+    return `${indent}exfalso`;
+  } else if (method.kind === 'absurdum') {
+    const lines: string[] = [];
+    lines.push(`${indent}intro h`);
+    lines.push(proofToLean(node.cases[0].proof, ctors, indent, ihNames, 'h'));
+    return lines.join('\n');
+  } else if (method.kind === 'contradiction') {
+    const condFormula = ParseFormula(method.condition);
+    const condLean = formulaToLean(condFormula, ctors);
+    return `${indent}exact absurd (${condLean})`;
+  } else if (method.kind === 'induction') {
     // Collect parameter names from IH theorems that need generalizing.
     const generalize = new Set<string>();
     for (const block of node.cases) {
@@ -262,7 +275,26 @@ function proofToLean(
       lines.push(proofToLean(block.proof, ctors, indent + '  ', ihs));
     }
     return lines.join('\n');
+  } else if (method.kind === 'left') {
+    const lines: string[] = [];
+    lines.push(`${indent}left`);
+    lines.push(proofToLean(node.cases[0].proof, ctors, indent, ihNames));
+    return lines.join('\n');
+  } else if (method.kind === 'right') {
+    const lines: string[] = [];
+    lines.push(`${indent}right`);
+    lines.push(proofToLean(node.cases[0].proof, ctors, indent, ihNames));
+    return lines.join('\n');
+  } else if (method.kind === 'disj_cases') {
+    const lines: string[] = [];
+    lines.push(`${indent}rcases h with ${node.cases.slice(1).map((_, i) => `h${i}`).join(' | ')}`);
+    for (let i = 1; i < node.cases.length; i++) {
+      lines.push(`${indent}·`);
+      lines.push(proofToLean(node.cases[i].proof, ctors, indent + '  ', ihNames, `h${i - 1}`));
+    }
+    return lines.join('\n');
   } else {
+    // simple_cases
     const condFormula = ParseFormula(method.condition);
     const condLean = formulaToLean(condFormula, ctors);
     const lines: string[] = [];

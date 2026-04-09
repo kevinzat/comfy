@@ -39,7 +39,7 @@ export function buildCasesOnCondition(
 export const casesParser: ProofMethodParser = {
   tryParse(text: string, formula: Formula, env: Environment): ParsedMethod | string | null {
     const method = parseTacticMethod(text);
-    if (method?.kind !== 'cases') return null;
+    if (method?.kind !== 'simple_cases') return null;
     let condition: Formula;
     try {
       condition = ParseFormula(method.condition);
@@ -57,13 +57,13 @@ export const casesParser: ProofMethodParser = {
 
   getMatches(text: string): Match[] {
     const trimmed = text.trim();
-    if ('cases on'.startsWith(trimmed) && trimmed.length > 0) {
+    if ('simple cases on'.startsWith(trimmed) && trimmed.length > 0) {
       const desc = [
         { bold: true, text: trimmed },
-        { bold: false, text: 'cases on'.substring(trimmed.length) + ' ...' },
+        { bold: false, text: 'simple cases on'.substring(trimmed.length) + ' ...' },
       ];
-      return [{ description: desc, completion: 'cases on ' }];
-    } else if (trimmed.startsWith('cases on ')) {
+      return [{ description: desc, completion: 'simple cases on ' }];
+    } else if (trimmed.startsWith('simple cases on ')) {
       const desc = [
         { bold: true, text: trimmed },
         { bold: false, text: '' },
@@ -81,7 +81,7 @@ export class CasesTactic implements ProofTactic {
   constructor(
       private goal: Prop,
       private env: Environment,
-      private method: Extract<TacticMethod, { kind: 'cases' }>,
+      private method: Extract<TacticMethod, { kind: 'simple_cases' }>,
       private node: TacticProofNode) {
   }
 

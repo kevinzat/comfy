@@ -1,5 +1,6 @@
 import { Formula } from '../facts/formula';
-import { Prop } from '../facts/prop';
+import { ParseFormula } from '../facts/formula_parser';
+import { Prop, OrProp, AtomProp, NotProp, Literal } from '../facts/prop';
 import { Environment } from '../types/env';
 import { TheoremAst } from '../lang/theorem_ast';
 import { Match } from '../calc/calc_complete';
@@ -7,6 +8,7 @@ import { TacticProofNode } from './proof_file';
 import { InductionTactic, inductionParser } from './induction';
 import { CasesTactic, casesParser } from './cases';
 import { calculationParser } from './calc_proof';
+import { VerumTactic, verumParser, ExfalsoTactic, exfalsoParser, ContradictionTactic, contradictionParser, AbsurdumTactic, absurdumParser, LeftTactic, leftParser, RightTactic, rightParser, DisjCasesTactic, disjCasesParser } from './prop_tactics';
 
 
 export interface ProofGoal {
@@ -26,11 +28,33 @@ export interface ProofTactic {
 export type TacticMethod =
   | { kind: 'calculate' }
   | { kind: 'induction'; varName: string; argNames?: string[] }
-  | { kind: 'cases'; condition: string };
+  | { kind: 'simple_cases'; condition: string }
+  | { kind: 'verum' }
+  | { kind: 'exfalso' }
+  | { kind: 'contradiction'; condition: string }
+  | { kind: 'absurdum' }
+  | { kind: 'left' }
+  | { kind: 'right' }
+  | { kind: 'disj_cases'; condition: string };
 
 export function parseTacticMethod(text: string): TacticMethod | null {
   const trimmed = text.trim();
   if (trimmed === 'calculation') return { kind: 'calculate' };
+  if (trimmed === 'verum') return { kind: 'verum' };
+  if (trimmed === 'exfalso') return { kind: 'exfalso' };
+  if (trimmed === 'absurdum') return { kind: 'absurdum' };
+  if (trimmed === 'left') return { kind: 'left' };
+  if (trimmed === 'right') return { kind: 'right' };
+
+  const disjMatch = trimmed.match(/^cases\s+(.+)$/);
+  if (disjMatch) {
+    return { kind: 'disj_cases', condition: disjMatch[1] };
+  }
+
+  const contrMatch = trimmed.match(/^contradiction\s+(.+)$/);
+  if (contrMatch) {
+    return { kind: 'contradiction', condition: contrMatch[1] };
+  }
 
   const indMatch = trimmed.match(/^induction\s+on\s+(\S+)(?:\s+\(([^)]+)\))?$/);
   if (indMatch) {
@@ -40,9 +64,9 @@ export function parseTacticMethod(text: string): TacticMethod | null {
     return { kind: 'induction', varName: indMatch[1], argNames };
   }
 
-  const casesMatch = trimmed.match(/^cases\s+on\s+(.+)$/);
+  const casesMatch = trimmed.match(/^simple\s+cases\s+on\s+(.+)$/);
   if (casesMatch) {
-    return { kind: 'cases', condition: casesMatch[1] };
+    return { kind: 'simple_cases', condition: casesMatch[1] };
   }
 
   return null;
@@ -64,18 +88,25 @@ const parsers: ProofMethodParser[] = [
   calculationParser,
   inductionParser,
   casesParser,
+  verumParser,
+  exfalsoParser,
+  contradictionParser,
+  absurdumParser,
+  leftParser,
+  rightParser,
+  disjCasesParser,
 ];
 
 export function ParseProofMethod(
     text: string, formula: Formula, env: Environment,
     premises: Prop[]): ParsedMethod | string {
   const trimmed = text.trim();
-  if (trimmed === '') return 'expected "calculation", "induction on <variable>", or "cases on <inequality>"';
+  if (trimmed === '') return 'expected "calculation", "induction on <variable>", or "simple cases on <inequality>"';
   for (const parser of parsers) {
     const result = parser.tryParse(trimmed, formula, env, premises);
     if (result !== null) return result;
   }
-  return 'expected "calculation", "induction on <variable>", or "cases on <inequality>"';
+  return 'expected "calculation", "induction on <variable>", or "simple cases on <inequality>"';
 }
 
 export function FindProofMethodMatches(
@@ -85,6 +116,14 @@ export function FindProofMethodMatches(
     matches.push(...parser.getMatches(text, formula, env));
   }
   return matches;
+}
+
+/**
+ * Filters out goals that are already known facts in their environment.
+ * Returns only the goals that still need to be proved.
+ */
+export function filterDischargedGoals(goals: ProofGoal[]): ProofGoal[] {
+  return goals.filter(g => !g.env.isKnownFact(g.goal));
 }
 
 export function CreateProofTactic(
@@ -97,6 +136,33 @@ export function CreateProofTactic(
   /* v8 ignore stop */
   switch (method.kind) {
     case 'induction': return new InductionTactic(goal, env, method, node, premises);
-    case 'cases':     return new CasesTactic(goal, env, method, node);
+    case 'simple_cases': return new CasesTactic(goal, env, method, node);
+    case 'verum': return new VerumTactic();
+    case 'exfalso': return new ExfalsoTactic(env);
+    case 'contradiction':
+      return new ContradictionTactic(env, ParseFormula(method.condition));
+    case 'absurdum':
+      /* v8 ignore start */
+      if (goal.tag !== 'not') throw new Error('absurdum requires a negation goal');
+      /* v8 ignore stop */
+      return new AbsurdumTactic(env, goal.formula);
+    case 'left':
+    case 'right':
+      /* v8 ignore start */
+      if (goal.tag !== 'or') throw new Error(`${method.kind} requires a disjunction goal`);
+      /* v8 ignore stop */
+      return method.kind === 'left'
+          ? new LeftTactic(env, goal)
+          : new RightTactic(env, goal);
+    case 'disj_cases': {
+      const parts = method.condition.split(' or ');
+      const disjuncts: Literal[] = parts.map(part => {
+        const trimmed = part.trim();
+        const notMatch = trimmed.match(/^not\s+(.+)$/);
+        if (notMatch) return new NotProp(ParseFormula(notMatch[1]));
+        return new AtomProp(ParseFormula(trimmed));
+      });
+      return new DisjCasesTactic(env, goal, disjuncts);
+    }
   }
 }

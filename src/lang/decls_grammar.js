@@ -104,6 +104,8 @@ var grammar = {
         } },
     {"name": "Literal", "symbols": ["Formula"], "postprocess": ([f]) => new prop.AtomProp(f)},
     {"name": "Literal", "symbols": [(lexer2.has("kw_not") ? {type: "kw_not"} : kw_not), "Formula"], "postprocess": ([_op, f]) => new prop.NotProp(f)},
+    {"name": "Literal", "symbols": [(lexer2.has("kw_true") ? {type: "kw_true"} : kw_true)], "postprocess": () => new prop.ConstProp(true)},
+    {"name": "Literal", "symbols": [(lexer2.has("kw_false") ? {type: "kw_false"} : kw_false)], "postprocess": () => new prop.ConstProp(false)},
     {"name": "Formula", "symbols": ["Expr", (lexer2.has("equal") ? {type: "equal"} : equal), "Expr"], "postprocess": ([l, _op, r]) => new formula.Formula(l, '=', r)},
     {"name": "Formula", "symbols": ["Expr", (lexer2.has("lessthan") ? {type: "lessthan"} : lessthan), "Expr"], "postprocess": ([l, _op, r]) => new formula.Formula(l, '<', r)},
     {"name": "Formula", "symbols": ["Expr", (lexer2.has("lessequal") ? {type: "lessequal"} : lessequal), "Expr"], "postprocess": ([l, _op, r]) => new formula.Formula(l, '<=', r)},

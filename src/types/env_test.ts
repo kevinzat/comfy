@@ -6,7 +6,7 @@ import { TheoremAst } from '../lang/theorem_ast';
 import { Constant, Variable, Call } from '../facts/exprs';
 import { Formula, OP_EQUAL } from '../facts/formula';
 import { ParseFormula } from '../facts/formula_parser';
-import { AtomProp } from '../facts/prop';
+import { AtomProp, NotProp, ConstProp, OrProp } from '../facts/prop';
 import { TopLevelEnv, NestedEnv, DuplicateError, ShadowError } from './env';
 import { UnknownTypeError, UnknownNameError, TypeMismatchError } from './checker';
 
@@ -287,6 +287,53 @@ describe('NestedEnv facts', function() {
     assert.throws(() => nested.check(), UnknownNameError);
   });
 
+});
+
+
+describe('isKnownFact', function() {
+
+  it('returns true for exact fact match in TopLevelEnv', function() {
+    const fact = new AtomProp(ParseFormula('x = 3'));
+    const env = new TopLevelEnv([], [], [fact]);
+    assert.ok(env.isKnownFact(new AtomProp(ParseFormula('x = 3'))));
+  });
+
+  it('returns false when no matching fact', function() {
+    const fact = new AtomProp(ParseFormula('x = 3'));
+    const env = new TopLevelEnv([], [], [fact]);
+    assert.ok(!env.isKnownFact(new AtomProp(ParseFormula('x = 5'))));
+  });
+
+  it('returns true for equivalent cross-type props (AtomProp/NotProp)', function() {
+    // a <= b is equivalent to not (b < a)
+    const fact = new AtomProp(ParseFormula('a <= b'));
+    const env = new TopLevelEnv([], [], [fact]);
+    assert.ok(env.isKnownFact(new NotProp(ParseFormula('b < a'))));
+  });
+
+  it('returns true for fact in NestedEnv local facts', function() {
+    const parent = new TopLevelEnv([], []);
+    const localFact = new AtomProp(ParseFormula('x = 1'));
+    const nested = new NestedEnv(parent, [['x', 'Int']], [localFact]);
+    assert.ok(nested.isKnownFact(new AtomProp(ParseFormula('x = 1'))));
+  });
+
+  it('returns true for fact in NestedEnv parent facts', function() {
+    const parentFact = new AtomProp(ParseFormula('x = 1'));
+    const parent = new NestedEnv(new TopLevelEnv([], []), [['x', 'Int']], [parentFact]);
+    const nested = new NestedEnv(parent, []);
+    assert.ok(nested.isKnownFact(new AtomProp(ParseFormula('x = 1'))));
+  });
+
+  it('returns false for empty environment', function() {
+    const env = new TopLevelEnv([], []);
+    assert.ok(!env.isKnownFact(new ConstProp(false)));
+  });
+
+  it('returns true for ConstProp false when false is known', function() {
+    const env = new TopLevelEnv([], [], [new ConstProp(false)]);
+    assert.ok(env.isKnownFact(new ConstProp(false)));
+  });
 });
 
 

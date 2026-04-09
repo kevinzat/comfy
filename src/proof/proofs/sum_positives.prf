@@ -26,7 +26,7 @@ case nil:
 
 case cons(a, L):
   given IH : sum(L) <= sum(positives(L))
-  prove sum(cons(a, L)) <= sum(positives(cons(a, L))) by cases on a < 0
+  prove sum(cons(a, L)) <= sum(positives(cons(a, L))) by simple cases on a < 0
 
   case then:
     given 1. a < 0

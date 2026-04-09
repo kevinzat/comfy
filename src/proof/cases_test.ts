@@ -42,25 +42,25 @@ describe('casesParser', function() {
   const env = new TopLevelEnv([], []);
   const formula = ParseFormula('x = x');
 
-  it('parses "cases on x < y"', function() {
-    const result = casesParser.tryParse('cases on x < y', formula, env, []);
+  it('parses "simple cases on x < y"', function() {
+    const result = casesParser.tryParse('simple cases on x < y', formula, env, []);
     assert.ok(result !== null && typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
   });
 
-  it('parses "cases on x <= y"', function() {
-    const result = casesParser.tryParse('cases on x <= y', formula, env, []);
+  it('parses "simple cases on x <= y"', function() {
+    const result = casesParser.tryParse('simple cases on x <= y', formula, env, []);
     assert.ok(result !== null && typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
   });
 
   it('returns error for bad condition', function() {
-    const result = casesParser.tryParse('cases on ???', formula, env, []);
+    const result = casesParser.tryParse('simple cases on ???', formula, env, []);
     assert.strictEqual(result, 'syntax error in cases condition');
   });
 
   it('returns error for non-inequality condition', function() {
-    const result = casesParser.tryParse('cases on x = y', formula, env, []);
+    const result = casesParser.tryParse('simple cases on x = y', formula, env, []);
     assert.strictEqual(result, 'cases condition must use < or <=');
   });
 
@@ -68,16 +68,16 @@ describe('casesParser', function() {
     assert.strictEqual(casesParser.tryParse('calculation', formula, env, []), null);
   });
 
-  it('matches prefix of "cases on"', function() {
-    const matches = casesParser.getMatches('cas', formula, env);
+  it('matches prefix of "simple cases on"', function() {
+    const matches = casesParser.getMatches('sim', formula, env);
     assert.strictEqual(matches.length, 1);
-    assert.strictEqual(matches[0].completion, 'cases on ');
+    assert.strictEqual(matches[0].completion, 'simple cases on ');
   });
 
   it('matches when condition started', function() {
-    const matches = casesParser.getMatches('cases on x < y', formula, env);
+    const matches = casesParser.getMatches('simple cases on x < y', formula, env);
     assert.strictEqual(matches.length, 1);
-    assert.strictEqual(matches[0].completion, 'cases on x < y');
+    assert.strictEqual(matches[0].completion, 'simple cases on x < y');
   });
 
   it('no matches for unrelated text', function() {

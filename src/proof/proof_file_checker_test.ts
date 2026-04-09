@@ -234,7 +234,7 @@ prove bar by calculation
     const source = `theorem foo (x : Int)
 | x = x
 
-prove foo by cases on x = 0
+prove foo by simple cases on x = 0
 
 case then:
   prove x = x by calculation
@@ -396,7 +396,7 @@ case cons(a, L):
     const source = `theorem foo (x : Int)
 | x = x
 
-prove foo by cases on @@@
+prove foo by simple cases on @@@
 
 case then:
   prove x = x by calculation
@@ -412,7 +412,7 @@ case else:
     const source = `theorem foo (x, y : Int)
 | x < y => x <= y
 
-prove foo by cases on x < y - 1
+prove foo by simple cases on x < y - 1
 given 1. x < y
 
 case then:
@@ -428,6 +428,153 @@ case else:
   x
   < y since 1
   <= y`;
+    check(source);
+  });
+
+  it('auto-discharges a case when goal matches known fact', function() {
+    // Goal is x <= y, premise is x < y.
+    // "simple cases on x < 0": then-case gets fact "x < 0", else gets "0 <= x".
+    // Goal x <= x is not auto-discharged in either case, so both need proofs.
+    // But if the goal IS a known fact in one case, that case is skipped.
+    //
+    // Here: goal is "x <= y", premise gives "x <= y" as known.
+    // Both cases have the same goal "x <= y" which is known from premise,
+    // so both are auto-discharged — zero case blocks needed.
+    const source = `theorem foo (x, y : Int)
+| x <= y => x <= y
+
+prove foo by simple cases on x < 0
+given 1. x <= y`;
+    check(source);
+  });
+
+  it('auto-discharges one case but requires the other', function() {
+    // Goal: x <= y, premise: x < y.
+    // "simple cases on y <= x": then-case gets "y <= x", else gets "x < y".
+    // In the else case, fact "x < y" implies "x <= y" — but auto-discharge
+    // uses Prop.equivalent, not implication. So both cases need proofs...
+    // unless we set it up so one case's fact IS the goal.
+    //
+    // Goal: x < y, premise: x < y.
+    // "simple cases on x < 0": then gets "x < 0", else gets "0 <= x".
+    // Neither fact equals "x < y", so both need proofs — not useful.
+    //
+    // Better: goal is "0 <= x", no premise.
+    // "simple cases on x < 0": then gets "x < 0", else gets "0 <= x".
+    // Else case: fact "0 <= x" ≡ goal "0 <= x" → auto-discharged.
+    // Then case: fact "x < 0", goal "0 <= x" → not discharged, needs proof.
+    const source = `theorem foo (x : Int)
+| 0 <= x
+
+prove foo by simple cases on x < 0
+
+case then:
+  given 1. x < 0
+  prove 0 <= x by calculation
+  x`;
+    // This will fail at the calculation level (can't prove 0 <= x from x < 0),
+    // but the point is the checker accepts 1 case block instead of 2.
+    // To make it fully pass, we'd need a valid calc — let's just test the
+    // case count is accepted by checking it doesn't throw a case-count error.
+    checkFails(source, 9, /expected 0, got x/);
+  });
+
+  it('rejects wrong number of cases after auto-discharge', function() {
+    // Same setup: else case auto-discharged, 1 case expected.
+    // But we provide 2 case blocks — should be rejected.
+    const source = `theorem foo (x : Int)
+| 0 <= x
+
+prove foo by simple cases on x < 0
+
+case then:
+  given 1. x < 0
+  prove 0 <= x by calculation
+  x
+
+case else:
+  given 1. 0 <= x
+  prove 0 <= x by calculation
+  x`;
+    checkFails(source, 8, /expected 1 cases, got 2/);
+  });
+
+  it('accepts verum proof for true goal', function() {
+    const source = `theorem foo (x : Int)
+| true
+
+prove foo by verum`;
+    check(source);
+  });
+
+  it('accepts exfalso proof when false is known', function() {
+    const source = `theorem foo (x : Int)
+| false => x < x + 1
+
+prove foo by exfalso`;
+    check(source);
+  });
+
+  it('accepts contradiction proof when P and not P are known', function() {
+    const source = `theorem foo (x : Int)
+| x < x + 1, not x < x + 1 => false
+
+prove foo by contradiction x < x + 1`;
+    check(source);
+  });
+
+  it('accepts absurdum proof when false is auto-discharged', function() {
+    // The premise gives us "x < x + 1". Absurdum assumes the formula from
+    // "not x < x + 1" (i.e., x < x + 1), adding it to env. With the
+    // premise already providing "x < x + 1", we have false derivable, but
+    // actually we need false in env. Let's use a setup where false is known.
+    const source = `theorem foo (x : Int)
+| false => not x < x + 1
+
+prove foo by absurdum`;
+    check(source);
+  });
+
+  it('accepts left proof for disjunction goal', function() {
+    const source = `theorem foo (x : Int)
+| x < x + 1 => x < x + 1 or x = x
+
+prove foo by left`;
+    check(source);
+  });
+
+  it('accepts right proof for disjunction goal', function() {
+    const source = `theorem foo (x : Int)
+| x = x => x < x + 1 or x = x
+
+prove foo by right`;
+    check(source);
+  });
+
+  it('accepts cases proof for disjunction', function() {
+    const source = `theorem foo (x : Int)
+| x < 0 or 0 <= x => x = x
+
+prove foo by cases x < 0 or 0 <= x
+
+case x < 0:
+  given 2. x < 0
+  prove x = x by calculation
+  x
+
+case 0 <= x:
+  given 2. 0 <= x
+  prove x = x by calculation
+  x`;
+    check(source);
+  });
+
+  it('accepts cases proof with not disjunct (fully auto-discharged)', function() {
+    // All goals auto-discharged: disjunction known, and x = x known in each branch
+    const source = `theorem foo (x : Int)
+| x < 0 or not 0 < x, x < 0, not 0 < x, x = x => x = x
+
+prove foo by cases x < 0 or not 0 < x`;
     check(source);
   });
 
@@ -557,16 +704,14 @@ prove foo by calculation
   });
 
   it('rejects cases proof with non-formula goal via calculation', function() {
+    // The else case is auto-discharged (fact "0 <= x" ≡ "not x < 0"),
+    // so only the then case remains and hits the bad goal error.
     const source = `theorem foo (x : Int)
 | not x < 0
 
-prove foo by cases on x < 0
+prove foo by simple cases on x < 0
 
 case then:
-  prove not x < 0 by calculation
-  x
-
-case else:
   prove not x < 0 by calculation
   x`;
     checkFails(source, 7, /bad goal formula/);
@@ -636,7 +781,7 @@ describe('proof_file parse errors', function() {
     const source = `${preamble}
 
 prove len_zero_add by induction on xs`;
-    parseFails(source, 12, /no cases/);
+    checkFails(source, 12, /expected 2 cases, got 0/);
   });
 
   it('rejects bad declarations', function() {

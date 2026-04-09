@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
 import { parseProofFile } from './proof_file';
-import { ProofFile, CalcProofNode, CalcStep } from './proof_file';
+import { ProofFile, CalcProofNode, CalcStep, TacticProofNode, CaseBlock } from './proof_file';
 import { toLean, oblToLean } from './lean';
 import { ProofObligation } from '../program/obligations';
 import { DeclsAst } from '../lang/decls_ast';
@@ -526,6 +526,164 @@ describe('oblToLean', function() {
     // Since oblToLean always passes [], let's just test that the theorem appears in simp
     const lean = oblToLean(obl, new DeclsAst([], [], []), proof);
     assert.ok(lean.includes('simp [ih_test]'));
+  });
+
+  it('generates verum tactic in Lean', function() {
+    const proof: TacticProofNode = {
+      kind: 'tactic', method: 'verum', methodLine: 1, cases: [],
+    };
+    const goal = new ConstProp(true);
+    const thm = new TheoremAst('test_verum', [], [], goal, 1);
+    const decls = new DeclsAst([], [], [thm]);
+    const pf: ProofFile = {
+      decls, theoremName: 'test_verum', theoremLine: 1, givens: [], proof,
+    };
+    const lean = toLean(pf);
+    assert.ok(lean.includes('trivial'));
+  });
+
+  it('generates exfalso tactic in Lean', function() {
+    const proof: TacticProofNode = {
+      kind: 'tactic', method: 'exfalso', methodLine: 1, cases: [],
+    };
+    const goal = new AtomProp(new Formula(Variable.of('x'), '=', Constant.of(0n)));
+    const thm = new TheoremAst('test_exfalso', [['x', 'Int']], [], goal, 1);
+    const decls = new DeclsAst([], [], [thm]);
+    const pf: ProofFile = {
+      decls, theoremName: 'test_exfalso', theoremLine: 1, givens: [], proof,
+    };
+    const lean = toLean(pf);
+    assert.ok(lean.includes('exfalso'));
+  });
+
+  it('generates absurdum tactic in Lean', function() {
+    const calcProof: CalcProofNode = {
+      kind: 'calculate',
+      forwardStart: null, forwardSteps: [],
+      backwardStart: null, backwardSteps: [],
+    };
+    const caseBlock: CaseBlock = {
+      label: 'false', ihTheorems: [], givens: [],
+      goal: 'false', goalLine: 1, proof: calcProof,
+    };
+    const proof: TacticProofNode = {
+      kind: 'tactic', method: 'absurdum', methodLine: 1,
+      cases: [caseBlock],
+    };
+    const goal = new NotProp(new Formula(Variable.of('x'), '<', Constant.of(0n)));
+    const thm = new TheoremAst('test_abs', [['x', 'Int']], [], goal, 1);
+    const decls = new DeclsAst([], [], [thm]);
+    const pf: ProofFile = {
+      decls, theoremName: 'test_abs', theoremLine: 1, givens: [], proof,
+    };
+    const lean = toLean(pf);
+    assert.ok(lean.includes('intro h'));
+    assert.ok(lean.includes('omega'));
+  });
+
+  it('generates contradiction tactic in Lean', function() {
+    const proof: TacticProofNode = {
+      kind: 'tactic', method: 'contradiction x < 0', methodLine: 1,
+      cases: [],
+    };
+    const goal = new ConstProp(false);
+    const thm = new TheoremAst('test_contr', [['x', 'Int']], [], goal, 1);
+    const decls = new DeclsAst([], [], [thm]);
+    const pf: ProofFile = {
+      decls, theoremName: 'test_contr', theoremLine: 1, givens: [], proof,
+    };
+    const lean = toLean(pf);
+    assert.ok(lean.includes('exact absurd'));
+    assert.ok(lean.includes('x < 0'));
+  });
+
+  it('generates left tactic in Lean', function() {
+    const calcProof: CalcProofNode = {
+      kind: 'calculate',
+      forwardStart: null, forwardSteps: [],
+      backwardStart: null, backwardSteps: [],
+    };
+    const caseBlock: CaseBlock = {
+      label: 'x = 0', ihTheorems: [], givens: [],
+      goal: 'x = 0', goalLine: 1, proof: calcProof,
+    };
+    const proof: TacticProofNode = {
+      kind: 'tactic', method: 'left', methodLine: 1,
+      cases: [caseBlock],
+    };
+    const goal = new OrProp([
+      new AtomProp(new Formula(Variable.of('x'), '=', Constant.of(0n))),
+      new AtomProp(new Formula(Variable.of('y'), '=', Constant.of(0n))),
+    ]);
+    const thm = new TheoremAst('test_left', [['x', 'Int'], ['y', 'Int']], [], goal, 1);
+    const decls = new DeclsAst([], [], [thm]);
+    const pf: ProofFile = {
+      decls, theoremName: 'test_left', theoremLine: 1, givens: [], proof,
+    };
+    const lean = toLean(pf);
+    assert.ok(lean.includes('left'));
+    assert.ok(lean.includes('omega'));
+  });
+
+  it('generates right tactic in Lean', function() {
+    const calcProof: CalcProofNode = {
+      kind: 'calculate',
+      forwardStart: null, forwardSteps: [],
+      backwardStart: null, backwardSteps: [],
+    };
+    const caseBlock: CaseBlock = {
+      label: 'y = 0', ihTheorems: [], givens: [],
+      goal: 'y = 0', goalLine: 1, proof: calcProof,
+    };
+    const proof: TacticProofNode = {
+      kind: 'tactic', method: 'right', methodLine: 1,
+      cases: [caseBlock],
+    };
+    const goal = new OrProp([
+      new AtomProp(new Formula(Variable.of('x'), '=', Constant.of(0n))),
+      new AtomProp(new Formula(Variable.of('y'), '=', Constant.of(0n))),
+    ]);
+    const thm = new TheoremAst('test_right', [['x', 'Int'], ['y', 'Int']], [], goal, 1);
+    const decls = new DeclsAst([], [], [thm]);
+    const pf: ProofFile = {
+      decls, theoremName: 'test_right', theoremLine: 1, givens: [], proof,
+    };
+    const lean = toLean(pf);
+    assert.ok(lean.includes('right'));
+    assert.ok(lean.includes('omega'));
+  });
+
+  it('generates rcases for disjunction cases in Lean', function() {
+    const calcProof: CalcProofNode = {
+      kind: 'calculate',
+      forwardStart: null, forwardSteps: [],
+      backwardStart: null, backwardSteps: [],
+    };
+    const case1: CaseBlock = {
+      label: 'x < 0 or 0 <= x', ihTheorems: [], givens: [],
+      goal: 'x < 0 or 0 <= x', goalLine: 1, proof: calcProof,
+    };
+    const case2: CaseBlock = {
+      label: 'x < 0', ihTheorems: [], givens: [],
+      goal: 'x = x', goalLine: 2, proof: calcProof,
+    };
+    const case3: CaseBlock = {
+      label: '0 <= x', ihTheorems: [], givens: [],
+      goal: 'x = x', goalLine: 3, proof: calcProof,
+    };
+    const proof: TacticProofNode = {
+      kind: 'tactic', method: 'cases x < 0 or 0 <= x', methodLine: 1,
+      cases: [case1, case2, case3],
+    };
+    const goal = new AtomProp(new Formula(Variable.of('x'), '=', Variable.of('x')));
+    const thm = new TheoremAst('test_cases', [['x', 'Int']], [], goal, 1);
+    const decls = new DeclsAst([], [], [thm]);
+    const pf: ProofFile = {
+      decls, theoremName: 'test_cases', theoremLine: 1, givens: [], proof,
+    };
+    const lean = toLean(pf);
+    assert.ok(lean.includes('rcases h with h0 | h1'));
+    assert.ok(lean.includes('omega'));
   });
 
   it('theorem name not starting with IH in calc step', function() {

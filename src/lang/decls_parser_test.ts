@@ -12,8 +12,8 @@ describe('decls_parser', function() {
   it('parse single type declaration', function() {
     const { ast } = ParseDecls(
         `type Bool
-         | true : Bool
-         | false : Bool`);
+         | yes : Bool
+         | no : Bool`);
     assert.ok(ast);
     assert.equal(ast.types.length, 1);
     assert.equal(ast.types[0].name, 'Bool');
@@ -48,8 +48,8 @@ describe('decls_parser', function() {
   it('parse declarations in any order', function() {
     const { ast } = ParseDecls(
         `type Bool
-         | true : Bool
-         | false : Bool
+         | yes : Bool
+         | no : Bool
          def negate : (Bool) -> Bool
          | negate(b) => b
          theorem foo (x : Int)

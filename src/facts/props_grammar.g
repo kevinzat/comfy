@@ -12,7 +12,7 @@ const lexer2 = util.makeLexer(moo, {
   equal: '=',
   constant: /[0-9]+/,
   variable: { match: /[a-z][_a-zA-Z0-9]*/, type: moo.keywords({
-    kw_or: 'or', kw_not: 'not'
+    kw_or: 'or', kw_not: 'not', kw_true: 'true', kw_false: 'false'
   }) },
   lparen: '(', rparen: ')',
   comma: ',',

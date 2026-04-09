@@ -74,6 +74,9 @@ export interface Environment {
    */
   getFact(index: number): Prop;
 
+  /** Returns true if the given prop is equivalent to any known fact. */
+  isKnownFact(prop: Prop): boolean;
+
   /** Returns true if a theorem with the given name is defined. */
   hasTheorem(name: string): boolean;
   /**
@@ -254,6 +257,10 @@ export class TopLevelEnv implements Environment {
           `fact ${index} is out of range (have ${this.facts.length} facts)`);
     return this.facts[index - 1];
   }
+
+  isKnownFact(prop: Prop): boolean {
+    return this.facts.some(f => f.equivalent(prop));
+  }
 }
 
 /**
@@ -342,5 +349,10 @@ export class NestedEnv implements Environment {
     if (index <= parentN)
       return this.parent.getFact(index);
     return this.localFacts[index - parentN - 1];
+  }
+
+  isKnownFact(prop: Prop): boolean {
+    return this.localFacts.some(f => f.equivalent(prop)) ||
+        this.parent.isKnownFact(prop);
   }
 }

@@ -36,10 +36,10 @@ describe('ParseProofMethod', function() {
     assert.strictEqual(result.kind, 'tactic');
   });
 
-  it('parses "cases on x < y"', function() {
+  it('parses "simple cases on x < y"', function() {
     const intEnv = new NestedEnv(new TopLevelEnv([], []), [['x', 'Int'], ['y', 'Int']]);
     const f = ParseFormula('x = x');
-    const result = ParseProofMethod('cases on x < y', f, intEnv, []);
+    const result = ParseProofMethod('simple cases on x < y', f, intEnv, []);
     assert.ok(typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
   });

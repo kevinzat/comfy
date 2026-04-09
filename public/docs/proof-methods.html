@@ -26,13 +26,20 @@
   <p>
     After clicking Start on the setup screen, you enter the proof view. The goal
     is displayed with a text input below it where you choose a
-    <strong>proof method</strong>. There are three methods:
+    <strong>proof method</strong>. The available methods are:
   </p>
 
   <ul>
     <li><code>calculation</code></li>
     <li><code>induction on &lt;variable&gt;</code></li>
-    <li><code>cases on &lt;inequality&gt;</code></li>
+    <li><code>simple cases on &lt;inequality&gt;</code></li>
+    <li><code>verum</code></li>
+    <li><code>exfalso</code></li>
+    <li><code>contradiction &lt;formula&gt;</code></li>
+    <li><code>absurdum</code></li>
+    <li><code>left</code></li>
+    <li><code>right</code></li>
+    <li><code>cases &lt;P&gt; or &lt;Q&gt;</code></li>
   </ul>
 
   <p>
@@ -42,6 +49,30 @@
   </p>
 
   <img src="img/method-autocomplete.png" alt="Proof method input showing autocomplete suggestions" class="screenshot">
+
+  <h2>Auto-Discharge</h2>
+
+  <p>
+    Some proof methods generate <strong>sub-goals</strong> that you must prove
+    independently. Before presenting these sub-goals, the system checks whether
+    any of them are already known facts in the current environment. A sub-goal
+    that matches a known fact is <strong>automatically discharged</strong>
+    &mdash; you do not need to write a proof for it.
+  </p>
+
+  <p>
+    For example, if you use <code>simple cases on x &lt; 0</code> and the goal
+    is <code>0 &lt;= x</code>, the &ldquo;else&rdquo; case gives you
+    <code>0 &lt;= x</code> as a known fact. Since that matches the goal, the
+    else case is automatically discharged and only the &ldquo;then&rdquo; case
+    requires a proof.
+  </p>
+
+  <p>
+    Matching uses <strong>equivalence</strong>, not syntactic identity.
+    For instance, the fact <code>a &lt;= b</code> discharges a goal of
+    <code>not b &lt; a</code> (since they are logically equivalent).
+  </p>
 
   <h2>Calculation</h2>
 
@@ -169,10 +200,10 @@
     </tbody>
   </table>
 
-  <h2>Proof by Cases</h2>
+  <h2>Simple Cases</h2>
 
   <p>
-    Type <code>cases on <em>inequality</em></code> and press Enter. This starts
+    Type <code>simple cases on <em>inequality</em></code> and press Enter. This starts
     a <strong>proof by cases</strong> that splits on whether an inequality
     holds.
   </p>
@@ -186,7 +217,7 @@
 
   <h3>Example</h3>
 
-  <pre><code>cases on a &lt; 0</code></pre>
+  <pre><code>simple cases on a &lt; 0</code></pre>
 
   <p>This creates two sub-proofs:</p>
 
@@ -219,6 +250,145 @@
     sub-proof with its own proof method.
   </p>
 
+  <h2>Exfalso</h2>
+
+  <p>
+    Type <code>exfalso</code> and press Enter. This method can prove
+    <strong>any goal</strong> by reducing it to proving <code>false</code>.
+  </p>
+
+  <p>
+    It generates a single sub-goal of <code>false</code>. If <code>false</code>
+    is already a known fact (e.g., from a premise), the sub-goal is
+    automatically discharged and the proof is complete.
+  </p>
+
+  <div class="tip">
+    Use <code>exfalso</code> when you have contradictory assumptions that imply
+    <code>false</code>. Combine with <code>contradiction</code> to derive
+    <code>false</code> from a fact and its negation.
+  </div>
+
+  <h2>Contradiction</h2>
+
+  <p>
+    Type <code>contradiction <em>formula</em></code> and press Enter. This
+    proves <code>false</code> by generating two sub-goals: the formula and its
+    negation.
+  </p>
+
+  <h3>Example</h3>
+
+  <pre><code>contradiction x &lt; x + 1</code></pre>
+
+  <p>This generates two sub-goals:</p>
+  <ul>
+    <li><code>x &lt; x + 1</code></li>
+    <li><code>not x &lt; x + 1</code></li>
+  </ul>
+
+  <p>
+    If both are already known facts, they are automatically discharged and
+    the proof is complete. This is the typical usage: you have contradictory
+    facts in the environment and cite the relevant formula.
+  </p>
+
+  <div class="tip">
+    Combine <code>exfalso</code> and <code>contradiction</code> to prove any
+    goal from contradictory assumptions: first use <code>exfalso</code> to
+    reduce the goal to <code>false</code>, then use <code>contradiction</code>
+    to derive <code>false</code>.
+  </div>
+
+  <h2>Absurdum</h2>
+
+  <p>
+    Type <code>absurdum</code> and press Enter. This proves a goal of
+    <code>not P</code> by assuming <code>P</code> and deriving
+    <code>false</code>.
+  </p>
+
+  <p>
+    It generates a single sub-goal of <code>false</code> in an environment
+    where <code>P</code> is added as a known fact. If <code>false</code> is
+    already known (e.g., from a contradictory premise), the sub-goal is
+    automatically discharged.
+  </p>
+
+  <div class="tip">
+    Use <code>absurdum</code> when your goal is a negation. Inside the
+    sub-proof, you can use <code>contradiction</code> or
+    <code>calculation</code> to derive <code>false</code> from the assumed
+    fact and the other known facts.
+  </div>
+
+  <h2>Verum</h2>
+
+  <p>
+    Type <code>verum</code> and press Enter. This immediately proves a goal
+    of <code>true</code> with no sub-goals.
+  </p>
+
+  <p>
+    This method is only useful when the goal is literally <code>true</code>.
+    It produces zero sub-goals, so the proof is complete as soon as you
+    select it.
+  </p>
+
+  <h2>Left</h2>
+
+  <p>
+    Type <code>left</code> and press Enter. This proves a goal of
+    <code>P or Q</code> by proving only the left disjunct <code>P</code>.
+  </p>
+
+  <p>
+    It generates a single sub-goal: the first disjunct of the goal.
+    If that disjunct is already a known fact, it is automatically discharged.
+  </p>
+
+  <h2>Right</h2>
+
+  <p>
+    Type <code>right</code> and press Enter. This proves a goal of
+    <code>P or Q</code> by proving only the right disjunct <code>Q</code>.
+  </p>
+
+  <p>
+    It generates a single sub-goal: the last disjunct of the goal.
+    If that disjunct is already a known fact, it is automatically discharged.
+  </p>
+
+  <h2>Cases (Disjunction)</h2>
+
+  <p>
+    Type <code>cases <em>P</em> or <em>Q</em></code> and press Enter. This
+    proves the current goal by case analysis on a known disjunction.
+  </p>
+
+  <h3>Example</h3>
+
+  <pre><code>cases x &lt; 0 or 0 &lt;= x</code></pre>
+
+  <p>This generates three sub-goals:</p>
+  <ul>
+    <li><code>x &lt; 0 or 0 &lt;= x</code> &mdash; the disjunction itself
+        (automatically discharged if already known)</li>
+    <li>The current goal, with <code>x &lt; 0</code> added as a known fact</li>
+    <li>The current goal, with <code>0 &lt;= x</code> added as a known fact</li>
+  </ul>
+
+  <p>
+    Typically, the disjunction is already a known fact (e.g., from a premise),
+    so it is automatically discharged and you only need to prove the goal
+    under each branch.
+  </p>
+
+  <div class="tip">
+    Use <code>cases</code> when you have a disjunction in your assumptions
+    and need to reason about each possibility separately.
+  </div>
+
   <h2>Nesting Proof Methods</h2>
 
   <p>
@@ -227,13 +397,13 @@
 
   <ul>
     <li>Induction with calculation cases</li>
-    <li>Induction with cases-on analysis inside an inductive case</li>
-    <li>Cases with calculation in each branch</li>
+    <li>Induction with simple-cases analysis inside an inductive case</li>
+    <li>Simple cases with calculation in each branch</li>
   </ul>
 
   <p>
     A common pattern is: <strong>induction</strong> at the top level, with
-    <strong>cases on</strong> inside the inductive step (to handle conditional
+    <strong>simple cases on</strong> inside the inductive step (to handle conditional
     function definitions), and <strong>calculation</strong> at the leaves.
   </p>
 

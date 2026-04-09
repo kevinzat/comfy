@@ -6,7 +6,7 @@ import { TheoremAst } from '../lang/theorem_ast';
 import { checkProp } from '../types/checker';
 import { ProofFile, ProofNode, GivenLine, IHLine, CaseBlock } from './proof_file';
 import { validateCalculation } from './calc_proof';
-import { CreateProofTactic } from './proof_tactic';
+import { CreateProofTactic, filterDischargedGoals } from './proof_tactic';
 
 
 export class CheckError extends Error {
@@ -141,8 +141,14 @@ function checkProof(
     return;
   }
   const tactic = CreateProofTactic(node, goal, env, premises);
-  const proofGoals = tactic.decompose();
+  const allGoals = tactic.decompose();
+  const proofGoals = filterDischargedGoals(allGoals);
   const parentFactCount = env.numFacts();
+  if (node.cases.length !== proofGoals.length) {
+    const line = node.cases.length > 0 ? node.cases[0].goalLine : node.methodLine;
+    throw new CheckError(line,
+        `expected ${proofGoals.length} cases, got ${node.cases.length}`);
+  }
   for (let i = 0; i < proofGoals.length; i++) {
     const pg = proofGoals[i];
     checkCaseBlock(node.cases[i], pg.goal, pg.env, parentFactCount, pg.newTheorems);

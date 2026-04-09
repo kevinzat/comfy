@@ -6,7 +6,6 @@ import { ConstructorAst } from '../lang/type_ast';
 import { TheoremAst } from '../lang/theorem_ast';
 import { Match } from '../calc/calc_complete';
 import { TacticProofNode } from './proof_file';
-import { CheckError } from './proof_file_checker';
 import { ProofTactic, ProofGoal, ProofMethodParser, ParsedMethod, TacticMethod, parseTacticMethod } from './proof_tactic';
 
 
@@ -356,12 +355,8 @@ export class InductionTactic implements ProofTactic {
   }
 
   decompose(): ProofGoal[] {
-    const { goal, env, method, node, premises } = this;
+    const { goal, env, method, premises } = this;
     const cases = buildCases(goal, env, method.varName, method.argNames, premises);
-    if (node.cases.length !== cases.length) {
-      throw new CheckError(node.cases[0].goalLine,
-          `expected ${cases.length} cases, got ${node.cases.length}`);
-    }
     return cases.map((c) => {
       const argStr = c.argNames.length > 0
           ? `(${c.argNames.join(', ')})` : '';

@@ -128,7 +128,7 @@ function readLine(lines: Lines): { text: string; line: number } {
 function parseMethod(text: string, line: number): ProofNode {
   const method = parseTacticMethod(text);
   if (method === null) {
-    throw new ParseError(line, `expected "calculation", "induction on <var>", or "cases on <condition>"`);
+    throw new ParseError(line, `expected "calculation", "induction on <var>", or "simple cases on <condition>"`);
   }
   if (method.kind === 'calculate') {
     return { kind: 'calculate', forwardStart: null, forwardSteps: [], backwardStart: null, backwardSteps: [] };
@@ -211,10 +211,8 @@ function parseTacticBody(lines: Lines, node: TacticProofNode): void {
     if (!next.trim().startsWith('case ')) break;
     node.cases.push(parseCaseBlock(lines));
   }
-  if (node.cases.length === 0) {
-    const lineNum = lines.pos < lines.raw.length ? lines.pos + 1 : lines.raw.length;
-    throw new ParseError(lineNum, 'proof has no cases');
-  }
+  // Zero cases is valid for tactics whose goals are all auto-discharged.
+  // The checker validates the case count against decompose() results.
 }
 
 function parseProofBody(lines: Lines, node: ProofNode): void {

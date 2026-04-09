@@ -106,17 +106,25 @@ describe('parseProofFile', () => {
     parseFails(source, 3, /unrecognized rule/);
   });
 
-  it('fails on cases proof with no case blocks (EOF)', () => {
-    const source = 'prove foo by cases on x > 0';
-    parseFails(source, 1, /no cases/);
+  it('parses cases proof with no case blocks (EOF)', () => {
+    const source = 'prove foo by simple cases on x > 0';
+    const pf = parseProofFile(source);
+    assert.strictEqual(pf.proof.kind, 'tactic');
+    if (pf.proof.kind === 'tactic') {
+      assert.strictEqual(pf.proof.cases.length, 0);
+    }
   });
 
-  it('fails on cases proof with non-case line', () => {
+  it('parses cases proof with non-case line after method', () => {
     const source = [
-      'prove foo by cases on x > 0',
+      'prove foo by simple cases on x > 0',
       'not a case',
     ].join('\n');
-    parseFails(source, 2, /no cases/);
+    const pf = parseProofFile(source);
+    assert.strictEqual(pf.proof.kind, 'tactic');
+    if (pf.proof.kind === 'tactic') {
+      assert.strictEqual(pf.proof.cases.length, 0);
+    }
   });
 
   it('fails on bad case header (no colon)', () => {
@@ -158,7 +166,7 @@ describe('parseProofFile', () => {
 
   it('parses case block with givens', () => {
     const source = [
-      'prove foo by cases on x > 0',
+      'prove foo by simple cases on x > 0',
       'case then:',
       'given 1. x > 0',
       'prove x = x by calculation',
@@ -218,12 +226,16 @@ describe('parseProofFile', () => {
     }
   });
 
-  it('fails on induction with no cases', () => {
+  it('parses induction with no cases', () => {
     const source = [
       'prove foo by induction on n',
       'not a case line',
     ].join('\n');
-    parseFails(source, 2, /no cases/);
+    const pf = parseProofFile(source);
+    assert.strictEqual(pf.proof.kind, 'tactic');
+    if (pf.proof.kind === 'tactic') {
+      assert.strictEqual(pf.proof.cases.length, 0);
+    }
   });
 
   it('stops induction parsing at non-case line', () => {
@@ -275,7 +287,7 @@ describe('parseProofFile', () => {
 
   it('parses cases proof with one case block', () => {
     const source = [
-      'prove foo by cases on x > 0',
+      'prove foo by simple cases on x > 0',
       'case then:',
       'prove x = x by calculation',
       '  x',
