@@ -7,7 +7,7 @@ import { Formula, OP_EQUAL } from '../facts/formula';
 import { AtomProp, NotProp, OrProp } from '../facts/prop';
 import { ParseFormula } from '../facts/formula_parser';
 import { TopLevelEnv, NestedEnv } from '../types/env';
-import { buildCases } from './induction';
+import { buildCases, inductionParser } from './induction';
 
 
 const listType = new TypeDeclAst('List', [
@@ -355,4 +355,157 @@ describe('buildCases', function() {
         'len(cons(a, L)) = 0 or 0 < len(cons(a, L))');
   });
 
+});
+
+
+describe('inductionParser', function() {
+
+  const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['xs', 'List']]);
+  const formula = ParseFormula('len(xs) = len(xs)');
+
+  it('parses "induction on xs"', function() {
+    const result = inductionParser.tryParse('induction on xs', formula, env, []);
+    assert.ok(result !== null && typeof result !== 'string');
+    assert.strictEqual(result.kind, 'tactic');
+  });
+
+  it('parses "induction on xs (a, L)"', function() {
+    const result = inductionParser.tryParse('induction on xs (a, L)', formula, env, []);
+    assert.ok(result !== null && typeof result !== 'string');
+    assert.strictEqual(result.kind, 'tactic');
+  });
+
+  it('returns error for unknown variable', function() {
+    const result = inductionParser.tryParse('induction on zz', formula, env, []);
+    assert.strictEqual(result, 'unknown variable "zz"');
+  });
+
+  it('returns error for built-in type', function() {
+    const intEnv = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['n', 'Int']]);
+    const f = ParseFormula('n = n');
+    const result = inductionParser.tryParse('induction on n', f, intEnv, []);
+    assert.strictEqual(result, 'cannot do induction on built-in type "Int"');
+  });
+
+  it('returns null for non-induction text', function() {
+    assert.strictEqual(inductionParser.tryParse('calculation', formula, env, []), null);
+  });
+
+  it('matches prefix of "induction"', function() {
+    const matches = inductionParser.getMatches('ind', formula, env);
+    assert.ok(matches.length > 0);
+    assert.ok(matches[0].completion.startsWith('induction on'));
+  });
+
+  it('matches "induction on" with variable completions', function() {
+    const matches = inductionParser.getMatches('induction on', formula, env);
+    assert.ok(matches.length > 0);
+    assert.ok(matches.some(m => m.completion === 'induction on xs'));
+  });
+
+  it('matches "induction on x" with partial variable', function() {
+    const matches = inductionParser.getMatches('induction on x', formula, env);
+    assert.ok(matches.length > 0);
+    assert.ok(matches.some(m => m.completion === 'induction on xs'));
+  });
+
+  it('matches "induction on" with full keyword', function() {
+    const matches = inductionParser.getMatches('induction on', formula, env);
+    assert.ok(matches.length > 0);
+    assert.ok(matches.some(m => m.completion === 'induction on xs'));
+    assert.ok(matches.some(m => m.completion.includes('(')));
+  });
+
+  it('no matches past three words without parens', function() {
+    const matches = inductionParser.getMatches('induction on xs extra', formula, env);
+    assert.strictEqual(matches.length, 0);
+  });
+
+  it('matches with type that has no constructor args', function() {
+    const boolType = new TypeDeclAst('Bool', [
+      new ConstructorAst('true_val', [], 'Bool'),
+      new ConstructorAst('false_val', [], 'Bool'),
+    ]);
+    const boolEnv = new NestedEnv(
+        new TopLevelEnv([boolType], []), [['b', 'Bool']]);
+    const f = ParseFormula('b = b');
+    // prefix match
+    const m1 = inductionParser.getMatches('ind', f, boolEnv);
+    assert.ok(m1.length > 0);
+    assert.ok(m1.every(m => !m.completion.includes('(')));
+    // "induction o" match
+    const m2 = inductionParser.getMatches('induction o', f, boolEnv);
+    assert.ok(m2.length > 0);
+    assert.ok(m2.every(m => !m.completion.includes('(')));
+    // "induction on b" match
+    const m3 = inductionParser.getMatches('induction on b', f, boolEnv);
+    assert.ok(m3.length > 0);
+    assert.ok(m3.every(m => !m.completion.includes('(')));
+  });
+
+  it('filters out variables not in env and built-in types', function() {
+    // Formula references 'xs' (in env, List type), 'n' (Int, built-in), and 'y' (not in env)
+    const f = ParseFormula('len(xs) + n + y = len(xs) + n + y');
+    const mixedEnv = new NestedEnv(
+        new TopLevelEnv([listType], [lenFunc]), [['xs', 'List'], ['n', 'Int']]);
+    const matches = inductionParser.getMatches('ind', f, mixedEnv);
+    // Should only show xs (inductive), not y (unknown) or n (built-in Int)
+    assert.ok(matches.length > 0);
+    assert.ok(matches.every(m => m.completion.includes('xs')));
+  });
+
+  it('no match for "induct o" (incomplete keyword)', function() {
+    const matches = inductionParser.getMatches('induct o', formula, env);
+    assert.strictEqual(matches.length, 0);
+  });
+
+  it('no match for "induction foo" where foo is not "on"', function() {
+    const matches = inductionParser.getMatches('induction foo', formula, env);
+    assert.strictEqual(matches.length, 0);
+  });
+
+  it('sorts multiple inductive variables', function() {
+    const treeType = new TypeDeclAst('Tree', [
+      new ConstructorAst('leaf', [], 'Tree'),
+      new ConstructorAst('branch', ['Tree', 'Tree'], 'Tree'),
+    ]);
+    const multiEnv = new NestedEnv(
+        new TopLevelEnv([listType, treeType], [lenFunc]),
+        [['xs', 'List'], ['t', 'Tree']]);
+    const f = ParseFormula('len(xs) + t = len(xs) + t');
+    const matches = inductionParser.getMatches('ind', f, multiEnv);
+    // Should have matches for both t and xs, sorted by name
+    const completions = matches.map(m => m.completion);
+    const tIdx = completions.findIndex(c => c.includes(' t'));
+    const xsIdx = completions.findIndex(c => c.includes(' xs'));
+    assert.ok(tIdx < xsIdx, 't should come before xs alphabetically');
+  });
+
+  it('no matches for unrelated text', function() {
+    const matches = inductionParser.getMatches('cases', formula, env);
+    assert.strictEqual(matches.length, 0);
+  });
+
+  it('matches empty text with induction suggestions', function() {
+    const matches = inductionParser.getMatches('', formula, env);
+    assert.ok(matches.length > 0);
+    assert.ok(matches.every(m => m.completion.startsWith('induction on')));
+    // Should include default args variant
+    assert.ok(matches.some(m => m.completion.includes('(')));
+  });
+
+  it('matches "induction o" partial on', function() {
+    const matches = inductionParser.getMatches('induction o', formula, env);
+    assert.ok(matches.length > 0);
+    assert.ok(matches.some(m => m.completion === 'induction on xs'));
+    // Should include default args variant
+    assert.ok(matches.some(m => m.completion.includes('(')));
+  });
+
+  it('matches "induction on xs" with exact variable', function() {
+    const matches = inductionParser.getMatches('induction on xs', formula, env);
+    assert.ok(matches.length > 0);
+    assert.ok(matches.some(m => m.completion === 'induction on xs'));
+    assert.ok(matches.some(m => m.completion.includes('(')));
+  });
 });

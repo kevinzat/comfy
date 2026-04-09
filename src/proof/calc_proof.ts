@@ -1,10 +1,16 @@
 import { Expression } from '../facts/exprs';
+import { ParseExpr } from '../facts/exprs_parser';
 import { Formula, FormulaOp, OP_EQUAL } from '../facts/formula';
+import { Prop, AtomProp } from '../facts/prop';
 import { Environment } from '../types/env';
 import { ParseForwardRule, CreateCalcRule } from '../calc/calc_forward';
 import { ParseBackwardRule, CreateCalcTactic } from '../calc/calc_backward';
 import { IsEquationChainValid } from '../decision/equation';
 import { IsInequalityChainValid } from '../decision/inequality';
+import { Match } from '../calc/calc_complete';
+import { CalcProofNode, CalcStep } from './proof_file';
+import { CheckError } from './proof_file_checker';
+import { ProofMethodParser, ParsedMethod, parseTacticMethod } from './proof_tactic';
 
 
 export interface Step {
@@ -61,3 +67,113 @@ export function checkValidity(
     return IsInequalityChainValid(chain, goal.op);
   }
 }
+
+
+// --- Checking ---
+
+function verifyExpr(
+    line: number, text: string, expected: Expression): void {
+  let parsed: Expression;
+  try {
+    parsed = ParseExpr(text);
+  } catch (e: any) {
+    throw new CheckError(line, `bad expression: ${e.message}`);
+  }
+  if (parsed.to_string() !== expected.to_string()) {
+    throw new CheckError(line,
+        `expected ${expected.to_string()}, got ${parsed.to_string()}`);
+  }
+}
+
+function verifyStep(step: CalcStep, actual: Step): void {
+  if (step.statedOp !== undefined && step.statedOp !== actual.op) {
+    throw new CheckError(step.line,
+        `expected operator ${step.statedOp}, got ${actual.op}`);
+  }
+  if (step.statedExpr !== undefined) {
+    verifyExpr(step.line, step.statedExpr, actual.expr);
+  }
+}
+
+export function validateCalculation(
+    goal: Prop, env: Environment, node: CalcProofNode): void {
+  if (!(goal instanceof AtomProp)) {
+    throw new CheckError(0, `calculation requires a formula goal`);
+  }
+  const formula = goal.formula;
+
+  // Check forward section.
+  const top: Step[] = [];
+  if (node.forwardStart) {
+    verifyExpr(node.forwardStart.line, node.forwardStart.text, formula.left);
+  }
+  for (const step of node.forwardSteps) {
+    let actual: Step;
+    try {
+      actual = applyForwardRule(step.ruleText, topFrontier(formula, top), env);
+    } catch (e: any) {
+      throw new CheckError(step.line, e.message);
+    }
+    top.push(actual);
+    verifyStep(step, actual);
+  }
+
+  // Check backward section.
+  const bot: Step[] = [];
+  if (node.backwardStart) {
+    verifyExpr(node.backwardStart.line, node.backwardStart.text, formula.right);
+  }
+  for (const step of node.backwardSteps) {
+    let actual: Step;
+    try {
+      actual = applyBackwardRule(step.ruleText, botFrontier(formula, bot), env);
+    } catch (e: any) {
+      throw new CheckError(step.line, e.message);
+    }
+    bot.push(actual);
+    verifyStep(step, actual);
+  }
+
+  if (!isComplete(formula, top, bot)) {
+    const topExpr = topFrontier(formula, top).to_string();
+    const botExpr = botFrontier(formula, bot).to_string();
+    const lastLine = node.backwardSteps.length > 0
+        ? node.backwardSteps[node.backwardSteps.length - 1].line
+        : node.forwardSteps.length > 0
+        ? node.forwardSteps[node.forwardSteps.length - 1].line
+        : 0;
+    throw new CheckError(lastLine,
+        `proof incomplete: top reached ${topExpr}, bottom reached ${botExpr}`);
+  }
+
+  const err = checkValidity(formula, top, bot);
+  if (err) {
+    const lastLine = node.forwardSteps.length > 0
+        ? node.forwardSteps[node.forwardSteps.length - 1].line : 0;
+    throw new CheckError(lastLine, `invalid chain: ${err}`);
+  }
+}
+
+
+// --- Parsing & completion ---
+
+export const calculationParser: ProofMethodParser = {
+  tryParse(text: string): ParsedMethod | string | null {
+    const method = parseTacticMethod(text);
+    if (method?.kind === 'calculate') return { kind: 'calculate' };
+    return null;
+  },
+
+  getMatches(text: string): Match[] {
+    const trimmed = text.trim();
+    if ('calculation'.startsWith(trimmed)) {
+      const desc = trimmed.length > 0
+        ? [{ bold: true, text: trimmed },
+           { bold: false, text: 'calculation'.substring(trimmed.length) }]
+        : [{ bold: false, text: 'calculation' }];
+      return [{ description: desc, completion: 'calculation' }];
+    }
+    return [];
+  },
+};
+

@@ -1,7 +1,8 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
-import { parseProofFile, ProofFile, CalcProofNode, CalcStep } from './proof_file';
+import { parseProofFile } from './proof_file';
+import { ProofFile, CalcProofNode, CalcStep } from './proof_file';
 import { toLean, oblToLean } from './lean';
 import { ProofObligation } from '../program/obligations';
 import { DeclsAst } from '../lang/decls_ast';

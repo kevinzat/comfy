@@ -1,15 +1,12 @@
-import { Expression } from '../facts/exprs';
-import { ParseExpr } from '../facts/exprs_parser';
 import { Formula } from '../facts/formula';
 import { ParseFormula } from '../facts/formula_parser';
-import { Prop, AtomProp } from '../facts/prop';
+import { Prop } from '../facts/prop';
 import { Environment, TopLevelEnv, NestedEnv } from '../types/env';
 import { TheoremAst } from '../lang/theorem_ast';
 import { checkProp } from '../types/checker';
-import { buildCases, CaseInfo } from './induction';
-import { buildCasesOnCondition } from './cases';
-import { Step, applyForwardRule, applyBackwardRule, topFrontier, botFrontier, isComplete, checkValidity } from './calc_proof';
-import { ProofFile, ProofNode, CalcProofNode, CalcStep, GivenLine, IHLine, CaseBlock } from './proof_file';
+import { ProofFile, ProofNode, GivenLine, IHLine, CaseBlock } from './proof_file';
+import { validateCalculation } from './calc_proof';
+import { CreateProofTactic } from './proof_tactic';
 
 
 export class CheckError extends Error {
@@ -18,89 +15,6 @@ export class CheckError extends Error {
     super(`line ${line}: ${message}`);
     this.line = line;
     Object.setPrototypeOf(this, CheckError.prototype);
-  }
-}
-
-function verifyExpr(
-    line: number, text: string, expected: Expression): void {
-  let parsed: Expression;
-  try {
-    parsed = ParseExpr(text);
-  } catch (e: any) {
-    throw new CheckError(line, `bad expression: ${e.message}`);
-  }
-  if (parsed.to_string() !== expected.to_string()) {
-    throw new CheckError(line,
-        `expected ${expected.to_string()}, got ${parsed.to_string()}`);
-  }
-}
-
-function verifyStep(step: CalcStep, actual: Step): void {
-  if (step.statedOp !== undefined && step.statedOp !== actual.op) {
-    throw new CheckError(step.line,
-        `expected operator ${step.statedOp}, got ${actual.op}`);
-  }
-  if (step.statedExpr !== undefined) {
-    verifyExpr(step.line, step.statedExpr, actual.expr);
-  }
-}
-
-function checkCalc(
-    goal: Prop, env: Environment, node: CalcProofNode): void {
-  if (!(goal instanceof AtomProp)) {
-    throw new CheckError(0, `calculation requires a formula goal`);
-  }
-  const formula = goal.formula;
-
-  // Check forward section.
-  const top: Step[] = [];
-  if (node.forwardStart) {
-    verifyExpr(node.forwardStart.line, node.forwardStart.text, formula.left);
-  }
-  for (const step of node.forwardSteps) {
-    let actual: Step;
-    try {
-      actual = applyForwardRule(step.ruleText, topFrontier(formula, top), env);
-    } catch (e: any) {
-      throw new CheckError(step.line, e.message);
-    }
-    top.push(actual);
-    verifyStep(step, actual);
-  }
-
-  // Check backward section.
-  const bot: Step[] = [];
-  if (node.backwardStart) {
-    verifyExpr(node.backwardStart.line, node.backwardStart.text, formula.right);
-  }
-  for (const step of node.backwardSteps) {
-    let actual: Step;
-    try {
-      actual = applyBackwardRule(step.ruleText, botFrontier(formula, bot), env);
-    } catch (e: any) {
-      throw new CheckError(step.line, e.message);
-    }
-    bot.push(actual);
-    verifyStep(step, actual);
-  }
-
-  if (!isComplete(formula, top, bot)) {
-    const topExpr = topFrontier(formula, top).to_string();
-    const botExpr = botFrontier(formula, bot).to_string();
-    const lastLine = node.backwardSteps.length > 0
-        ? node.backwardSteps[node.backwardSteps.length - 1].line
-        : node.forwardSteps.length > 0
-        ? node.forwardSteps[node.forwardSteps.length - 1].line
-        : 0;
-    throw new CheckError(lastLine,
-        `proof incomplete: top reached ${topExpr}, bottom reached ${botExpr}`);
-  }
-
-  const err = checkValidity(formula, top, bot);
-  if (err) {
-    const lastLine = node.forwardSteps.length > 0
-        ? node.forwardSteps[node.forwardSteps.length - 1].line : 0;
-    throw new CheckError(lastLine, `invalid chain: ${err}`);
   }
 }
 
@@ -196,11 +110,9 @@ function checkIHTheorems(
 
 function checkCaseBlock(
     block: CaseBlock, goal: Prop, env: Environment,
-    parentFactCount: number, expectedIH?: TheoremAst[]): void {
+    parentFactCount: number, newTheorems: TheoremAst[]): void {
   // Check stated IH theorems match the expected ones.
-  if (expectedIH) {
-    checkIHTheorems(block.ihTheorems, expectedIH);
-  }
+  checkIHTheorems(block.ihTheorems, newTheorems);
 
   // Check stated givens match the environment's facts.
   checkGivens(block.givens, env, parentFactCount);
@@ -225,34 +137,15 @@ function checkProof(
     goal: Prop, env: Environment, node: ProofNode,
     premises: Prop[] = []): void {
   if (node.kind === 'calculate') {
-    checkCalc(goal, env, node);
-  } else if (node.kind === 'induction') {
-    const parentFactCount = env.numFacts();
-    const cases = buildCases(goal, env, node.varName, node.argNames, premises);
-    if (node.cases.length !== cases.length) {
-      throw new CheckError(node.cases[0].goalLine,
-          `expected ${cases.length} cases, got ${node.cases.length}`);
-    }
-    for (let i = 0; i < cases.length; i++) {
-      checkCaseBlock(node.cases[i], cases[i].goal, cases[i].env,
-          parentFactCount, cases[i].ihTheorems);
-    }
-  } else {
-    let condition: Formula;
-    try {
-      condition = ParseFormula(node.condition);
-    } catch (e: any) {
-      throw new CheckError(node.conditionLine, `bad condition: ${e.message}`);
-    }
-    let info;
-    try {
-      info = buildCasesOnCondition(env, condition);
-    } catch (e: any) {
-      throw new CheckError(node.conditionLine, e.message);
-    }
-    const parentFactCount = env.numFacts();
-    checkCaseBlock(node.thenCase, goal, info.thenEnv, parentFactCount);
-    checkCaseBlock(node.elseCase, goal, info.elseEnv, parentFactCount);
+    validateCalculation(goal, env, node);
+    return;
+  }
+  const tactic = CreateProofTactic(node, goal, env, premises);
+  const proofGoals = tactic.decompose();
+  const parentFactCount = env.numFacts();
+  for (let i = 0; i < proofGoals.length; i++) {
+    const pg = proofGoals[i];
+    checkCaseBlock(node.cases[i], pg.goal, pg.env, parentFactCount, pg.newTheorems);
   }
 }
 

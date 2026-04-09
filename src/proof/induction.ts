@@ -1,8 +1,13 @@
 import { Expression, Variable, Call } from '../facts/exprs';
-import { Prop } from '../facts/prop';
+import { Formula } from '../facts/formula';
+import { Prop, AtomProp } from '../facts/prop';
 import { Environment, NestedEnv } from '../types/env';
 import { ConstructorAst } from '../lang/type_ast';
 import { TheoremAst } from '../lang/theorem_ast';
+import { Match } from '../calc/calc_complete';
+import { TacticProofNode } from './proof_file';
+import { CheckError } from './proof_file_checker';
+import { ProofTactic, ProofGoal, ProofMethodParser, ParsedMethod, TacticMethod, parseTacticMethod } from './proof_tactic';
 
 
 export interface CaseInfo {
@@ -208,4 +213,165 @@ export function buildCases(
   }
 
   return cases;
+}
+
+
+// --- Checking ---
+
+// --- Parsing & completion ---
+
+interface InductVar {
+  name: string;
+  defaultArgs: string;
+}
+
+function inductiveVars(env: Environment, formula: Formula): InductVar[] {
+  const result: InductVar[] = [];
+  const allVars = new Set([...formula.left.vars(), ...formula.right.vars()]);
+  for (const name of allVars) {
+    if (!env.hasVariable(name)) continue;
+    const varType = env.getVariable(name);
+    const typeDecl = env.getTypeDecl(varType.name);
+    if (typeDecl !== null) {
+      const names = defaultArgNames(env, varType.name, name);
+      const defaultArgs = names.length > 0
+          ? ' (' + names.join(', ') + ')' : '';
+      result.push({ name, defaultArgs });
+    }
+  }
+  result.sort((a, b) => a.name.localeCompare(b.name));
+  return result;
+}
+
+export const inductionParser: ProofMethodParser = {
+  tryParse(text: string, formula: Formula, env: Environment,
+      premises: Prop[]): ParsedMethod | string | null {
+    const method = parseTacticMethod(text);
+    if (method?.kind !== 'induction') return null;
+    const { varName, argNames } = method;
+    if (!env.hasVariable(varName)) {
+      return `unknown variable "${varName}"`;
+    }
+    const varType = env.getVariable(varName);
+    const typeDecl = env.getTypeDecl(varType.name);
+    if (typeDecl === null) {
+      return `cannot do induction on built-in type "${varType.name}"`;
+    }
+    const goal = new AtomProp(formula);
+    const node: TacticProofNode = { kind: 'tactic', method: text, methodLine: 0, cases: [] };
+    const tactic = new InductionTactic(goal, env, method, node, premises);
+    return { kind: 'tactic', tactic };
+  },
+
+  getMatches(text: string, formula: Formula, env: Environment): Match[] {
+    const trimmed = text.trim();
+    const inductVars = inductiveVars(env, formula);
+    const matches: Match[] = [];
+
+    const parts = trimmed.split(/\s+/);
+    // Stop suggesting once the user has started typing the optional (...)
+    if (parts.length > 3) return matches;
+
+    const p0 = parts[0] || '';
+    if (!'induction'.startsWith(p0)) return matches;
+
+    if (parts.length === 1) {
+      for (const v of inductVars) {
+        const base = 'induction on ' + v.name;
+        const remaining = 'induction'.substring(p0.length) + ' on ' + v.name;
+        matches.push({
+          description: p0.length > 0
+            ? [{ bold: true, text: p0 }, { bold: false, text: remaining }]
+            : [{ bold: false, text: base }],
+          completion: base,
+        });
+        if (v.defaultArgs) {
+          matches.push({
+            description: p0.length > 0
+              ? [{ bold: true, text: p0 }, { bold: false, text: remaining + v.defaultArgs }]
+              : [{ bold: false, text: base + v.defaultArgs }],
+            completion: base + v.defaultArgs,
+          });
+        }
+      }
+    } else if (parts.length >= 2 && p0 === 'induction') {
+      const p1 = parts[1];
+      if ('on'.startsWith(p1) && parts.length === 2) {
+        for (const v of inductVars) {
+          const base = 'induction on ' + v.name;
+          const descBase = [
+            { bold: true, text: 'induction' },
+            { bold: false, text: ' ' },
+            { bold: true, text: p1 },
+            { bold: false, text: 'on'.substring(p1.length) + ' ' + v.name },
+          ];
+          matches.push({ description: [...descBase], completion: base });
+          if (v.defaultArgs) {
+            matches.push({
+              description: [...descBase, { bold: false, text: v.defaultArgs }],
+              completion: base + v.defaultArgs,
+            });
+          }
+        }
+      } else if (p1 === 'on' && parts.length === 3) {
+        const p2 = parts[2];
+        const matching = inductVars.filter(v => v.name.startsWith(p2));
+        for (const v of matching) {
+          const base = 'induction on ' + v.name;
+          const descBase = [
+            { bold: true, text: 'induction' },
+            { bold: false, text: ' ' },
+            { bold: true, text: 'on' },
+            { bold: false, text: ' ' },
+            { bold: true, text: p2 },
+            ...(v.name.length > p2.length
+              ? [{ bold: false, text: v.name.substring(p2.length) }]
+              : []),
+          ];
+          matches.push({ description: [...descBase], completion: base });
+          if (v.defaultArgs) {
+            matches.push({
+              description: [...descBase, { bold: false, text: v.defaultArgs }],
+              completion: base + v.defaultArgs,
+            });
+          }
+        }
+      }
+    }
+
+    return matches;
+  },
+};
+
+
+// --- Checking ---
+
+export class InductionTactic implements ProofTactic {
+  constructor(
+      private goal: Prop,
+      private env: Environment,
+      private method: Extract<TacticMethod, { kind: 'induction' }>,
+      private node: TacticProofNode,
+      private premises: Prop[]) {
+  }
+
+  decompose(): ProofGoal[] {
+    const { goal, env, method, node, premises } = this;
+    const cases = buildCases(goal, env, method.varName, method.argNames, premises);
+    if (node.cases.length !== cases.length) {
+      throw new CheckError(node.cases[0].goalLine,
+          `expected ${cases.length} cases, got ${node.cases.length}`);
+    }
+    return cases.map((c) => {
+      const argStr = c.argNames.length > 0
+          ? `(${c.argNames.join(', ')})` : '';
+      return {
+        label: `${c.ctor.name}${argStr}`,
+        goal: c.goal,
+        env: c.env,
+        newTheorems: c.ihTheorems,
+        newFacts: [],
+      };
+    });
+  }
 }

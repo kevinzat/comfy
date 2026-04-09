@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { Step, applyForwardRule, applyBackwardRule, topFrontier, botFrontier, isComplete, checkValidity } from './calc_proof';
+import { Step, applyForwardRule, applyBackwardRule, topFrontier, botFrontier, isComplete, checkValidity, calculationParser } from './calc_proof';
 import { TopLevelEnv } from '../types/env';
 import { ParseFormula } from '../facts/formula_parser';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
@@ -142,6 +142,39 @@ describe('topFrontier / botFrontier', function() {
     const goal = ParseFormula('a + 1 = b + 1');
     const step = applyForwardRule('subst 1', goal.left, env);
     assert.strictEqual(topFrontier(goal, [step]).to_string(), 'b + 1');
+  });
+});
+
+
+describe('calculationParser', function() {
+
+  const env = new TopLevelEnv([], []);
+  const formula = ParseFormula('x = x');
+
+  it('parses "calculation"', function() {
+    const result = calculationParser.tryParse('calculation', formula, env, []);
+    assert.deepStrictEqual(result, { kind: 'calculate' });
+  });
+
+  it('returns null for non-calculation text', function() {
+    assert.strictEqual(calculationParser.tryParse('induction on x', formula, env, []), null);
+  });
+
+  it('matches prefix of "calculation"', function() {
+    const matches = calculationParser.getMatches('calc', formula, env);
+    assert.strictEqual(matches.length, 1);
+    assert.strictEqual(matches[0].completion, 'calculation');
+  });
+
+  it('matches empty text', function() {
+    const matches = calculationParser.getMatches('', formula, env);
+    assert.strictEqual(matches.length, 1);
+    assert.strictEqual(matches[0].completion, 'calculation');
+  });
+
+  it('no matches for unrelated text', function() {
+    const matches = calculationParser.getMatches('induction', formula, env);
+    assert.strictEqual(matches.length, 0);
   });
 });
 

@@ -1,39 +1,10 @@
 import { DeclsAst } from '../lang/decls_ast';
 import { ParseDecls, ParsePremises } from '../lang/decls_parser';
 import { Prop } from '../facts/prop';
+import { parseTacticMethod } from './proof_tactic';
 
 
-/**
- * Parses Lean-style param groups from a string, e.g. "(S, T : List) (x : Int)".
- * Returns [name, typeName] pairs. Throws ParseError on malformed input.
- */
-export function parseParams(text: string, line: number): [string, string][] {
-  const params: [string, string][] = [];
-  const groupRegex = /\(([^)]+)\)/g;
-  let match;
-  while ((match = groupRegex.exec(text)) !== null) {
-    const content = match[1];
-    const colonIdx = content.indexOf(':');
-    if (colonIdx === -1) {
-      throw new ParseError(line, `missing ":" in param group "(${content})"`);
-    }
-    const namesStr = content.substring(0, colonIdx).trim();
-    const typeName = content.substring(colonIdx + 1).trim();
-    if (!typeName) {
-      throw new ParseError(line, `missing type name in param group "(${content})"`);
-    }
-    const names = namesStr.split(',').map(s => s.trim()).filter(s => s.length > 0);
-    if (names.length === 0) {
-      throw new ParseError(line, `missing variable names in param group "(${content})"`);
-    }
-    for (const name of names) {
-      params.push([name, typeName]);
-    }
-  }
-  return params;
-}
-
-interface TaggedLine { text: string; line: number; }
+export interface TaggedLine { text: string; line: number; }
 
 export interface CalcStep {
   ruleText: string;
@@ -73,22 +44,14 @@ export interface CaseBlock {
   proof: ProofNode;
 }
 
-export interface InductionProofNode {
-  kind: 'induction';
-  varName: string;
-  argNames?: string[];
+export interface TacticProofNode {
+  kind: 'tactic';
+  method: string;
+  methodLine: number;
   cases: CaseBlock[];
 }
 
-export interface CasesProofNode {
-  kind: 'cases';
-  condition: string;
-  conditionLine: number;
-  thenCase: CaseBlock;
-  elseCase: CaseBlock;
-}
-
-export type ProofNode = CalcProofNode | InductionProofNode | CasesProofNode;
+export type ProofNode = CalcProofNode | TacticProofNode;
 
 export interface ProofFile {
   decls: DeclsAst;
@@ -105,6 +68,37 @@ export class ParseError extends Error {
     this.line = line;
     Object.setPrototypeOf(this, ParseError.prototype);
   }
+}
+
+
+/**
+ * Parses Lean-style param groups from a string, e.g. "(S, T : List) (x : Int)".
+ * Returns [name, typeName] pairs. Throws ParseError on malformed input.
+ */
+export function parseParams(text: string, line: number): [string, string][] {
+  const params: [string, string][] = [];
+  const groupRegex = /\(([^)]+)\)/g;
+  let match;
+  while ((match = groupRegex.exec(text)) !== null) {
+    const content = match[1];
+    const colonIdx = content.indexOf(':');
+    if (colonIdx === -1) {
+      throw new ParseError(line, `missing ":" in param group "(${content})"`);
+    }
+    const namesStr = content.substring(0, colonIdx).trim();
+    const typeName = content.substring(colonIdx + 1).trim();
+    if (!typeName) {
+      throw new ParseError(line, `missing type name in param group "(${content})"`);
+    }
+    const names = namesStr.split(',').map(s => s.trim()).filter(s => s.length > 0);
+    if (names.length === 0) {
+      throw new ParseError(line, `missing variable names in param group "(${content})"`);
+    }
+    for (const name of names) {
+      params.push([name, typeName]);
+    }
+  }
+  return params;
 }
 
 interface Lines {
@@ -132,31 +126,14 @@ function readLine(lines: Lines): { text: string; line: number } {
 }
 
 function parseMethod(text: string, line: number): ProofNode {
-  const trimmed = text.trim();
-  if (trimmed === 'calculation') {
+  const method = parseTacticMethod(text);
+  if (method === null) {
+    throw new ParseError(line, `expected "calculation", "induction on <var>", or "cases on <condition>"`);
+  }
+  if (method.kind === 'calculate') {
     return { kind: 'calculate', forwardStart: null, forwardSteps: [], backwardStart: null, backwardSteps: [] };
   }
-
-  const indMatch = trimmed.match(/^induction on (\S+)(?:\s+\(([^)]+)\))?$/);
-  if (indMatch) {
-    const argNames = indMatch[2]
-        ? indMatch[2].split(',').map(s => s.trim())
-        : undefined;
-    return { kind: 'induction', varName: indMatch[1], argNames, cases: [] };
-  }
-
-  const casesMatch = trimmed.match(/^cases on (.+)$/);
-  if (casesMatch) {
-    return {
-      kind: 'cases',
-      condition: casesMatch[1],
-      conditionLine: line,
-      thenCase: { label: 'then', ihTheorems: [], givens: [], goal: '', goalLine: 0, proof: { kind: 'calculate', forwardStart: null, forwardSteps: [], backwardStart: null, backwardSteps: [] } },
-      elseCase: { label: 'else', ihTheorems: [], givens: [], goal: '', goalLine: 0, proof: { kind: 'calculate', forwardStart: null, forwardSteps: [], backwardStart: null, backwardSteps: [] } },
-    };
-  }
-
-  throw new ParseError(line, `expected "calculation", "induction on <var>", or "cases on <condition>"`);
+  return { kind: 'tactic', method: text.trim(), methodLine: line, cases: [] };
 }
 
 const ALGEBRA_PREFIX = /^(=|<=|<)\s/;
@@ -190,9 +167,7 @@ function parseCalcStep(trimmed: string, line: number): CalcStep {
   throw new ParseError(line, `unrecognized rule: "${trimmed}"`);
 }
 
-function parseCalcSection(lines: Lines): { start: TaggedLine | null; steps: CalcStep[] } {
-  // First line is a bare expression (the starting point).
-  // Subsequent lines are rule steps.
+function parseCalcSection(lines: Lines): { start: { text: string; line: number } | null; steps: CalcStep[] } {
   const first = peekLine(lines);
   if (first === undefined) return { start: null, steps: [] };
   const firstTrimmed = first.trim();
@@ -229,43 +204,24 @@ function parseCalcBody(lines: Lines, calc: CalcProofNode): void {
   }
 }
 
+function parseTacticBody(lines: Lines, node: TacticProofNode): void {
+  while (true) {
+    const next = peekLine(lines);
+    if (next === undefined) break;
+    if (!next.trim().startsWith('case ')) break;
+    node.cases.push(parseCaseBlock(lines));
+  }
+  if (node.cases.length === 0) {
+    const lineNum = lines.pos < lines.raw.length ? lines.pos + 1 : lines.raw.length;
+    throw new ParseError(lineNum, 'proof has no cases');
+  }
+}
+
 function parseProofBody(lines: Lines, node: ProofNode): void {
-  switch (node.kind) {
-    case 'calculate':
-      parseCalcBody(lines, node);
-      break;
-    case 'induction':
-      while (true) {
-        const next = peekLine(lines);
-        if (next === undefined) break;
-        if (!next.trim().startsWith('case ')) break;
-        node.cases.push(parseCaseBlock(lines));
-      }
-      if (node.cases.length === 0) {
-        const lineNum = lines.pos < lines.raw.length ? lines.pos + 1 : lines.raw.length;
-        throw new ParseError(lineNum, 'induction proof has no cases');
-      }
-      break;
-    case 'cases':
-      for (let i = 0; i < 2; i++) {
-        const next = peekLine(lines);
-        if (next === undefined) {
-          throw new ParseError(lines.raw.length, `expected case ${i === 0 ? 'then' : 'else'} block`);
-        }
-        if (!next.trim().startsWith('case ')) {
-          const entry = readLine(lines);
-          throw new ParseError(entry.line, `expected "case then:" or "case else:" block`);
-        }
-        const block = parseCaseBlock(lines);
-        if (block.label === 'then') {
-          node.thenCase = block;
-        } else if (block.label === 'else') {
-          node.elseCase = block;
-        } else {
-          throw new ParseError(block.goalLine, `expected "then" or "else", got "${block.label}"`);
-        }
-      }
-      break;
+  if (node.kind === 'calculate') {
+    parseCalcBody(lines, node);
+  } else {
+    parseTacticBody(lines, node);
   }
 }
 

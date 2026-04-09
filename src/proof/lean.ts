@@ -10,6 +10,7 @@ import { ProofFile, ProofNode, CalcProofNode, CaseBlock } from './proof_file';
 import { DeclsAst } from '../lang/decls_ast';
 import { ProofObligation } from '../program/obligations';
 import { Prop } from '../facts/prop';
+import { parseTacticMethod } from './proof_tactic';
 
 
 function collectCtors(decls: DeclsAst): Set<string> {
@@ -231,7 +232,15 @@ function proofToLean(
     ihNames: string[], condVar?: string): string {
   if (node.kind === 'calculate') {
     return calcToLean(node, ihNames, condVar, indent);
-  } else if (node.kind === 'induction') {
+  }
+
+  const method = parseTacticMethod(node.method);
+  /* v8 ignore start */
+  if (method === null || method.kind === 'calculate')
+    throw new Error(`unexpected tactic method: ${node.method}`);
+  /* v8 ignore stop */
+
+  if (method.kind === 'induction') {
     // Collect parameter names from IH theorems that need generalizing.
     const generalize = new Set<string>();
     for (const block of node.cases) {
@@ -245,7 +254,7 @@ function proofToLean(
         ? ` generalizing ${[...generalize].join(' ')}`
         : '';
     const lines: string[] = [];
-    lines.push(`${indent}induction ${node.varName}${genClause} with`);
+    lines.push(`${indent}induction ${method.varName}${genClause} with`);
     for (const block of node.cases) {
       const { name, args } = parseCaseLabel(block.label);
       const ihs = block.ihTheorems.map(ih => ihNameToLean(ih.name));
@@ -254,17 +263,14 @@ function proofToLean(
     }
     return lines.join('\n');
   } else {
-    /* v8 ignore start */
-    if (node.kind !== 'cases') throw new Error(`unknown proof kind`);
-    /* v8 ignore stop */
-    const condFormula = ParseFormula(node.condition);
+    const condFormula = ParseFormula(method.condition);
     const condLean = formulaToLean(condFormula, ctors);
     const lines: string[] = [];
     lines.push(`${indent}by_cases h : ${condLean}`);
-    lines.push(`${indent}·`);
-    lines.push(proofToLean(node.thenCase.proof, ctors, indent + '  ', ihNames, 'h'));
-    lines.push(`${indent}·`);
-    lines.push(proofToLean(node.elseCase.proof, ctors, indent + '  ', ihNames, 'h'));
+    for (const block of node.cases) {
+      lines.push(`${indent}·`);
+      lines.push(proofToLean(block.proof, ctors, indent + '  ', ihNames, 'h'));
+    }
     return lines.join('\n');
   }
 }

@@ -108,7 +108,7 @@ describe('parseProofFile', () => {
 
   it('fails on cases proof with no case blocks (EOF)', () => {
     const source = 'prove foo by cases on x > 0';
-    parseFails(source, 1, /expected case then/);
+    parseFails(source, 1, /no cases/);
   });
 
   it('fails on cases proof with non-case line', () => {
@@ -116,22 +116,7 @@ describe('parseProofFile', () => {
       'prove foo by cases on x > 0',
       'not a case',
     ].join('\n');
-    parseFails(source, 2, /expected "case then:" or "case else:"/);
-  });
-
-  it('fails on cases proof with wrong label', () => {
-    const source = [
-      'prove foo by cases on x > 0',
-      'case bad:',
-      'prove x = x by calculation',
-      '  x',
-      '  = x',
-      'case worse:',
-      'prove x = x by calculation',
-      '  x',
-      '  = x',
-    ].join('\n');
-    parseFails(source, 3, /expected "then" or "else"/);
+    parseFails(source, 2, /no cases/);
   });
 
   it('fails on bad case header (no colon)', () => {
@@ -186,10 +171,10 @@ describe('parseProofFile', () => {
       '  = x',
     ].join('\n');
     const pf = parseProofFile(source);
-    assert.strictEqual(pf.proof.kind, 'cases');
-    if (pf.proof.kind === 'cases') {
-      assert.strictEqual(pf.proof.thenCase.givens.length, 1);
-      assert.strictEqual(pf.proof.elseCase.givens.length, 1);
+    assert.strictEqual(pf.proof.kind, 'tactic');
+    if (pf.proof.kind === 'tactic') {
+      assert.strictEqual(pf.proof.cases[0].givens.length, 1);
+      assert.strictEqual(pf.proof.cases[1].givens.length, 1);
     }
   });
 
@@ -207,8 +192,8 @@ describe('parseProofFile', () => {
       '  = f(n + 1)',
     ].join('\n');
     const pf = parseProofFile(source);
-    assert.strictEqual(pf.proof.kind, 'induction');
-    if (pf.proof.kind === 'induction') {
+    assert.strictEqual(pf.proof.kind, 'tactic');
+    if (pf.proof.kind === 'tactic') {
       assert.strictEqual(pf.proof.cases[1].ihTheorems.length, 1);
       assert.strictEqual(pf.proof.cases[1].ihTheorems[0].premises.length, 1);
     }
@@ -228,7 +213,7 @@ describe('parseProofFile', () => {
       '  = f(n + 1)',
     ].join('\n');
     const pf = parseProofFile(source);
-    if (pf.proof.kind === 'induction') {
+    if (pf.proof.kind === 'tactic') {
       assert.strictEqual(pf.proof.cases[1].ihTheorems[0].premises.length, 0);
     }
   });
@@ -252,8 +237,8 @@ describe('parseProofFile', () => {
       'prove leftover',
     ].join('\n');
     const pf = parseProofFile(source);
-    assert.strictEqual(pf.proof.kind, 'induction');
-    if (pf.proof.kind === 'induction') {
+    assert.strictEqual(pf.proof.kind, 'tactic');
+    if (pf.proof.kind === 'tactic') {
       assert.strictEqual(pf.proof.cases.length, 1);
     }
   });
@@ -267,9 +252,9 @@ describe('parseProofFile', () => {
       '  = 0',
     ].join('\n');
     const pf = parseProofFile(source);
-    if (pf.proof.kind === 'induction') {
-      assert.deepStrictEqual(pf.proof.varName, 'n');
-      assert.deepStrictEqual(pf.proof.argNames, ['a', 'b']);
+    assert.strictEqual(pf.proof.kind, 'tactic');
+    if (pf.proof.kind === 'tactic') {
+      assert.strictEqual(pf.proof.method, 'induction on n (a, b)');
     }
   });
 
@@ -288,7 +273,7 @@ describe('parseProofFile', () => {
     }
   });
 
-  it('fails on cases proof with second block missing', () => {
+  it('parses cases proof with one case block', () => {
     const source = [
       'prove foo by cases on x > 0',
       'case then:',
@@ -296,6 +281,10 @@ describe('parseProofFile', () => {
       '  x',
       '  = x',
     ].join('\n');
-    parseFails(source, 5, /expected case else/);
+    const pf = parseProofFile(source);
+    assert.strictEqual(pf.proof.kind, 'tactic');
+    if (pf.proof.kind === 'tactic') {
+      assert.strictEqual(pf.proof.cases.length, 1);
+    }
   });
 });

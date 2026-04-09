@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
 import { parseProofFile } from './proof_file';
-import { checkProofFile } from './proof_checker';
+import { checkProofFile } from './proof_file_checker';
 
 
 const proofsDir = path.join(__dirname, 'proofs');

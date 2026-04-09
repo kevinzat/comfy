@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import { parseProofFile, parseParams, ParseError } from './proof_file';
-import { checkProofFile, CheckError } from './proof_checker';
+import { checkProofFile, CheckError } from './proof_file_checker';
 
 
 function check(source: string): void {
@@ -657,8 +657,8 @@ ${validNilCase}
 ${validConsCase}`;
     // Should parse without error — IH_L: line is valid.
     const pf = parseProofFile(source);
-    assert.equal(pf.proof.kind, 'induction');
-    if (pf.proof.kind === 'induction') {
+    assert.equal(pf.proof.kind, 'tactic');
+    if (pf.proof.kind === 'tactic') {
       assert.equal(pf.proof.cases[1].ihTheorems.length, 1);
       assert.equal(pf.proof.cases[1].ihTheorems[0].name, 'IH');
       assert.deepEqual(pf.proof.cases[1].ihTheorems[0].params, []);
@@ -987,7 +987,7 @@ case cons(a, L):
   undef len_2 = 1 + len(L)`;
     // Parse should succeed and capture premise.
     const pf = parseProofFile(source);
-    if (pf.proof.kind === 'induction') {
+    if (pf.proof.kind === 'tactic') {
       const consCase = pf.proof.cases[1];
       assert.equal(consCase.ihTheorems.length, 1);
       assert.equal(consCase.ihTheorems[0].name, 'IH');
@@ -1196,7 +1196,7 @@ case cons(a, L):
   prove x + 0 = x by calculation
   x`;
     const pf = parseProofFile(source);
-    if (pf.proof.kind === 'induction') {
+    if (pf.proof.kind === 'tactic') {
       const consCase = pf.proof.cases[1];
       assert.equal(consCase.ihTheorems[0].name, 'IH');
       assert.deepEqual(consCase.ihTheorems[0].params, [['x', 'Int']]);

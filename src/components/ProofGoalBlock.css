@@ -1,0 +1,17 @@
+DIV.proof-goal-block { margin-left: 20px; margin-top: 10px; }
+DIV.proof-goal-title { font-family: Helvetica, sans-serif; font-weight: bold; margin-bottom: 10px; }
+
+DIV.proof-goal-case { margin-bottom: 20px; margin-left: 10px; padding-left: 10px; border-left: 3px solid #d0d0d0; }
+DIV.proof-goal-case-header { margin-bottom: 8px; }
+SPAN.proof-goal-case-title { font-family: Helvetica, sans-serif; font-weight: bold; }
+
+DIV.proof-goal-theorems { margin-bottom: 8px; margin-left: 20px; }
+DIV.proof-goal-theorems-title { font-family: Helvetica, sans-serif; font-size: 0.9em; color: #606060; margin-bottom: 4px; }
+TABLE.proof-goal-theorems-table { font-family: Lucida Grande, sans-serif; }
+TD.proof-goal-theorems-index { padding-right: 10px; color: #909090; text-align: right; }
+TD.proof-goal-theorems-formula { }
+
+DIV.proof-goal-known { margin-bottom: 8px; margin-left: 20px; }
+TABLE.proof-goal-known-table { font-family: Lucida Grande, sans-serif; }
+TD.proof-goal-known-index { padding-right: 10px; color: #909090; text-align: right; }
+TD.proof-goal-known-formula { }
