@@ -1,7 +1,7 @@
-import { Expression } from '../facts/exprs';
+import { Expression, Call } from '../facts/exprs';
 import { ParseExpr } from '../facts/exprs_parser';
-import { Formula, FormulaOp, OP_EQUAL } from '../facts/formula';
-import { Prop, AtomProp } from '../facts/prop';
+import { Formula, FormulaOp, OP_EQUAL, OP_LESS_THAN } from '../facts/formula';
+import { Prop, AtomProp, NotProp } from '../facts/prop';
 import { Environment } from '../types/env';
 import { ParseForwardRule, CreateCalcRule } from '../calc/calc_forward';
 import { ParseBackwardRule, CreateCalcTactic } from '../calc/calc_backward';
@@ -95,12 +95,71 @@ function verifyStep(step: CalcStep, actual: Step): void {
   }
 }
 
+/** Returns the constructor name if the expression is a constructor call. */
+function constructorHead(expr: Expression, env: Environment): string | null {
+  if (!(expr instanceof Call)) return null;
+  if (!env.hasConstructor(expr.name)) return null;
+  return expr.name;
+}
+
+function validateNotEqual(
+    eqFormula: Formula, env: Environment, node: CalcProofNode): void {
+  const { left, right } = eqFormula;
+  // Integer path: prove a < b or b < a
+  const ltGoal = new AtomProp(new Formula(left, OP_LESS_THAN, right));
+  try {
+    validateCalculation(ltGoal, env, node);
+    return;
+  } catch (_e) { /* try the other direction */ }
+  const gtGoal = new AtomProp(new Formula(right, OP_LESS_THAN, left));
+  try {
+    validateCalculation(gtGoal, env, node);
+    return;
+  } catch (_e) { /* try constructor discrimination */ }
+  // Constructor discrimination: prove a = c where c and right are different constructors.
+  // Process forward steps to find what left equals.
+  const ctorRight = constructorHead(right, env);
+  if (ctorRight === null) {
+    throw new CheckError(0,
+        `calculation does not prove not ${eqFormula.to_string()}`);
+  }
+  let current = left;
+  const chain: Formula[] = [];
+  for (const step of node.forwardSteps) {
+    let actual: Step;
+    try {
+      actual = applyForwardRule(step.ruleText, current, env);
+    } catch (e: any) {
+      throw new CheckError(step.line, e.message);
+    }
+    chain.push(new Formula(current, actual.op, actual.expr));
+    current = actual.expr;
+  }
+  // Verify the chain is all equalities.
+  const err = IsEquationChainValid(chain);
+  /* v8 ignore start */
+  if (err) {
+    throw new Error(`invalid chain: ${err}`);
+  }
+  /* v8 ignore stop */
+  const ctorReached = constructorHead(current, env);
+  if (ctorReached === null || ctorReached === ctorRight) {
+    throw new CheckError(0,
+        `calculation does not prove not ${eqFormula.to_string()}`);
+  }
+}
+
 export function validateCalculation(
     goal: Prop, env: Environment, node: CalcProofNode): void {
-  if (!(goal instanceof AtomProp)) {
+  let formula: Formula;
+  if (goal instanceof AtomProp) {
+    formula = goal.formula;
+  } else if (goal instanceof NotProp && goal.formula.op === OP_EQUAL) {
+    // not(a = b) is proved by showing a < b or b < a
+    return validateNotEqual(goal.formula, env, node);
+  } else {
     throw new CheckError(0, `calculation requires a formula goal`);
   }
-  const formula = goal.formula;
 
   // Check forward section.
   const top: Step[] = [];

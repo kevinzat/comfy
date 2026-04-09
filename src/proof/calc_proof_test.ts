@@ -1,11 +1,15 @@
 import * as assert from 'assert';
 import { Step, applyForwardRule, applyBackwardRule, topFrontier, botFrontier, isComplete, checkValidity, calculationParser } from './calc_proof';
 import { TopLevelEnv } from '../types/env';
+import { Formula } from '../facts/formula';
 import { ParseFormula } from '../facts/formula_parser';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
 import { FuncAst, TypeAst, CaseAst, ExprBody, ParamVar } from '../lang/func_ast';
 import { Constant, Variable, Call } from '../facts/exprs';
-import { AtomProp } from '../facts/prop';
+import { AtomProp, NotProp } from '../facts/prop';
+import { NestedEnv } from '../types/env';
+import { validateCalculation } from './calc_proof';
+import { CalcProofNode } from './proof_file';
 
 
 const listType = new TypeDeclAst('List', [
@@ -175,6 +179,123 @@ describe('calculationParser', function() {
   it('no matches for unrelated text', function() {
     const matches = calculationParser.getMatches('induction', formula, env);
     assert.strictEqual(matches.length, 0);
+  });
+});
+
+
+describe('validateCalculation with not-equal goal', function() {
+
+  it('accepts a < proof for not(a = b) goal', function() {
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('x < y'))]);
+    const goal = new NotProp(ParseFormula('x = y'));
+    const node: CalcProofNode = {
+      kind: 'calculate',
+      forwardStart: null,
+      forwardSteps: [{ ruleText: '< y since 1', line: 1 }],
+      backwardStart: null,
+      backwardSteps: [],
+    };
+    assert.doesNotThrow(() => validateCalculation(goal, env, node));
+  });
+
+  it('accepts b < a proof for not(a = b) goal', function() {
+    const env = new TopLevelEnv([], [], [new AtomProp(ParseFormula('y < x'))]);
+    const goal = new NotProp(ParseFormula('x = y'));
+    const node: CalcProofNode = {
+      kind: 'calculate',
+      forwardStart: null,
+      forwardSteps: [],
+      backwardStart: { text: 'x', line: 1 },
+      backwardSteps: [{ ruleText: '(y) < since 1', line: 2 }],
+      // prove y < x, i.e., goal.right < goal.left
+    };
+    assert.doesNotThrow(() => validateCalculation(goal, env, node));
+  });
+
+  it('rejects calculation that proves = for not(a = b) goal', function() {
+    const env = new TopLevelEnv([], []);
+    const goal = new NotProp(ParseFormula('x = x'));
+    const node: CalcProofNode = {
+      kind: 'calculate',
+      forwardStart: null,
+      forwardSteps: [],
+      backwardStart: null,
+      backwardSteps: [],
+    };
+    assert.throws(() => validateCalculation(goal, env, node));
+  });
+
+  it('accepts equality to different constructor for not(a = b) goal', function() {
+    const knownFact = new AtomProp(
+        new Formula(Variable.of('xs'), '=', Call.of('nil')));
+    const env = new NestedEnv(
+        new TopLevelEnv([listType], [lenFunc]),
+        [['xs', 'List']], [knownFact]);
+    // Goal: not(xs = cons(a, L)), calculation proves xs = nil via subst
+    const goal = new NotProp(
+        new Formula(Variable.of('xs'), '=', Call.of('cons', Variable.of('a'), Variable.of('L'))));
+    const node: CalcProofNode = {
+      kind: 'calculate',
+      forwardStart: null,
+      forwardSteps: [{ ruleText: 'subst 1', line: 1 }],
+      backwardStart: null,
+      backwardSteps: [],
+    };
+    assert.doesNotThrow(() => validateCalculation(goal, env, node));
+  });
+
+  it('rejects bad rule in constructor discrimination', function() {
+    const env = new NestedEnv(
+        new TopLevelEnv([listType], [lenFunc]),
+        [['xs', 'List']]);
+    const goal = new NotProp(
+        new Formula(Variable.of('xs'), '=', Call.of('cons', Variable.of('a'), Variable.of('L'))));
+    const node: CalcProofNode = {
+      kind: 'calculate',
+      forwardStart: null,
+      forwardSteps: [{ ruleText: '= z', line: 1 }],
+      backwardStart: null,
+      backwardSteps: [],
+    };
+    assert.throws(() => validateCalculation(goal, env, node));
+  });
+
+  it('rejects when chain reaches a non-constructor call', function() {
+    const knownFact = new AtomProp(
+        new Formula(Variable.of('xs'), '=', Call.of('len', Call.of('nil'))));
+    const env = new NestedEnv(
+        new TopLevelEnv([listType], [lenFunc]),
+        [['xs', 'List']], [knownFact]);
+    // Chain proves xs = len(nil), but len is a function, not a constructor
+    const goal = new NotProp(
+        new Formula(Variable.of('xs'), '=', Call.of('cons', Variable.of('a'), Variable.of('L'))));
+    const node: CalcProofNode = {
+      kind: 'calculate',
+      forwardStart: null,
+      forwardSteps: [{ ruleText: 'subst 1', line: 1 }],
+      backwardStart: null,
+      backwardSteps: [],
+    };
+    assert.throws(() => validateCalculation(goal, env, node));
+  });
+
+  it('rejects equality to same constructor for not(a = b) goal', function() {
+    const knownFact = new AtomProp(
+        new Formula(Variable.of('xs'), '=', Call.of('nil')));
+    const env = new NestedEnv(
+        new TopLevelEnv([listType], [lenFunc]),
+        [['xs', 'List']], [knownFact]);
+    // Goal: not(xs = nil()), calculation proves xs = nil() — same constructor, should fail
+    const goal = new NotProp(
+        new Formula(Variable.of('xs'), '=', Call.of('nil')));
+    const node: CalcProofNode = {
+      kind: 'calculate',
+      forwardStart: null,
+      forwardSteps: [{ ruleText: 'subst 1', line: 1 }],
+      backwardStart: null,
+      backwardSteps: [],
+    };
+    assert.throws(() => validateCalculation(goal, env, node));
   });
 });
 

@@ -1,4 +1,4 @@
-import { Formula } from '../facts/formula';
+import { Formula, OP_EQUAL, OP_LESS_THAN } from '../facts/formula';
 import { ParseFormula } from '../facts/formula_parser';
 import { Prop, OrProp, AtomProp, NotProp, Literal } from '../facts/prop';
 import { Environment } from '../types/env';
@@ -158,13 +158,26 @@ export function CreateProofTactic(
       /* v8 ignore stop */
       return new AbsurdumTactic(env, goal.formula);
     case 'left':
-    case 'right':
+    case 'right': {
+      let orGoal: OrProp;
+      if (goal.tag === 'or') {
+        orGoal = goal;
+      } else if (goal.tag === 'not' && goal.formula.op === OP_EQUAL) {
+        // not(a = b) ≡ (a < b) or (b < a)
+        const { left, right } = goal.formula;
+        orGoal = new OrProp([
+          new AtomProp(new Formula(left, OP_LESS_THAN, right)),
+          new AtomProp(new Formula(right, OP_LESS_THAN, left)),
+        ]);
       /* v8 ignore start */
-      if (goal.tag !== 'or') throw new Error(`${method.kind} requires a disjunction goal`);
+      } else {
+        throw new Error(`${method.kind} requires a disjunction goal`);
+      }
       /* v8 ignore stop */
       return method.kind === 'left'
-          ? new LeftTactic(env, goal)
-          : new RightTactic(env, goal);
+          ? new LeftTactic(env, orGoal)
+          : new RightTactic(env, orGoal);
+    }
     case 'disj_cases': {
       const parts = method.condition.split(' or ');
       const disjuncts: Literal[] = parts.map(part => {

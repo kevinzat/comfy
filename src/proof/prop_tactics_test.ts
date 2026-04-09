@@ -2,7 +2,8 @@ import * as assert from 'assert';
 import { ParseFormula } from '../facts/formula_parser';
 import { AtomProp, ConstProp, NotProp, OrProp, Literal } from '../facts/prop';
 import { TopLevelEnv, NestedEnv } from '../types/env';
-import { ParseProofMethod, FindProofMethodMatches, filterDischargedGoals } from './proof_tactic';
+import { ParseProofMethod, FindProofMethodMatches, filterDischargedGoals, CreateProofTactic } from './proof_tactic';
+import { Formula, OP_EQUAL } from '../facts/formula';
 import { LeftTactic, RightTactic, DisjCasesTactic } from './prop_tactics';
 
 
@@ -229,6 +230,15 @@ describe('left', function() {
     assert.strictEqual(remaining.length, 0);
   });
 
+  it('decompose on not(a = b) returns a < b as goal', function() {
+    const notEqGoal = new NotProp(ParseFormula('x = 0'));
+    const node = { kind: 'tactic' as const, method: 'left', methodLine: 0, cases: [] };
+    const tactic = CreateProofTactic(node, notEqGoal, env, []);
+    const goals = tactic.decompose();
+    assert.strictEqual(goals.length, 1);
+    assert.strictEqual(goals[0].goal.to_string(), 'x < 0');
+  });
+
   it('autocompletes "le" to "left"', function() {
     const matches = FindProofMethodMatches('le', formula, env);
     assert.ok(matches.some(m => m.completion === 'left'));
@@ -267,6 +277,15 @@ describe('right', function() {
     const goals = tactic.decompose();
     const remaining = filterDischargedGoals(goals);
     assert.strictEqual(remaining.length, 0);
+  });
+
+  it('decompose on not(a = b) returns b < a as goal', function() {
+    const notEqGoal = new NotProp(ParseFormula('x = 0'));
+    const node = { kind: 'tactic' as const, method: 'right', methodLine: 0, cases: [] };
+    const tactic = CreateProofTactic(node, notEqGoal, env, []);
+    const goals = tactic.decompose();
+    assert.strictEqual(goals.length, 1);
+    assert.strictEqual(goals[0].goal.to_string(), '0 < x');
   });
 
   it('autocompletes "ri" to "right"', function() {
