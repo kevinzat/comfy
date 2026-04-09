@@ -1,10 +1,10 @@
 import * as assert from 'assert';
 import { ParseFormula } from '../facts/formula_parser';
-import { AtomProp, ConstProp, NotProp, OrProp, Literal } from '../facts/prop';
+import { Prop, AtomProp, ConstProp, NotProp, OrProp, Literal } from '../facts/prop';
 import { TopLevelEnv, NestedEnv } from '../types/env';
 import { ParseProofMethod, FindProofMethodMatches, filterDischargedGoals, CreateProofTactic } from './proof_tactic';
 import { Formula, OP_EQUAL } from '../facts/formula';
-import { LeftTactic, RightTactic, DisjCasesTactic } from './prop_tactics';
+import { LeftTactic, RightTactic, DisjCasesTactic, HaveTactic } from './prop_tactics';
 
 
 describe('verum', function() {
@@ -513,5 +513,87 @@ describe('cases (disjunction)', function() {
   it('autocompletes "cases x" with full text', function() {
     const matches = FindProofMethodMatches('cases x < 0', formula, env);
     assert.ok(matches.some(m => m.completion === 'cases x < 0'));
+  });
+});
+
+
+describe('have', function() {
+
+  const env = new NestedEnv(new TopLevelEnv([], []), [['x', 'Int']]);
+  const formula = ParseFormula('x = x');
+
+  it('parses "have x < 1"', function() {
+    const result = ParseProofMethod('have x < 1', formula, env, []);
+    assert.ok(typeof result !== 'string');
+    assert.strictEqual(result.kind, 'tactic');
+  });
+
+  it('returns null for non-have text', function() {
+    const result = ParseProofMethod('blah', formula, env, []);
+    assert.ok(typeof result === 'string');
+  });
+
+  it('returns error for bad proposition', function() {
+    const result = ParseProofMethod('have ???', formula, env, []);
+    assert.ok(typeof result === 'string');
+    assert.ok(result.includes('syntax error'));
+  });
+
+  it('decompose returns two goals: P and R with P known', function() {
+    const p = new AtomProp(ParseFormula('x < 1'));
+    const goal = new AtomProp(ParseFormula('x = x'));
+    const tactic = new HaveTactic(env, goal, p);
+    const goals = tactic.decompose();
+    assert.strictEqual(goals.length, 2);
+    // First goal: prove P
+    assert.strictEqual(goals[0].goal.to_string(), 'x < 1');
+    assert.strictEqual(goals[0].label, 'x < 1');
+    assert.strictEqual(goals[0].newFacts.length, 0);
+    // Second goal: prove R with P as a known fact
+    assert.strictEqual(goals[1].goal.to_string(), 'x = x');
+    assert.strictEqual(goals[1].label, 'x = x');
+    assert.strictEqual(goals[1].newFacts.length, 1);
+    assert.strictEqual(goals[1].newFacts[0].to_string(), 'x < 1');
+    // P is in the env of the second goal
+    const factCount = goals[1].env.numFacts();
+    assert.strictEqual(goals[1].env.getFact(factCount).to_string(), 'x < 1');
+  });
+
+  it('first goal auto-discharged when P is already known', function() {
+    const p = new AtomProp(ParseFormula('x < 1'));
+    const envWithP = new NestedEnv(env, [], [p]);
+    const goal = new AtomProp(ParseFormula('x = x'));
+    const tactic = new HaveTactic(envWithP, goal, p);
+    const goals = tactic.decompose();
+    const remaining = filterDischargedGoals(goals);
+    assert.strictEqual(remaining.length, 1);
+    assert.strictEqual(remaining[0].goal.to_string(), 'x = x');
+  });
+
+  it('works with not proposition', function() {
+    const result = ParseProofMethod('have not x < 0', formula, env, []);
+    assert.ok(typeof result !== 'string');
+    assert.strictEqual(result.kind, 'tactic');
+  });
+
+  it('works with or proposition', function() {
+    const result = ParseProofMethod('have x < 0 or 0 <= x', formula, env, []);
+    assert.ok(typeof result !== 'string');
+    assert.strictEqual(result.kind, 'tactic');
+  });
+
+  it('autocompletes "hav" to "have "', function() {
+    const matches = FindProofMethodMatches('hav', formula, env);
+    assert.ok(matches.some(m => m.completion === 'have '));
+  });
+
+  it('autocompletes "have x" with full text', function() {
+    const matches = FindProofMethodMatches('have x < 1', formula, env);
+    assert.ok(matches.some(m => m.completion === 'have x < 1'));
+  });
+
+  it('no autocomplete for unrelated text', function() {
+    const matches = FindProofMethodMatches('ind', formula, env);
+    assert.ok(!matches.some(m => m.completion.startsWith('have')));
   });
 });

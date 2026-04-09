@@ -8,7 +8,8 @@ import { TacticProofNode } from './proof_file';
 import { InductionTactic, inductionParser } from './induction';
 import { CasesTactic, casesParser } from './cases';
 import { calculationParser } from './calc_proof';
-import { VerumTactic, verumParser, ExfalsoTactic, exfalsoParser, ContradictionTactic, contradictionParser, AbsurdumTactic, absurdumParser, LeftTactic, leftParser, RightTactic, rightParser, DisjCasesTactic, disjCasesParser } from './prop_tactics';
+import { VerumTactic, verumParser, ExfalsoTactic, exfalsoParser, ContradictionTactic, contradictionParser, AbsurdumTactic, absurdumParser, LeftTactic, leftParser, RightTactic, rightParser, DisjCasesTactic, disjCasesParser, HaveTactic, haveParser } from './prop_tactics';
+import { ParseProp } from '../facts/props_parser';
 import { TypeCasesTactic, typeCasesParser } from './type_cases';
 
 
@@ -37,7 +38,8 @@ export type TacticMethod =
   | { kind: 'left' }
   | { kind: 'right' }
   | { kind: 'disj_cases'; condition: string }
-  | { kind: 'type_cases'; varName: string; argNames?: string[] };
+  | { kind: 'type_cases'; varName: string; argNames?: string[] }
+  | { kind: 'have'; condition: string };
 
 export function parseTacticMethod(text: string): TacticMethod | null {
   const trimmed = text.trim();
@@ -59,6 +61,11 @@ export function parseTacticMethod(text: string): TacticMethod | null {
   const disjMatch = trimmed.match(/^cases\s+(.+)$/);
   if (disjMatch) {
     return { kind: 'disj_cases', condition: disjMatch[1] };
+  }
+
+  const haveMatch = trimmed.match(/^have\s+(.+)$/);
+  if (haveMatch) {
+    return { kind: 'have', condition: haveMatch[1] };
   }
 
   const contrMatch = trimmed.match(/^contradiction\s+(.+)$/);
@@ -106,6 +113,7 @@ const parsers: ProofMethodParser[] = [
   rightParser,
   disjCasesParser,
   typeCasesParser,
+  haveParser,
 ];
 
 export function ParseProofMethod(
@@ -190,5 +198,7 @@ export function CreateProofTactic(
     }
     case 'type_cases':
       return new TypeCasesTactic(goal, env, method);
+    case 'have':
+      return new HaveTactic(env, goal, ParseProp(method.condition));
   }
 }

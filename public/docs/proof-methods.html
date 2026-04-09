@@ -41,6 +41,7 @@
     <li><code>right</code></li>
     <li><code>cases &lt;P&gt; or &lt;Q&gt;</code></li>
     <li><code>cases on &lt;variable&gt;</code></li>
+    <li><code>have &lt;proposition&gt;</code></li>
   </ul>
 
   <p>
@@ -474,6 +475,41 @@
     Unlike induction, no induction hypotheses are generated. Use this when
     you need to consider each constructor separately but do not need an IH.
   </p>
+
+  <h2>Have</h2>
+
+  <p>
+    Type <code>have <em>proposition</em></code> and press Enter. This lets you
+    prove an intermediate fact and then use it to prove the main goal.
+  </p>
+
+  <h3>Example</h3>
+
+  <pre><code>have x &lt; x + 1</code></pre>
+
+  <p>This generates two sub-goals:</p>
+  <ol>
+    <li>Prove the claimed proposition (<code>x &lt; x + 1</code>)</li>
+    <li>Prove the original goal, with the claimed proposition added as a
+        known fact</li>
+  </ol>
+
+  <p>
+    If the claimed proposition is already a known fact in the current
+    environment, the first sub-goal is automatically discharged and you only
+    need to prove the main goal (now with the extra fact available).
+  </p>
+
+  <p>
+    The proposition can be any valid proposition, including negations
+    (<code>not P</code>) and disjunctions (<code>P or Q</code>).
+  </p>
+
+  <div class="tip">
+    Use <code>have</code> for forward reasoning: establish an intermediate
+    result first, then use it in the main proof. This is especially useful
+    when the same intermediate fact is needed in multiple calculation steps.
+  </div>
 
   <h2>Nesting Proof Methods</h2>
 

@@ -653,6 +653,35 @@ case cons(a, L):
     assert.ok(lean.includes('omega'));
   });
 
+  it('generates have tactic in Lean', function() {
+    const calcProof: CalcProofNode = {
+      kind: 'calculate',
+      forwardStart: null, forwardSteps: [],
+      backwardStart: null, backwardSteps: [],
+    };
+    const haveCase: CaseBlock = {
+      label: 'x < 1', ihTheorems: [], givens: [],
+      goal: 'x < 1', goalLine: 1, proof: calcProof,
+    };
+    const mainCase: CaseBlock = {
+      label: 'x = 0', ihTheorems: [], givens: [],
+      goal: 'x = 0', goalLine: 2, proof: calcProof,
+    };
+    const proof: TacticProofNode = {
+      kind: 'tactic', method: 'have x < 1', methodLine: 1,
+      cases: [haveCase, mainCase],
+    };
+    const goal = new AtomProp(new Formula(Variable.of('x'), '=', Constant.of(0n)));
+    const thm = new TheoremAst('test_have', [['x', 'Int']], [], goal, 1);
+    const decls = new DeclsAst([], [], [thm]);
+    const pf: ProofFile = {
+      decls, theoremName: 'test_have', theoremLine: 1, givens: [], proof,
+    };
+    const lean = toLean(pf);
+    assert.ok(lean.includes('have h :'));
+    assert.ok(lean.includes('x < 1'));
+  });
+
   it('generates right tactic in Lean', function() {
     const calcProof: CalcProofNode = {
       kind: 'calculate',

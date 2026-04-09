@@ -2,6 +2,7 @@ import { Formula, OP_LESS_THAN, OP_LESS_EQUAL, OP_EQUAL } from '../facts/formula
 import { Prop, AtomProp, NotProp, ConstProp, OrProp, Literal } from '../facts/prop';
 import { NestedEnv } from '../types/env';
 import { ParseFormula } from '../facts/formula_parser';
+import { ParseProp } from '../facts/props_parser';
 import { Environment } from '../types/env';
 import { Match } from '../calc/calc_complete';
 import { ProofTactic, ProofGoal, ProofMethodParser, ParsedMethod, TacticMethod, parseTacticMethod } from './proof_tactic';
@@ -385,6 +386,73 @@ export const disjCasesParser: ProofMethodParser = {
         completion: 'cases ',
       }];
     } else if (trimmed.startsWith('cases ')) {
+      return [{
+        description: [
+          { bold: true, text: trimmed },
+          { bold: false, text: '' },
+        ],
+        completion: trimmed,
+      }];
+    }
+    return [];
+  },
+};
+
+
+// --- Have: proves R by first proving P, then proving R with P known ---
+
+export class HaveTactic implements ProofTactic {
+  constructor(
+    private env: Environment,
+    private goal: Prop,
+    private claim: Prop,
+  ) {}
+
+  decompose(): ProofGoal[] {
+    const newEnv = new NestedEnv(this.env, [], [this.claim]);
+    return [
+      {
+        label: this.claim.to_string(),
+        goal: this.claim,
+        env: this.env,
+        newTheorems: [],
+        newFacts: [],
+      },
+      {
+        label: this.goal.to_string(),
+        goal: this.goal,
+        env: newEnv,
+        newTheorems: [],
+        newFacts: [this.claim],
+      },
+    ];
+  }
+}
+
+export const haveParser: ProofMethodParser = {
+  tryParse(text: string, _formula: Formula, env: Environment): ParsedMethod | string | null {
+    const method = parseTacticMethod(text);
+    if (method === null || method.kind !== 'have') return null;
+    let claim: Prop;
+    try {
+      claim = ParseProp(method.condition);
+    } catch (_e) {
+      return 'syntax error in have proposition';
+    }
+    return { kind: 'tactic', tactic: new HaveTactic(env, new AtomProp(ParseFormula('0 = 0')), claim) };
+  },
+
+  getMatches(text: string): Match[] {
+    const trimmed = text.trim();
+    if ('have'.startsWith(trimmed) && trimmed.length > 0) {
+      return [{
+        description: [
+          { bold: true, text: trimmed },
+          { bold: false, text: 'have'.substring(trimmed.length) + ' ...' },
+        ],
+        completion: 'have ',
+      }];
+    } else if (trimmed.startsWith('have ')) {
       return [{
         description: [
           { bold: true, text: trimmed },

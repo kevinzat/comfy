@@ -3,6 +3,7 @@ import { Expression, Constant, Variable, Call,
 } from '../facts/exprs';
 import { Formula, OP_LESS_EQUAL } from '../facts/formula';
 import { ParseFormula } from '../facts/formula_parser';
+import { ParseProp } from '../facts/props_parser';
 import { TypeDeclAst } from '../lang/type_ast';
 import { FuncAst, Param, ParamVar, ParamConstructor } from '../lang/func_ast';
 import { TheoremAst } from '../lang/theorem_ast';
@@ -274,6 +275,14 @@ function proofToLean(
       lines.push(`${indent}| ${[name, ...args, ...ihs].join(' ')} =>`);
       lines.push(proofToLean(block.proof, ctors, indent + '  ', ihs));
     }
+    return lines.join('\n');
+  } else if (method.kind === 'have') {
+    const claim = ParseProp(method.condition);
+    const claimLean = propToLean(claim, ctors);
+    const lines: string[] = [];
+    lines.push(`${indent}have h : ${claimLean} := by`);
+    lines.push(proofToLean(node.cases[0].proof, ctors, indent + '  ', ihNames));
+    lines.push(proofToLean(node.cases[1].proof, ctors, indent, ihNames, 'h'));
     return lines.join('\n');
   } else if (method.kind === 'left') {
     const lines: string[] = [];

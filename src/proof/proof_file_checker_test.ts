@@ -535,6 +535,17 @@ prove foo by absurdum`;
     check(source);
   });
 
+  it('accepts have proof with auto-discharged have goal', function() {
+    const source = `theorem foo (x : Int)
+| x < x + 1 => x = x
+
+prove foo by have x < x + 1
+case x = x:
+  given 2. x < x + 1
+  prove x = x by calculation`;
+    check(source);
+  });
+
   it('accepts left proof for disjunction goal', function() {
     const source = `theorem foo (x : Int)
 | x < x + 1 => x < x + 1 or x = x
