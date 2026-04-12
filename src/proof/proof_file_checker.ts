@@ -2,9 +2,11 @@ import { Formula } from '../facts/formula';
 import { ParseFormula } from '../facts/formula_parser';
 import { Prop } from '../facts/prop';
 import { Environment, TopLevelEnv, NestedEnv } from '../types/env';
+import { TypeDeclAst } from '../lang/type_ast';
+import { FuncAst } from '../lang/func_ast';
 import { TheoremAst } from '../lang/theorem_ast';
 import { checkProp } from '../types/checker';
-import { ProofFile, ProofNode, GivenLine, IHLine, CaseBlock } from './proof_file';
+import { ProofFile, ProofEntry, ProofFileItem, ProofNode, GivenLine, IHLine, CaseBlock } from './proof_file';
 import { validateCalculation } from './calc_proof';
 import { CreateProofTactic, filterDischargedGoals } from './proof_tactic';
 
@@ -155,25 +157,24 @@ function checkProof(
   }
 }
 
-export function checkProofFile(pf: ProofFile): void {
-  // Look up the theorem by name and remove it from the declarations.
-  const theoremIdx = pf.decls.theorems.findIndex(t => t.name === pf.theoremName);
-  if (theoremIdx === -1) {
-    throw new CheckError(pf.theoremLine,
-        `unknown theorem "${pf.theoremName}"`);
+function checkProofEntry(
+    entry: ProofEntry, types: TypeDeclAst[], functions: FuncAst[],
+    provedTheorems: TheoremAst[], allTheorems: TheoremAst[]): void {
+  // Look up the theorem by name.
+  const theorem = allTheorems.find(t => t.name === entry.theoremName);
+  if (!theorem) {
+    throw new CheckError(entry.theoremLine,
+        `unknown theorem "${entry.theoremName}"`);
   }
-  const theorem = pf.decls.theorems[theoremIdx];
-  const remainingTheorems = pf.decls.theorems.filter((_, i) => i !== theoremIdx);
+  // The environment includes all theorems except the one being proved.
+  const otherTheorems = [...provedTheorems, ...allTheorems.filter(t => t.name !== entry.theoremName)];
 
-  // Build the top-level env without the theorem being proved.
-  const env = new TopLevelEnv(
-      pf.decls.types, pf.decls.functions,
-      [], remainingTheorems);
+  const env = new TopLevelEnv(types, functions, [], otherTheorems);
 
   try {
     env.check();
   } catch (e: any) {
-    throw new CheckError(pf.theoremLine, `type error: ${e.message}`);
+    throw new CheckError(entry.theoremLine, `type error: ${e.message}`);
   }
 
   // Build the proof env with theorem params as variables and premises as givens.
@@ -184,11 +185,35 @@ export function checkProofFile(pf: ProofFile): void {
     for (const p of theorem.premises) checkProp(proofEnv, p);
     checkProp(proofEnv, theorem.conclusion);
   } catch (e: any) {
-    throw new CheckError(pf.theoremLine, `type error: ${e.message}`);
+    throw new CheckError(entry.theoremLine, `type error: ${e.message}`);
   }
 
   // Validate top-level given lines (premise).
-  checkGivens(pf.givens, proofEnv, 0);
+  checkGivens(entry.givens, proofEnv, 0);
 
-  checkProof(theorem.conclusion, proofEnv, pf.proof, theorem.premises);
+  checkProof(theorem.conclusion, proofEnv, entry.proof, theorem.premises);
+}
+
+export function checkProofFile(pf: ProofFile): void {
+  // Process items in order, accumulating declarations and proved theorems.
+  const types: TypeDeclAst[] = [];
+  const functions: FuncAst[] = [];
+  const declaredTheorems: TheoremAst[] = [];  // unproved theorems from current decl block
+  const provedTheorems: TheoremAst[] = [];    // theorems proved so far
+
+  for (const item of pf.items) {
+    if (item.kind === 'decls') {
+      types.push(...item.decls.types);
+      functions.push(...item.decls.functions);
+      declaredTheorems.push(...item.decls.theorems);
+    } else {
+      checkProofEntry(item.entry, types, functions, provedTheorems, declaredTheorems);
+      // Move the proved theorem from declared to proved.
+      const idx = declaredTheorems.findIndex(t => t.name === item.entry.theoremName);
+      if (idx !== -1) {
+        provedTheorems.push(declaredTheorems[idx]);
+        declaredTheorems.splice(idx, 1);
+      }
+    }
+  }
 }

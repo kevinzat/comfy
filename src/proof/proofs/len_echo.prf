@@ -15,25 +15,25 @@ theorem len_echo (xs : List)
 
 prove len_echo by induction on xs
 
-case nil:
-  prove len(echo(nil)) = 2 * len(nil) by calculation
-  len(echo(nil))
-  defof echo_1 = len(nil)
-  defof len_1 = 0
-  = 2*0
-  ---
-  2 * len(nil)
-  undef len_1 = 2*0
+  case nil:
+    prove len(echo(nil)) = 2 * len(nil) by calculation
+    len(echo(nil))
+    defof echo_1 = len(nil)
+    defof len_1 = 0
+    = 2*0
+    ---
+    2 * len(nil)
+    undef len_1 = 2*0
 
-case cons(a, L):
-  given IH : len(echo(L)) = 2 * len(L)
-  prove len(echo(cons(a, L))) = 2 * len(cons(a, L)) by calculation
-  len(echo(cons(a, L)))
-  defof echo_2 = len(cons(a, cons(a, echo(L))))
-  defof len_2 = 1 + len(cons(a, echo(L)))
-  defof len_2 = 1 + (1 + len(echo(L)))
-  apply IH = 1 + (1 + 2 * len(L))
-  = 2 * (1 + len(L))
-  ---
-  2 * len(cons(a, L))
-  undef len_2 = 2 * (1 + len(L))
+  case cons(a, L):
+    given IH : len(echo(L)) = 2 * len(L)
+    prove len(echo(cons(a, L))) = 2 * len(cons(a, L)) by calculation
+    len(echo(cons(a, L)))
+    defof echo_2 = len(cons(a, cons(a, echo(L))))
+    defof len_2 = 1 + len(cons(a, echo(L)))
+    defof len_2 = 1 + (1 + len(echo(L)))
+    apply IH = 1 + (1 + 2 * len(L))
+    = 2 * (1 + len(L))
+    ---
+    2 * len(cons(a, L))
+    undef len_2 = 2 * (1 + len(L))

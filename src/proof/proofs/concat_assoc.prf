@@ -15,23 +15,23 @@ theorem concat_assoc (R, S, T : List)
 
 prove concat_assoc by induction on R (a, L)
 
-case nil:
-  prove concat(concat(nil, S), T) = concat(nil, concat(S, T)) by calculation
+  case nil:
+    prove concat(concat(nil, S), T) = concat(nil, concat(S, T)) by calculation
 
-  concat(concat(nil, S), T)
-  defof concat_1 = concat(S, T)
-  ---
-  concat(nil, concat(S, T))
-  undef concat_1 = concat(S, T)
+    concat(concat(nil, S), T)
+    defof concat_1 = concat(S, T)
+    ---
+    concat(nil, concat(S, T))
+    undef concat_1 = concat(S, T)
 
-case cons(a, L):
-  given IH (S, T : List) : concat(concat(L, S), T) = concat(L, concat(S, T))
-  prove concat(concat(cons(a, L), S), T) = concat(cons(a, L), concat(S, T)) by calculation
+  case cons(a, L):
+    given IH (S, T : List) : concat(concat(L, S), T) = concat(L, concat(S, T))
+    prove concat(concat(cons(a, L), S), T) = concat(cons(a, L), concat(S, T)) by calculation
 
-  concat(concat(cons(a, L), S), T)
-  defof concat_2 => concat(cons(a, concat(L, S)), T)
-  defof concat_2 => cons(a, concat(concat(L, S), T))
-  apply IH = cons(a, concat(L, concat(S, T)))
-  ---
-  concat(cons(a, L), concat(S, T))
-  undef concat_2 => cons(a, concat(L, concat(S, T)))
+    concat(concat(cons(a, L), S), T)
+    defof concat_2 => concat(cons(a, concat(L, S)), T)
+    defof concat_2 => cons(a, concat(concat(L, S), T))
+    apply IH = cons(a, concat(L, concat(S, T)))
+    ---
+    concat(cons(a, L), concat(S, T))
+    undef concat_2 => cons(a, concat(L, concat(S, T)))

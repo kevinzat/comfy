@@ -15,37 +15,37 @@ theorem sum_positives (S : List)
 
 prove sum_positives by induction on S (a, L)
 
-case nil:
-  prove sum(nil) <= sum(positives(nil)) by calculation
-  sum(nil)
-  defof sum_1 = 0
-  ---
-  sum(positives(nil))
-  undef positives_1 = sum(nil)
-  undef sum_1 = 0
-
-case cons(a, L):
-  given IH : sum(L) <= sum(positives(L))
-  prove sum(cons(a, L)) <= sum(positives(cons(a, L))) by simple cases on a < 0
-
-  case then:
-    given 1. a < 0
-    prove sum(cons(a, L)) <= sum(positives(cons(a, L))) by calculation
-    sum(cons(a, L))
-    defof sum_2 = a + sum(L)
-    apply IH <= a + sum(positives(L))
-    < sum(positives(L)) since 1
+  case nil:
+    prove sum(nil) <= sum(positives(nil)) by calculation
+    sum(nil)
+    defof sum_1 = 0
     ---
-    sum(positives(cons(a, L)))
-    undef positives_2a since 1 = sum(positives(L))
+    sum(positives(nil))
+    undef positives_1 = sum(nil)
+    undef sum_1 = 0
 
-  case else:
-    given 1. 0 <= a
-    prove sum(cons(a, L)) <= sum(positives(cons(a, L))) by calculation
-    sum(cons(a, L))
-    defof sum_2 = a + sum(L)
-    apply IH <= a + sum(positives(L))
-    ---
-    sum(positives(cons(a, L)))
-    undef positives_2b since 1 = sum(cons(a, positives(L)))
-    undef sum_2 = a + sum(positives(L))
+  case cons(a, L):
+    given IH : sum(L) <= sum(positives(L))
+    prove sum(cons(a, L)) <= sum(positives(cons(a, L))) by simple cases on a < 0
+
+    case then:
+      given 1. a < 0
+      prove sum(cons(a, L)) <= sum(positives(cons(a, L))) by calculation
+      sum(cons(a, L))
+      defof sum_2 = a + sum(L)
+      apply IH <= a + sum(positives(L))
+      < sum(positives(L)) since 1
+      ---
+      sum(positives(cons(a, L)))
+      undef positives_2a since 1 = sum(positives(L))
+
+    case else:
+      given 1. 0 <= a
+      prove sum(cons(a, L)) <= sum(positives(cons(a, L))) by calculation
+      sum(cons(a, L))
+      defof sum_2 = a + sum(L)
+      apply IH <= a + sum(positives(L))
+      ---
+      sum(positives(cons(a, L)))
+      undef positives_2b since 1 = sum(cons(a, positives(L)))
+      undef sum_2 = a + sum(positives(L))

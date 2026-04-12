@@ -1,6 +1,12 @@
 import * as assert from 'assert';
-import { parseProofFile, parseParams, ParseError } from './proof_file';
+import { parseProofFile, parseParams, ParseError, ProofFile } from './proof_file';
 import { checkProofFile, CheckError } from './proof_file_checker';
+
+function firstProof(pf: ProofFile) {
+  const item = pf.items.find(i => i.kind === 'proof');
+  if (!item || item.kind !== 'proof') throw new Error('no proof found');
+  return item.entry;
+}
 
 
 function check(source: string): void {
@@ -49,25 +55,25 @@ theorem len_zero_add (xs : List)
 | 0 + len(xs) = len(xs)`;
 
 const validNilCase =
-`case nil:
-  prove 0 + len(nil) = len(nil) by calculation
-  0 + len(nil)
-  defof len_1 => 0 + 0
-  = 0
-  ---
-  len(nil)
-  undef len_1 = 0`;
+`  case nil:
+    prove 0 + len(nil) = len(nil) by calculation
+    0 + len(nil)
+    defof len_1 => 0 + 0
+    = 0
+    ---
+    len(nil)
+    undef len_1 = 0`;
 
 const validConsCase =
-`case cons(a, L):
-  given IH : 0 + len(L) = len(L)
-  prove 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
-  0 + len(cons(a, L))
-  defof len_2 = 0 + (1 + len(L))
-  = 1 + len(L)
-  ---
-  len(cons(a, L))
-  undef len_2 = 1 + len(L)`;
+`  case cons(a, L):
+    given IH : 0 + len(L) = len(L)
+    prove 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
+    0 + len(cons(a, L))
+    defof len_2 = 0 + (1 + len(L))
+    = 1 + len(L)
+    ---
+    len(cons(a, L))
+    undef len_2 = 1 + len(L)`;
 
 
 describe('proof_checker errors', function() {
@@ -77,10 +83,10 @@ describe('proof_checker errors', function() {
 
 prove len_zero_add by induction on xs
 
-case nil:
-  prove 0 + len(nil) = len(nil) by calculation
-  0 + len(nil)
-  = 999
+  case nil:
+    prove 0 + len(nil) = len(nil) by calculation
+    0 + len(nil)
+    = 999
 
 ${validConsCase}`;
     checkFails(source, 17, /algebra/);
@@ -91,14 +97,14 @@ ${validConsCase}`;
 
 prove len_zero_add by induction on xs
 
-case nil:
-  prove 0 + len(nil) = len(nil) by calculation
-  0 + len(nil)
-  defof len_1 => 0 + 0
-  = 0
-  ---
-  len(nil)
-  = 999
+  case nil:
+    prove 0 + len(nil) = len(nil) by calculation
+    0 + len(nil)
+    defof len_1 => 0 + 0
+    = 0
+    ---
+    len(nil)
+    = 999
 
 ${validConsCase}`;
     checkFails(source, 21, /syntax error/);
@@ -109,13 +115,13 @@ ${validConsCase}`;
 
 prove len_zero_add by induction on xs
 
-case nil:
-  prove 0 + len(nil) = len(nil) by calculation
-  0 + len(nil)
-  defof len_1 => 999
-  ---
-  len(nil)
-  undef len_1 = 0
+  case nil:
+    prove 0 + len(nil) = len(nil) by calculation
+    0 + len(nil)
+    defof len_1 => 999
+    ---
+    len(nil)
+    undef len_1 = 0
 
 ${validConsCase}`;
     checkFails(source, 17, /cannot be produced/);
@@ -126,11 +132,11 @@ ${validConsCase}`;
 
 prove len_zero_add by induction on xs
 
-case nil:
-  prove 0 + len(nil) = len(nil) by calculation
-  999
-  ---
-  len(nil)
+  case nil:
+    prove 0 + len(nil) = len(nil) by calculation
+    999
+    ---
+    len(nil)
 
 ${validConsCase}`;
     checkFails(source, 16, /expected 0 \+ len\(nil\), got 999/);
@@ -141,10 +147,10 @@ ${validConsCase}`;
 
 prove len_zero_add by induction on xs
 
-case nil:
-  prove 0 + len(nil) = len(nil) by calculation
-  0 + len(nil)
-  defof len_1 => 0 + 0
+  case nil:
+    prove 0 + len(nil) = len(nil) by calculation
+    0 + len(nil)
+    defof len_1 => 0 + 0
 
 ${validConsCase}`;
     checkFails(source, 17, /incomplete/);
@@ -164,8 +170,8 @@ ${validNilCase}`;
 
 prove len_zero_add by induction on xs
 
-case nil:
-  prove 0 + len(nil) = 999 by calculation
+  case nil:
+    prove 0 + len(nil) = 999 by calculation
 
 ${validConsCase}`;
     checkFails(source, 15, /stated goal.*does not match/);
@@ -184,8 +190,8 @@ theorem foo (xs : List)
 | xs = nil => len(xs) <= 0
 
 prove foo by calculation
-  len(xs)
-  subst 1 < len(nil)`;
+    len(xs)
+    subst 1 < len(nil)`;
     checkFails(source, 14, /expected operator </);
   });
 
@@ -194,8 +200,8 @@ prove foo by calculation
 | x + y = y + x
 
 prove comm by calculation
-  x + y
-  = y + x`;
+    x + y
+    = y + x`;
     check(source);
   });
 
@@ -204,9 +210,9 @@ prove comm by calculation
 | x < x + 2
 
 prove foo by calculation
-  x
-  < x + 1
-  <= x + 2`;
+    x
+    < x + 1
+    <= x + 2`;
     check(source);
   });
 
@@ -215,9 +221,9 @@ prove foo by calculation
 | x = 3 => x + 1 = 4
 
 prove foo by calculation
-  x + 1
-  = 3 + 1 since 1
-  = 4`;
+    x + 1
+    = 3 + 1 since 1
+    = 4`;
     check(source);
   });
 
@@ -226,7 +232,7 @@ prove foo by calculation
 | x = x
 
 prove bar by calculation
-  x`;
+    x`;
     checkFails(source, 4, /unknown theorem/);
   });
 
@@ -236,13 +242,13 @@ prove bar by calculation
 
 prove foo by simple cases on x = 0
 
-case then:
-  prove x = x by calculation
-  x
+  case then:
+    prove x = x by calculation
+    x
 
-case else:
-  prove x = x by calculation
-  x`;
+  case else:
+    prove x = x by calculation
+    x`;
     checkFails(source, 4, /cases condition must use < or <=/);
   });
 
@@ -251,7 +257,7 @@ case else:
 | x + y = y + x
 
 prove comm by calculation
-  @@@`;
+    @@@`;
     checkFails(source, 5, /bad expression/);
   });
 
@@ -260,8 +266,8 @@ prove comm by calculation
 | x < x + 2
 
 prove foo by calculation
-  x
-  <= x + 2`;
+    x
+    <= x + 2`;
     checkFails(source, 6, /invalid chain/);
   });
 
@@ -270,8 +276,8 @@ prove foo by calculation
 | x = 0 => x + 1 = 1
 
 prove foo by calculation
-given 1. @@@
-  x + 1`;
+  given 1. @@@
+    x + 1`;
     checkFails(source, 5, /bad given formula/);
   });
 
@@ -292,27 +298,27 @@ theorem sum_concat_lower (S, T : List)
 | 0 <= sum(T) => sum(S) <= sum(concat(S, T))
 
 prove sum_concat_lower by induction on S (a, L)
-given 1. 0 <= sum(T)
+  given 1. 0 <= sum(T)
 
-case nil:
-  prove sum(nil) <= sum(concat(nil, T)) by calculation
-  sum(nil)
-  defof sum_1 = 0
-  ---
-  sum(concat(nil, T))
-  undef concat_1 = sum(T)
-  0 <= since 1
+  case nil:
+    prove sum(nil) <= sum(concat(nil, T)) by calculation
+    sum(nil)
+    defof sum_1 = 0
+    ---
+    sum(concat(nil, T))
+    undef concat_1 = sum(T)
+    0 <= since 1
 
-case cons(a, L):
-  given IH (T : List) : sum(L) <= sum(concat(L, T))
-  prove sum(cons(a, L)) <= sum(concat(cons(a, L), T)) by calculation
-  sum(cons(a, L))
-  defof sum_2 = a + sum(L)
-  apply IH since 1 <= a + sum(concat(L, T))
-  ---
-  sum(concat(cons(a, L), T))
-  undef concat_2 = sum(cons(a, concat(L, T)))
-  undef sum_2 = a + sum(concat(L, T))`;
+  case cons(a, L):
+    given IH (T : List) : sum(L) <= sum(concat(L, T))
+    prove sum(cons(a, L)) <= sum(concat(cons(a, L), T)) by calculation
+    sum(cons(a, L))
+    defof sum_2 = a + sum(L)
+    apply IH since 1 <= a + sum(concat(L, T))
+    ---
+    sum(concat(cons(a, L), T))
+    undef concat_2 = sum(cons(a, concat(L, T)))
+    undef sum_2 = a + sum(concat(L, T))`;
     // IH should have 1 premise (0 <= sum(T)) but stated with 0 premises
     checkFails(source, 29, /IH IH should have 1 premise/);
   });
@@ -334,27 +340,27 @@ theorem sum_concat_lower (S, T : List)
 | 0 <= sum(T) => sum(S) <= sum(concat(S, T))
 
 prove sum_concat_lower by induction on S (a, L)
-given 1. 0 <= sum(T)
+  given 1. 0 <= sum(T)
 
-case nil:
-  prove sum(nil) <= sum(concat(nil, T)) by calculation
-  sum(nil)
-  defof sum_1 = 0
-  ---
-  sum(concat(nil, T))
-  undef concat_1 = sum(T)
-  0 <= since 1
+  case nil:
+    prove sum(nil) <= sum(concat(nil, T)) by calculation
+    sum(nil)
+    defof sum_1 = 0
+    ---
+    sum(concat(nil, T))
+    undef concat_1 = sum(T)
+    0 <= since 1
 
-case cons(a, L):
-  given IH (T : List) : 999 = 999 => sum(L) <= sum(concat(L, T))
-  prove sum(cons(a, L)) <= sum(concat(cons(a, L), T)) by calculation
-  sum(cons(a, L))
-  defof sum_2 = a + sum(L)
-  apply IH since 1 <= a + sum(concat(L, T))
-  ---
-  sum(concat(cons(a, L), T))
-  undef concat_2 = sum(cons(a, concat(L, T)))
-  undef sum_2 = a + sum(concat(L, T))`;
+  case cons(a, L):
+    given IH (T : List) : 999 = 999 => sum(L) <= sum(concat(L, T))
+    prove sum(cons(a, L)) <= sum(concat(cons(a, L), T)) by calculation
+    sum(cons(a, L))
+    defof sum_2 = a + sum(L)
+    apply IH since 1 <= a + sum(concat(L, T))
+    ---
+    sum(concat(cons(a, L), T))
+    undef concat_2 = sum(cons(a, concat(L, T)))
+    undef sum_2 = a + sum(concat(L, T))`;
     // IH premise should be "0 <= sum(T)" but stated "999 = 999"
     checkFails(source, 29, /IH IH premise is/);
   });
@@ -366,15 +372,15 @@ prove len_zero_add by induction on xs
 
 ${validNilCase}
 
-case cons(a, L):
-  given IH : @@@
-  prove 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
-  0 + len(cons(a, L))
-  defof len_2 = 0 + (1 + len(L))
-  = 1 + len(L)
-  ---
-  len(cons(a, L))
-  undef len_2 = 1 + len(L)`;
+  case cons(a, L):
+    given IH : @@@
+    prove 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
+    0 + len(cons(a, L))
+    defof len_2 = 0 + (1 + len(L))
+    = 1 + len(L)
+    ---
+    len(cons(a, L))
+    undef len_2 = 1 + len(L)`;
     checkFails(source, 24, /bad IH formula/);
   });
 
@@ -385,10 +391,10 @@ prove len_zero_add by induction on xs
 
 ${validNilCase}
 
-case cons(a, L):
-  given IH : 0 + len(L) = len(L)
-  prove @@@ by calculation
-  0 + len(cons(a, L))`;
+  case cons(a, L):
+    given IH : 0 + len(L) = len(L)
+    prove @@@ by calculation
+    0 + len(cons(a, L))`;
     checkFails(source, 25, /bad goal formula/);
   });
 
@@ -398,13 +404,13 @@ case cons(a, L):
 
 prove foo by simple cases on @@@
 
-case then:
-  prove x = x by calculation
-  x
+  case then:
+    prove x = x by calculation
+    x
 
-case else:
-  prove x = x by calculation
-  x`;
+  case else:
+    prove x = x by calculation
+    x`;
     checkFails(source, 4, /bad condition/);
   });
 
@@ -413,21 +419,21 @@ case else:
 | x < y => x <= y
 
 prove foo by simple cases on x < y - 1
-given 1. x < y
+  given 1. x < y
 
-case then:
-  given 2. x < y - 1
-  prove x <= y by calculation
-  x
-  < y - 1 since 2
-  <= y
+  case then:
+    given 2. x < y - 1
+    prove x <= y by calculation
+    x
+    < y - 1 since 2
+    <= y
 
-case else:
-  given 2. y - 1 <= x
-  prove x <= y by calculation
-  x
-  < y since 1
-  <= y`;
+  case else:
+    given 2. y - 1 <= x
+    prove x <= y by calculation
+    x
+    < y since 1
+    <= y`;
     check(source);
   });
 
@@ -444,7 +450,7 @@ case else:
 | x <= y => x <= y
 
 prove foo by simple cases on x < 0
-given 1. x <= y`;
+  given 1. x <= y`;
     check(source);
   });
 
@@ -468,10 +474,10 @@ given 1. x <= y`;
 
 prove foo by simple cases on x < 0
 
-case then:
-  given 1. x < 0
-  prove 0 <= x by calculation
-  x`;
+  case then:
+    given 1. x < 0
+    prove 0 <= x by calculation
+    x`;
     // This will fail at the calculation level (can't prove 0 <= x from x < 0),
     // but the point is the checker accepts 1 case block instead of 2.
     // To make it fully pass, we'd need a valid calc — let's just test the
@@ -487,15 +493,15 @@ case then:
 
 prove foo by simple cases on x < 0
 
-case then:
-  given 1. x < 0
-  prove 0 <= x by calculation
-  x
+  case then:
+    given 1. x < 0
+    prove 0 <= x by calculation
+    x
 
-case else:
-  given 1. 0 <= x
-  prove 0 <= x by calculation
-  x`;
+  case else:
+    given 1. 0 <= x
+    prove 0 <= x by calculation
+    x`;
     checkFails(source, 8, /expected 1 cases, got 2/);
   });
 
@@ -540,9 +546,9 @@ prove foo by absurdum`;
 | x < x + 1 => x = x
 
 prove foo by have x < x + 1
-case x = x:
-  given 2. x < x + 1
-  prove x = x by calculation`;
+  case x = x:
+    given 2. x < x + 1
+    prove x = x by calculation`;
     check(source);
   });
 
@@ -568,15 +574,15 @@ prove foo by right`;
 
 prove foo by cases x < 0 or 0 <= x
 
-case x < 0:
-  given 2. x < 0
-  prove x = x by calculation
-  x
+  case x < 0:
+    given 2. x < 0
+    prove x = x by calculation
+    x
 
-case 0 <= x:
-  given 2. 0 <= x
-  prove x = x by calculation
-  x`;
+  case 0 <= x:
+    given 2. 0 <= x
+    prove x = x by calculation
+    x`;
     check(source);
   });
 
@@ -603,13 +609,13 @@ theorem foo (xs : List)
 
 prove foo by cases on xs
 
-case nil:
-  prove len(nil) = len(nil) by calculation
-  len(nil)
+  case nil:
+    prove len(nil) = len(nil) by calculation
+    len(nil)
 
-case cons(a, L):
-  prove len(cons(a, L)) = len(cons(a, L)) by calculation
-  len(cons(a, L))`;
+  case cons(a, L):
+    prove len(cons(a, L)) = len(cons(a, L)) by calculation
+    len(cons(a, L))`;
     check(source);
   });
 
@@ -621,7 +627,7 @@ theorem bar (x : Int)
 | x = x
 
 prove bar by calculation
-  x`;
+    x`;
     checkFails(source, 7, /type error/);
   });
 
@@ -630,7 +636,7 @@ prove bar by calculation
 | badvar = x
 
 prove bar by calculation
-  x`;
+    x`;
     checkFails(source, 4, /type error/);
   });
 
@@ -647,8 +653,8 @@ prove comm by calculation`;
 | x + y = y + x
 
 prove comm by calculation
-  ---
-  y + x`;
+    ---
+    y + x`;
     checkFails(source, 0, /incomplete/);
   });
 
@@ -657,10 +663,10 @@ prove comm by calculation
 | x + y = y + x
 
 prove comm by calculation
-  x + y
-  = y + x
-  ---
-  999`;
+    x + y
+    = y + x
+    ---
+    999`;
     checkFails(source, 8, /expected y \+ x, got 999/);
   });
 
@@ -678,24 +684,24 @@ theorem concat_assoc (R, S, T : List)
 
 prove concat_assoc by induction on R (a, L)
 
-case nil:
-  prove concat(concat(nil, S), T) = concat(nil, concat(S, T)) by calculation
-  concat(concat(nil, S), T)
-  defof concat_1 = concat(S, T)
-  ---
-  concat(nil, concat(S, T))
-  undef concat_1 = concat(S, T)
+  case nil:
+    prove concat(concat(nil, S), T) = concat(nil, concat(S, T)) by calculation
+    concat(concat(nil, S), T)
+    defof concat_1 = concat(S, T)
+    ---
+    concat(nil, concat(S, T))
+    undef concat_1 = concat(S, T)
 
-case cons(a, L):
-  given IH (X, T : List) : concat(concat(L, S), T) = concat(L, concat(S, T))
-  prove concat(concat(cons(a, L), S), T) = concat(cons(a, L), concat(S, T)) by calculation
-  concat(concat(cons(a, L), S), T)
-  defof concat_2 => concat(cons(a, concat(L, S)), T)
-  defof concat_2 => cons(a, concat(concat(L, S), T))
-  apply IH = cons(a, concat(L, concat(S, T)))
-  ---
-  concat(cons(a, L), concat(S, T))
-  undef concat_2 => cons(a, concat(L, concat(S, T)))`;
+  case cons(a, L):
+    given IH (X, T : List) : concat(concat(L, S), T) = concat(L, concat(S, T))
+    prove concat(concat(cons(a, L), S), T) = concat(cons(a, L), concat(S, T)) by calculation
+    concat(concat(cons(a, L), S), T)
+    defof concat_2 => concat(cons(a, concat(L, S)), T)
+    defof concat_2 => cons(a, concat(concat(L, S), T))
+    apply IH = cons(a, concat(L, concat(S, T)))
+    ---
+    concat(cons(a, L), concat(S, T))
+    undef concat_2 => cons(a, concat(L, concat(S, T)))`;
     // IH params should be (S, T : List) but stated (X, T : List) — same length, different name
     checkFails(source, 23, /IH IH params should be/);
   });
@@ -705,11 +711,11 @@ case cons(a, L):
 
 prove len_zero_add by induction on xs
 
-case nil:
-  prove 0 + len(nil) = len(nil) by calculation
-  ---
-  len(nil)
-  undef len_1 = 0
+  case nil:
+    prove 0 + len(nil) = len(nil) by calculation
+    ---
+    len(nil)
+    undef len_1 = 0
 
 ${validConsCase}`;
     // backward goes from len(nil) to 0, but forward side has 0+len(nil), no match
@@ -721,10 +727,10 @@ ${validConsCase}`;
 | x < x + 2 => x < x + 2
 
 prove foo by calculation
-given 1. x < x + 2
-  ---
-  x + 2
-  x <= since 1`;
+  given 1. x < x + 2
+    ---
+    x + 2
+    x <= since 1`;
     // chain is complete (x ... x+2) but uses only <= for a < goal
     checkFails(source, 0, /invalid chain/);
   });
@@ -734,7 +740,7 @@ given 1. x < x + 2
 | not x < 0
 
 prove foo by calculation
-  x`;
+    x`;
     checkFails(source, 0, /calculation requires a formula goal/);
   });
 
@@ -746,9 +752,9 @@ prove foo by calculation
 
 prove foo by simple cases on x < 0
 
-case then:
-  prove not x < 0 by calculation
-  x`;
+  case then:
+    prove not x < 0 by calculation
+    x`;
     checkFails(source, 7, /bad goal formula/);
   });
 
@@ -757,7 +763,7 @@ case then:
 | not x < 0 => x = x
 
 prove foo by calculation
-  x`;
+    x`;
     check(source);
   });
 
@@ -775,24 +781,24 @@ theorem foo (xs : List)
 
 prove foo by induction on xs
 
-case nil:
-  prove 0 + len(nil) = len(nil) by calculation
-  0 + len(nil)
-  defof len_1 => 0 + 0
-  = 0
-  ---
-  len(nil)
-  undef len_1 = 0
+  case nil:
+    prove 0 + len(nil) = len(nil) by calculation
+    0 + len(nil)
+    defof len_1 => 0 + 0
+    = 0
+    ---
+    len(nil)
+    undef len_1 = 0
 
-case cons(a, L):
-  given IH : not 0 < 0 => 0 + len(L) = len(L)
-  prove 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
-  0 + len(cons(a, L))
-  defof len_2 = 0 + (1 + len(L))
-  = 1 + len(L)
-  ---
-  len(cons(a, L))
-  undef len_2 = 1 + len(L)`;
+  case cons(a, L):
+    given IH : not 0 < 0 => 0 + len(L) = len(L)
+    prove 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
+    0 + len(cons(a, L))
+    defof len_2 = 0 + (1 + len(L))
+    = 1 + len(L)
+    ---
+    len(cons(a, L))
+    undef len_2 = 1 + len(L)`;
     check(source);
   });
 });
@@ -837,13 +843,14 @@ ${validNilCase}
 ${validConsCase}`;
     // Should parse without error — IH_L: line is valid.
     const pf = parseProofFile(source);
-    assert.equal(pf.proof.kind, 'tactic');
-    if (pf.proof.kind === 'tactic') {
-      assert.equal(pf.proof.cases[1].ihTheorems.length, 1);
-      assert.equal(pf.proof.cases[1].ihTheorems[0].name, 'IH');
-      assert.deepEqual(pf.proof.cases[1].ihTheorems[0].params, []);
-      assert.deepEqual(pf.proof.cases[1].ihTheorems[0].premises, []);
-      assert.equal(pf.proof.cases[1].ihTheorems[0].formula, '0 + len(L) = len(L)');
+    const proof = firstProof(pf).proof;
+    assert.equal(proof.kind, 'tactic');
+    if (proof.kind === 'tactic') {
+      assert.equal(proof.cases[1].ihTheorems.length, 1);
+      assert.equal(proof.cases[1].ihTheorems[0].name, 'IH');
+      assert.deepEqual(proof.cases[1].ihTheorems[0].params, []);
+      assert.deepEqual(proof.cases[1].ihTheorems[0].premises, []);
+      assert.equal(proof.cases[1].ihTheorems[0].formula, '0 + len(L) = len(L)');
     }
   });
 });
@@ -858,15 +865,15 @@ prove len_zero_add by induction on xs
 
 ${validNilCase}
 
-case cons(a, L):
-  given IH_X : 0 + len(L) = len(L)
-  prove 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
-  0 + len(cons(a, L))
-  defof len_2 = 0 + (1 + len(L))
-  = 1 + len(L)
-  ---
-  len(cons(a, L))
-  undef len_2 = 1 + len(L)`;
+  case cons(a, L):
+    given IH_X : 0 + len(L) = len(L)
+    prove 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
+    0 + len(cons(a, L))
+    defof len_2 = 0 + (1 + len(L))
+    = 1 + len(L)
+    ---
+    len(cons(a, L))
+    undef len_2 = 1 + len(L)`;
     checkFails(source, 24, /expected IH named "IH", got "IH_X"/);
   });
 
@@ -877,15 +884,15 @@ prove len_zero_add by induction on xs
 
 ${validNilCase}
 
-case cons(a, L):
-  given IH : 0 + len(L) = 999
-  prove 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
-  0 + len(cons(a, L))
-  defof len_2 = 0 + (1 + len(L))
-  = 1 + len(L)
-  ---
-  len(cons(a, L))
-  undef len_2 = 1 + len(L)`;
+  case cons(a, L):
+    given IH : 0 + len(L) = 999
+    prove 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
+    0 + len(cons(a, L))
+    defof len_2 = 0 + (1 + len(L))
+    = 1 + len(L)
+    ---
+    len(cons(a, L))
+    undef len_2 = 1 + len(L)`;
     checkFails(source, 24, /IH IH is 0 \+ len\(L\) = len\(L\), not 0 \+ len\(L\) = 999/);
   });
 
@@ -896,14 +903,14 @@ prove len_zero_add by induction on xs
 
 ${validNilCase}
 
-case cons(a, L):
-  prove 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
-  0 + len(cons(a, L))
-  defof len_2 = 0 + (1 + len(L))
-  = 1 + len(L)
-  ---
-  len(cons(a, L))
-  undef len_2 = 1 + len(L)`;
+  case cons(a, L):
+    prove 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
+    0 + len(cons(a, L))
+    defof len_2 = 0 + (1 + len(L))
+    = 1 + len(L)
+    ---
+    len(cons(a, L))
+    undef len_2 = 1 + len(L)`;
     checkFails(source, 0, /expected 1 IH theorems, got 0/);
   });
 
@@ -923,24 +930,24 @@ theorem concat_assoc (R, S, T : List)
 
 prove concat_assoc by induction on R (a, L)
 
-case nil:
-  prove concat(concat(nil, S), T) = concat(nil, concat(S, T)) by calculation
-  concat(concat(nil, S), T)
-  defof concat_1 = concat(S, T)
-  ---
-  concat(nil, concat(S, T))
-  undef concat_1 = concat(S, T)
+  case nil:
+    prove concat(concat(nil, S), T) = concat(nil, concat(S, T)) by calculation
+    concat(concat(nil, S), T)
+    defof concat_1 = concat(S, T)
+    ---
+    concat(nil, concat(S, T))
+    undef concat_1 = concat(S, T)
 
-case cons(a, L):
-  given IH (X : Int) : concat(concat(L, S), T) = concat(L, concat(S, T))
-  prove concat(concat(cons(a, L), S), T) = concat(cons(a, L), concat(S, T)) by calculation
-  concat(concat(cons(a, L), S), T)
-  defof concat_2 => concat(cons(a, concat(L, S)), T)
-  defof concat_2 => cons(a, concat(concat(L, S), T))
-  apply IH = cons(a, concat(L, concat(S, T)))
-  ---
-  concat(cons(a, L), concat(S, T))
-  undef concat_2 => cons(a, concat(L, concat(S, T)))`;
+  case cons(a, L):
+    given IH (X : Int) : concat(concat(L, S), T) = concat(L, concat(S, T))
+    prove concat(concat(cons(a, L), S), T) = concat(cons(a, L), concat(S, T)) by calculation
+    concat(concat(cons(a, L), S), T)
+    defof concat_2 => concat(cons(a, concat(L, S)), T)
+    defof concat_2 => cons(a, concat(concat(L, S), T))
+    apply IH = cons(a, concat(L, concat(S, T)))
+    ---
+    concat(cons(a, L), concat(S, T))
+    undef concat_2 => cons(a, concat(L, concat(S, T)))`;
     checkFails(source, 23, /IH IH params should be \(S, T : List\), got \(X : Int\)/);
   });
 
@@ -958,24 +965,24 @@ theorem len_zero_add (xs : List)
 
 prove len_zero_add by induction on xs
 
-case nil:
-  prove 0 + len(nil) = len(nil) by calculation
-  0 + len(nil)
-  defof len_1 => 0 + 0
-  = 0
-  ---
-  len(nil)
-  undef len_1 = 0
+  case nil:
+    prove 0 + len(nil) = len(nil) by calculation
+    0 + len(nil)
+    defof len_1 => 0 + 0
+    = 0
+    ---
+    len(nil)
+    undef len_1 = 0
 
-case cons(a, L):
-  given IH (X : List) : 0 + len(L) = len(L)
-  prove 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
-  0 + len(cons(a, L))
-  defof len_2 = 0 + (1 + len(L))
-  = 1 + len(L)
-  ---
-  len(cons(a, L))
-  undef len_2 = 1 + len(L)`;
+  case cons(a, L):
+    given IH (X : List) : 0 + len(L) = len(L)
+    prove 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
+    0 + len(cons(a, L))
+    defof len_2 = 0 + (1 + len(L))
+    = 1 + len(L)
+    ---
+    len(cons(a, L))
+    undef len_2 = 1 + len(L)`;
     // IH should have no params (single-variable theorem), but user wrote (X : List)
     checkFails(source, 24, /IH IH params should be, got \(X : List\)/);
   });
@@ -994,24 +1001,24 @@ theorem concat_assoc (R, S, T : List)
 
 prove concat_assoc by induction on R (a, L)
 
-case nil:
-  prove concat(concat(nil, S), T) = concat(nil, concat(S, T)) by calculation
-  concat(concat(nil, S), T)
-  defof concat_1 = concat(S, T)
-  ---
-  concat(nil, concat(S, T))
-  undef concat_1 = concat(S, T)
+  case nil:
+    prove concat(concat(nil, S), T) = concat(nil, concat(S, T)) by calculation
+    concat(concat(nil, S), T)
+    defof concat_1 = concat(S, T)
+    ---
+    concat(nil, concat(S, T))
+    undef concat_1 = concat(S, T)
 
-case cons(a, L):
-  given IH : concat(concat(L, S), T) = concat(L, concat(S, T))
-  prove concat(concat(cons(a, L), S), T) = concat(cons(a, L), concat(S, T)) by calculation
-  concat(concat(cons(a, L), S), T)
-  defof concat_2 => concat(cons(a, concat(L, S)), T)
-  defof concat_2 => cons(a, concat(concat(L, S), T))
-  apply IH = cons(a, concat(L, concat(S, T)))
-  ---
-  concat(cons(a, L), concat(S, T))
-  undef concat_2 => cons(a, concat(L, concat(S, T)))`;
+  case cons(a, L):
+    given IH : concat(concat(L, S), T) = concat(L, concat(S, T))
+    prove concat(concat(cons(a, L), S), T) = concat(cons(a, L), concat(S, T)) by calculation
+    concat(concat(cons(a, L), S), T)
+    defof concat_2 => concat(cons(a, concat(L, S)), T)
+    defof concat_2 => cons(a, concat(concat(L, S), T))
+    apply IH = cons(a, concat(L, concat(S, T)))
+    ---
+    concat(cons(a, L), concat(S, T))
+    undef concat_2 => cons(a, concat(L, concat(S, T)))`;
     // IH should have params (S, T : List), but user omitted them
     checkFails(source, 23, /IH IH params should be \(S, T : List\), got$/);
   });
@@ -1030,24 +1037,24 @@ theorem concat_assoc (R, S, T : List)
 
 prove concat_assoc by induction on R (a, L)
 
-case nil:
-  prove concat(concat(nil, S), T) = concat(nil, concat(S, T)) by calculation
-  concat(concat(nil, S), T)
-  defof concat_1 = concat(S, T)
-  ---
-  concat(nil, concat(S, T))
-  undef concat_1 = concat(S, T)
+  case nil:
+    prove concat(concat(nil, S), T) = concat(nil, concat(S, T)) by calculation
+    concat(concat(nil, S), T)
+    defof concat_1 = concat(S, T)
+    ---
+    concat(nil, concat(S, T))
+    undef concat_1 = concat(S, T)
 
-case cons(a, L):
-  given IH (S, T : List) : concat(concat(L, S), T) = concat(L, concat(S, T))
-  prove concat(concat(cons(a, L), S), T) = concat(cons(a, L), concat(S, T)) by calculation
-  concat(concat(cons(a, L), S), T)
-  defof concat_2 => concat(cons(a, concat(L, S)), T)
-  defof concat_2 => cons(a, concat(concat(L, S), T))
-  apply IH = cons(a, concat(L, concat(S, T)))
-  ---
-  concat(cons(a, L), concat(S, T))
-  undef concat_2 => cons(a, concat(L, concat(S, T)))`;
+  case cons(a, L):
+    given IH (S, T : List) : concat(concat(L, S), T) = concat(L, concat(S, T))
+    prove concat(concat(cons(a, L), S), T) = concat(cons(a, L), concat(S, T)) by calculation
+    concat(concat(cons(a, L), S), T)
+    defof concat_2 => concat(cons(a, concat(L, S)), T)
+    defof concat_2 => cons(a, concat(concat(L, S), T))
+    apply IH = cons(a, concat(L, concat(S, T)))
+    ---
+    concat(cons(a, L), concat(S, T))
+    undef concat_2 => cons(a, concat(L, concat(S, T)))`;
     check(source);
   });
 
@@ -1056,15 +1063,15 @@ case cons(a, L):
 
 prove len_zero_add by induction on xs
 
-case nil:
-  given IH_X : 0 = 0
-  prove 0 + len(nil) = len(nil) by calculation
-  0 + len(nil)
-  defof len_1 => 0 + 0
-  = 0
-  ---
-  len(nil)
-  undef len_1 = 0
+  case nil:
+    given IH_X : 0 = 0
+    prove 0 + len(nil) = len(nil) by calculation
+    0 + len(nil)
+    defof len_1 => 0 + 0
+    = 0
+    ---
+    len(nil)
+    undef len_1 = 0
 
 ${validConsCase}`;
     checkFails(source, 15, /expected 0 IH theorems, got 1/);
@@ -1126,11 +1133,11 @@ theorem foo (xs : List)
 | xs = nil => len(xs) <= 0
 
 prove foo by calculation
-  len(xs)`;
+    len(xs)`;
     // This just tests that the parser doesn't choke on premise syntax.
     // The proof itself will fail but we're testing parsing.
     const pf = parseProofFile(source);
-    assert.equal(pf.theoremName, 'foo');
+    assert.equal(firstProof(pf).theoremName, 'foo');
   });
 
   it('parses given IH with premise using =>', function() {
@@ -1147,28 +1154,30 @@ theorem foo (xs : List)
 
 prove foo by induction on xs
 
-case nil:
-  prove nil = nil => 0 + len(nil) = len(nil) by calculation
-  0 + len(nil)
-  defof len_1 => 0 + 0
-  = 0
-  ---
-  len(nil)
-  undef len_1 = 0
+  case nil:
+    prove nil = nil => 0 + len(nil) = len(nil) by calculation
+    0 + len(nil)
+    defof len_1 => 0 + 0
+    = 0
+    ---
+    len(nil)
+    undef len_1 = 0
 
-case cons(a, L):
-  given IH : cons(a, L) = nil => 0 + len(L) = len(L)
-  prove cons(a, L) = nil => 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
-  0 + len(cons(a, L))
-  defof len_2 = 0 + (1 + len(L))
-  = 1 + len(L)
-  ---
-  len(cons(a, L))
-  undef len_2 = 1 + len(L)`;
+  case cons(a, L):
+    given IH : cons(a, L) = nil => 0 + len(L) = len(L)
+    prove cons(a, L) = nil => 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
+    0 + len(cons(a, L))
+    defof len_2 = 0 + (1 + len(L))
+    = 1 + len(L)
+    ---
+    len(cons(a, L))
+    undef len_2 = 1 + len(L)`;
     // Parse should succeed and capture premise.
     const pf = parseProofFile(source);
-    if (pf.proof.kind === 'tactic') {
-      const consCase = pf.proof.cases[1];
+    const proof = firstProof(pf).proof;
+
+    if (proof.kind === 'tactic') {
+      const consCase = proof.cases[1];
       assert.equal(consCase.ihTheorems.length, 1);
       assert.equal(consCase.ihTheorems[0].name, 'IH');
       assert.equal(consCase.ihTheorems[0].premises[0].to_string(), 'cons(a, L) = nil');
@@ -1193,27 +1202,27 @@ theorem sum_concat_lower (S, T : List)
 | 0 <= sum(T) => sum(S) <= sum(concat(S, T))
 
 prove sum_concat_lower by induction on S (a, L)
-given 1. 0 <= sum(T)
+  given 1. 0 <= sum(T)
 
-case nil:
-  prove sum(nil) <= sum(concat(nil, T)) by calculation
-  sum(nil)
-  defof sum_1 = 0
-  ---
-  sum(concat(nil, T))
-  undef concat_1 = sum(T)
-  0 <= since 1
+  case nil:
+    prove sum(nil) <= sum(concat(nil, T)) by calculation
+    sum(nil)
+    defof sum_1 = 0
+    ---
+    sum(concat(nil, T))
+    undef concat_1 = sum(T)
+    0 <= since 1
 
-case cons(a, L):
-  given IH (T : List) : 0 <= sum(T) => sum(L) <= sum(concat(L, T))
-  prove sum(cons(a, L)) <= sum(concat(cons(a, L), T)) by calculation
-  sum(cons(a, L))
-  defof sum_2 = a + sum(L)
-  apply IH since 1 <= a + sum(concat(L, T))
-  ---
-  sum(concat(cons(a, L), T))
-  undef concat_2 = sum(cons(a, concat(L, T)))
-  undef sum_2 = a + sum(concat(L, T))`;
+  case cons(a, L):
+    given IH (T : List) : 0 <= sum(T) => sum(L) <= sum(concat(L, T))
+    prove sum(cons(a, L)) <= sum(concat(cons(a, L), T)) by calculation
+    sum(cons(a, L))
+    defof sum_2 = a + sum(L)
+    apply IH since 1 <= a + sum(concat(L, T))
+    ---
+    sum(concat(cons(a, L), T))
+    undef concat_2 = sum(cons(a, concat(L, T)))
+    undef sum_2 = a + sum(concat(L, T))`;
     check(source);
   });
 
@@ -1234,27 +1243,27 @@ theorem sum_concat_lower (S, T : List)
 | 0 <= sum(T) => sum(S) <= sum(concat(S, T))
 
 prove sum_concat_lower by induction on S (a, L)
-given 1. 0 <= sum(T)
+  given 1. 0 <= sum(T)
 
-case nil:
-  prove sum(nil) <= sum(concat(nil, T)) by calculation
-  sum(nil)
-  defof sum_1 = 0
-  <= sum(T) since 1
-  ---
-  sum(concat(nil, T))
-  undef concat_1 = sum(T)
+  case nil:
+    prove sum(nil) <= sum(concat(nil, T)) by calculation
+    sum(nil)
+    defof sum_1 = 0
+    <= sum(T) since 1
+    ---
+    sum(concat(nil, T))
+    undef concat_1 = sum(T)
 
-case cons(a, L):
-  given IH (T : List) : 0 <= sum(T) => sum(L) <= sum(concat(L, T))
-  prove sum(cons(a, L)) <= sum(concat(cons(a, L), T)) by calculation
-  sum(cons(a, L))
-  defof sum_2 = a + sum(L)
-  apply IH since 1 <= a + sum(concat(L, T))
-  ---
-  sum(concat(cons(a, L), T))
-  undef concat_2 = sum(cons(a, concat(L, T)))
-  undef sum_2 = a + sum(concat(L, T))`;
+  case cons(a, L):
+    given IH (T : List) : 0 <= sum(T) => sum(L) <= sum(concat(L, T))
+    prove sum(cons(a, L)) <= sum(concat(cons(a, L), T)) by calculation
+    sum(cons(a, L))
+    defof sum_2 = a + sum(L)
+    apply IH since 1 <= a + sum(concat(L, T))
+    ---
+    sum(concat(cons(a, L), T))
+    undef concat_2 = sum(cons(a, concat(L, T)))
+    undef sum_2 = a + sum(concat(L, T))`;
     check(source);
   });
 
@@ -1271,12 +1280,12 @@ theorem foo (xs : List)
 | xs = nil => 0 + len(xs) = len(xs)
 
 prove foo by calculation
-given 1. xs = nil
-  0 + len(xs)`;
+  given 1. xs = nil
+    0 + len(xs)`;
     const pf = parseProofFile(source);
-    assert.equal(pf.givens.length, 1);
-    assert.equal(pf.givens[0].index, 1);
-    assert.equal(pf.givens[0].text, 'xs = nil');
+    assert.equal(firstProof(pf).givens.length, 1);
+    assert.equal(firstProof(pf).givens[0].index, 1);
+    assert.equal(firstProof(pf).givens[0].text, 'xs = nil');
   });
 
   it('rejects wrong top-level given formula', function() {
@@ -1292,8 +1301,8 @@ theorem foo (xs : List)
 | xs = nil => 0 + len(xs) = len(xs)
 
 prove foo by calculation
-given 1. 999 = 999
-  0 + len(xs)`;
+  given 1. 999 = 999
+    0 + len(xs)`;
     checkFails(source, 13, /given 1 is/);
   });
 
@@ -1310,12 +1319,12 @@ theorem foo (xs : List)
 | xs = nil => 0 + len(xs) = len(xs)
 
 prove foo by calculation
-  0 + len(xs)`;
+    0 + len(xs)`;
     // Premise is fact 1 but no given line states it. The proof won't
     // fail on the given — it just won't be stated. That's allowed
     // (givens are optional documentation). But let's verify it parses.
     const pf = parseProofFile(source);
-    assert.equal(pf.givens.length, 0);
+    assert.equal(firstProof(pf).givens.length, 0);
   });
 
   it('rejects wrong top-level given number', function() {
@@ -1331,8 +1340,8 @@ theorem foo (xs : List)
 | xs = nil => 0 + len(xs) = len(xs)
 
 prove foo by calculation
-given 2. xs = nil
-  0 + len(xs)`;
+  given 2. xs = nil
+    0 + len(xs)`;
     checkFails(source, 13, /expected fact number 1, got 2/);
   });
 
@@ -1350,10 +1359,10 @@ theorem foo (S : List)
 | 0 <= sum(S) => 0 <= sum(S)
 
 prove foo by calculation
-given 1. 0 <= sum(S)
-  ---
-  sum(S)
-  0 <= since 1`;
+  given 1. 0 <= sum(S)
+    ---
+    sum(S)
+    0 <= since 1`;
     check(source);
   });
 
@@ -1367,17 +1376,19 @@ theorem bar (x : Int) (xs : List)
 
 prove bar by induction on xs
 
-case nil:
-  prove x + 0 = x by calculation
-  x
+  case nil:
+    prove x + 0 = x by calculation
+    x
 
-case cons(a, L):
-  given IH (x : Int) : x + 0 = x
-  prove x + 0 = x by calculation
-  x`;
+  case cons(a, L):
+    given IH (x : Int) : x + 0 = x
+    prove x + 0 = x by calculation
+    x`;
     const pf = parseProofFile(source);
-    if (pf.proof.kind === 'tactic') {
-      const consCase = pf.proof.cases[1];
+    const proof = firstProof(pf).proof;
+
+    if (proof.kind === 'tactic') {
+      const consCase = proof.cases[1];
       assert.equal(consCase.ihTheorems[0].name, 'IH');
       assert.deepEqual(consCase.ihTheorems[0].params, [['x', 'Int']]);
     }

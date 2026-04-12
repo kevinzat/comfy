@@ -15,25 +15,25 @@ theorem len_concat (S, T : List)
 
 prove len_concat by induction on S (a, L)
 
-case nil:
-  prove len(concat(nil, T)) = len(nil) + len(T) by calculation
+  case nil:
+    prove len(concat(nil, T)) = len(nil) + len(T) by calculation
 
-  len(concat(nil, T))
-  defof concat_1 = len(T)
-  ---
-  len(nil) + len(T)
-  undef len_1 = 0 + len(T)
-  len(T) =
+    len(concat(nil, T))
+    defof concat_1 = len(T)
+    ---
+    len(nil) + len(T)
+    undef len_1 = 0 + len(T)
+    len(T) =
 
-case cons(a, L):
-  given IH (T : List) : len(concat(L, T)) = len(L) + len(T)
-  prove len(concat(cons(a, L), T)) = len(cons(a, L)) + len(T) by calculation
+  case cons(a, L):
+    given IH (T : List) : len(concat(L, T)) = len(L) + len(T)
+    prove len(concat(cons(a, L), T)) = len(cons(a, L)) + len(T) by calculation
 
-  len(concat(cons(a, L), T))
-  defof concat_2 = len(cons(a, concat(L, T)))
-  defof len_2 = 1 + len(concat(L, T))
-  apply IH = 1 + (len(L) + len(T))
-  ---
-  len(cons(a, L)) + len(T)
-  undef len_2 = 1 + len(L) + len(T)
-  1 + (len(L) + len(T)) =
+    len(concat(cons(a, L), T))
+    defof concat_2 = len(cons(a, concat(L, T)))
+    defof len_2 = 1 + len(concat(L, T))
+    apply IH = 1 + (len(L) + len(T))
+    ---
+    len(cons(a, L)) + len(T)
+    undef len_2 = 1 + len(L) + len(T)
+    1 + (len(L) + len(T)) =

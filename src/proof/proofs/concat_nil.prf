@@ -15,20 +15,20 @@ theorem concat_nil (S : List)
 
 prove concat_nil by induction on S (a, L)
 
-case nil:
-  prove concat(nil, nil) = nil by calculation
+  case nil:
+    prove concat(nil, nil) = nil by calculation
 
-  concat(nil, nil)
-  defof concat_1 = nil
-  ---
-  nil
+    concat(nil, nil)
+    defof concat_1 = nil
+    ---
+    nil
 
-case cons(a, L):
-  given IH : concat(L, nil) = L
-  prove concat(cons(a, L), nil) = cons(a, L) by calculation
+  case cons(a, L):
+    given IH : concat(L, nil) = L
+    prove concat(cons(a, L), nil) = cons(a, L) by calculation
 
-  concat(cons(a, L), nil)
-  defof concat_2 = cons(a, concat(L, nil))
-  apply IH = cons(a, L)
-  ---
-  cons(a, L)
+    concat(cons(a, L), nil)
+    defof concat_2 = cons(a, concat(L, nil))
+    apply IH = cons(a, L)
+    ---
+    cons(a, L)

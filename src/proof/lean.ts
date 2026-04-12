@@ -7,7 +7,7 @@ import { ParseProp } from '../facts/props_parser';
 import { TypeDeclAst } from '../lang/type_ast';
 import { FuncAst, Param, ParamVar, ParamConstructor } from '../lang/func_ast';
 import { TheoremAst } from '../lang/theorem_ast';
-import { ProofFile, ProofNode, CalcProofNode, CaseBlock } from './proof_file';
+import { ProofFile, ProofEntry, ProofNode, CalcProofNode, CaseBlock } from './proof_file';
 import { DeclsAst } from '../lang/decls_ast';
 import { ProofObligation } from '../program/obligations';
 import { Prop } from '../facts/prop';
@@ -371,32 +371,11 @@ export function oblToLean(
   return lines.join('\n');
 }
 
-/** Convert a parsed proof file to a valid Lean 4 source string. */
-export function toLean(pf: ProofFile): string {
-  const ctors = collectCtors(pf.decls);
-  const lines: string[] = [];
+function entryToLean(
+    entry: ProofEntry, allTheorems: TheoremAst[],
+    ctors: Set<string>, lines: string[]): void {
+  const theorem = allTheorems.find(t => t.name === entry.theoremName)!;
 
-  lines.push('namespace Comfy');
-  lines.push('');
-
-  for (const type of pf.decls.types) {
-    lines.push(typeToLean(type));
-    lines.push('');
-  }
-
-  for (const func of pf.decls.functions) {
-    lines.push(funcToLean(func, ctors));
-    lines.push('');
-  }
-
-  const theorem = pf.decls.theorems.find(t => t.name === pf.theoremName)!;
-  for (const thm of pf.decls.theorems) {
-    if (thm.name === pf.theoremName) continue;
-    lines.push(axiomToLean(thm, ctors));
-    lines.push('');
-  }
-
-  // Main theorem with proof
   const params = paramsToLean(theorem.params);
   const conclusion = propToLean(theorem.conclusion, ctors);
   const paramStr = params ? ` ${params}` : '';
@@ -408,9 +387,53 @@ export function toLean(pf: ProofFile): string {
   } else {
     lines.push(`theorem ${theorem.name}${paramStr} : ${conclusion} := by`);
   }
-  lines.push(proofToLean(pf.proof, ctors, '  ', []));
-
+  lines.push(proofToLean(entry.proof, ctors, '  ', []));
   lines.push('');
+}
+
+/** Convert a parsed proof file to a valid Lean 4 source string. */
+export function toLean(pf: ProofFile): string {
+  // Collect all declarations and proofs across items.
+  const allTypes: TypeDeclAst[] = [];
+  const allFunctions: FuncAst[] = [];
+  const allTheorems: TheoremAst[] = [];
+  const proofEntries: ProofEntry[] = [];
+  for (const item of pf.items) {
+    if (item.kind === 'decls') {
+      allTypes.push(...item.decls.types);
+      allFunctions.push(...item.decls.functions);
+      allTheorems.push(...item.decls.theorems);
+    } else {
+      proofEntries.push(item.entry);
+    }
+  }
+  const ctors = collectCtors(new DeclsAst(allTypes, allFunctions, allTheorems));
+  const provedNames = new Set(proofEntries.map(e => e.theoremName));
+  const lines: string[] = [];
+
+  lines.push('namespace Comfy');
+  lines.push('');
+
+  for (const type of allTypes) {
+    lines.push(typeToLean(type));
+    lines.push('');
+  }
+  for (const func of allFunctions) {
+    lines.push(funcToLean(func, ctors));
+    lines.push('');
+  }
+  // Emit unproved theorems as axioms.
+  for (const thm of allTheorems) {
+    if (!provedNames.has(thm.name)) {
+      lines.push(axiomToLean(thm, ctors));
+      lines.push('');
+    }
+  }
+  // Emit proved theorems in order.
+  for (const entry of proofEntries) {
+    entryToLean(entry, allTheorems, ctors, lines);
+  }
+
   lines.push('end Comfy');
   lines.push('');
 

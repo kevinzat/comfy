@@ -15,24 +15,24 @@ theorem tree_size (T : Tree)
 
 prove tree_size by induction on T (L, R)
 
-case leaf:
-  prove size(leaf) = 2 * leaves(leaf) - 1 by calculation
-  size(leaf)
-  defof size_1 = 1
-  ---
-  2 * leaves(leaf) - 1
-  undef leaves_1 = 2 * 1 - 1
-  1 =
+  case leaf:
+    prove size(leaf) = 2 * leaves(leaf) - 1 by calculation
+    size(leaf)
+    defof size_1 = 1
+    ---
+    2 * leaves(leaf) - 1
+    undef leaves_1 = 2 * 1 - 1
+    1 =
 
-case node(L, R):
-  given IH_L : size(L) = 2 * leaves(L) - 1
-  given IH_R : size(R) = 2 * leaves(R) - 1
-  prove size(node(L, R)) = 2 * leaves(node(L, R)) - 1 by calculation
-  size(node(L, R))
-  defof size_2 = 1 + size(L) + size(R)
-  apply IH_L => 1 + (2 * leaves(L) - 1) + size(R)
-  apply IH_R => 1 + (2 * leaves(L) - 1) + (2 * leaves(R) - 1)
-  = 2 * (leaves(L) + leaves(R)) - 1
-  ---
-  2 * leaves(node(L, R)) - 1
-  undef leaves_2 = 2 * (leaves(L) + leaves(R)) - 1
+  case node(L, R):
+    given IH_L : size(L) = 2 * leaves(L) - 1
+    given IH_R : size(R) = 2 * leaves(R) - 1
+    prove size(node(L, R)) = 2 * leaves(node(L, R)) - 1 by calculation
+    size(node(L, R))
+    defof size_2 = 1 + size(L) + size(R)
+    apply IH_L => 1 + (2 * leaves(L) - 1) + size(R)
+    apply IH_R => 1 + (2 * leaves(L) - 1) + (2 * leaves(R) - 1)
+    = 2 * (leaves(L) + leaves(R)) - 1
+    ---
+    2 * leaves(node(L, R)) - 1
+    undef leaves_2 = 2 * (leaves(L) + leaves(R)) - 1

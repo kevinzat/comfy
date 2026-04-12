@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
 import { parseProofFile } from './proof_file';
-import { ProofFile, CalcProofNode, CalcStep, TacticProofNode, CaseBlock } from './proof_file';
+import { ProofFile, ProofEntry, CalcProofNode, CalcStep, TacticProofNode, CaseBlock } from './proof_file';
 import { toLean, oblToLean } from './lean';
 import { ProofObligation } from '../program/obligations';
 import { DeclsAst } from '../lang/decls_ast';
@@ -105,11 +105,10 @@ describe('toLean', function() {
       backwardSteps: [],
     };
     const pf: ProofFile = {
-      decls,
-      theoremName: 'trivial_thm',
-      theoremLine: 1,
-      givens: [],
-      proof,
+      items: [
+        { kind: 'decls', decls },
+        { kind: 'proof', entry: { theoremName: 'trivial_thm', theoremLine: 1, givens: [], proof } },
+      ],
     };
     const lean = toLean(pf);
     assert.ok(lean.includes('theorem trivial_thm : 0 = 0'));
@@ -129,11 +128,10 @@ describe('toLean', function() {
       backwardSteps: [],
     };
     const pf: ProofFile = {
-      decls,
-      theoremName: 'my_thm',
-      theoremLine: 1,
-      givens: [],
-      proof,
+      items: [
+        { kind: 'decls', decls },
+        { kind: 'proof', entry: { theoremName: 'my_thm', theoremLine: 1, givens: [], proof } },
+      ],
     };
     const lean = toLean(pf);
     assert.ok(lean.includes('namespace Comfy'));
@@ -156,11 +154,10 @@ describe('toLean', function() {
       backwardSteps: [],
     };
     const pf: ProofFile = {
-      decls,
-      theoremName: 'multi_thm',
-      theoremLine: 1,
-      givens: [],
-      proof,
+      items: [
+        { kind: 'decls', decls },
+        { kind: 'proof', entry: { theoremName: 'multi_thm', theoremLine: 1, givens: [], proof } },
+      ],
     };
     const lean = toLean(pf);
     assert.ok(lean.includes('h_premise1'));
@@ -535,9 +532,7 @@ describe('oblToLean', function() {
     const goal = new ConstProp(true);
     const thm = new TheoremAst('test_verum', [], [], goal, 1);
     const decls = new DeclsAst([], [], [thm]);
-    const pf: ProofFile = {
-      decls, theoremName: 'test_verum', theoremLine: 1, givens: [], proof,
-    };
+    const pf: ProofFile = { items: [{ kind: 'decls', decls }, { kind: 'proof', entry: { theoremName: 'test_verum', theoremLine: 1, givens: [], proof } }] };
     const lean = toLean(pf);
     assert.ok(lean.includes('trivial'));
   });
@@ -549,9 +544,7 @@ describe('oblToLean', function() {
     const goal = new AtomProp(new Formula(Variable.of('x'), '=', Constant.of(0n)));
     const thm = new TheoremAst('test_exfalso', [['x', 'Int']], [], goal, 1);
     const decls = new DeclsAst([], [], [thm]);
-    const pf: ProofFile = {
-      decls, theoremName: 'test_exfalso', theoremLine: 1, givens: [], proof,
-    };
+    const pf: ProofFile = { items: [{ kind: 'decls', decls }, { kind: 'proof', entry: { theoremName: 'test_exfalso', theoremLine: 1, givens: [], proof } }] };
     const lean = toLean(pf);
     assert.ok(lean.includes('exfalso'));
   });
@@ -573,9 +566,7 @@ describe('oblToLean', function() {
     const goal = new NotProp(new Formula(Variable.of('x'), '<', Constant.of(0n)));
     const thm = new TheoremAst('test_abs', [['x', 'Int']], [], goal, 1);
     const decls = new DeclsAst([], [], [thm]);
-    const pf: ProofFile = {
-      decls, theoremName: 'test_abs', theoremLine: 1, givens: [], proof,
-    };
+    const pf: ProofFile = { items: [{ kind: 'decls', decls }, { kind: 'proof', entry: { theoremName: 'test_abs', theoremLine: 1, givens: [], proof } }] };
     const lean = toLean(pf);
     assert.ok(lean.includes('intro h'));
     assert.ok(lean.includes('omega'));
@@ -589,9 +580,7 @@ describe('oblToLean', function() {
     const goal = new ConstProp(false);
     const thm = new TheoremAst('test_contr', [['x', 'Int']], [], goal, 1);
     const decls = new DeclsAst([], [], [thm]);
-    const pf: ProofFile = {
-      decls, theoremName: 'test_contr', theoremLine: 1, givens: [], proof,
-    };
+    const pf: ProofFile = { items: [{ kind: 'decls', decls }, { kind: 'proof', entry: { theoremName: 'test_contr', theoremLine: 1, givens: [], proof } }] };
     const lean = toLean(pf);
     assert.ok(lean.includes('exact absurd'));
     assert.ok(lean.includes('x < 0'));
@@ -611,13 +600,13 @@ theorem foo (xs : List)
 
 prove foo by cases on xs
 
-case nil:
-  prove len(nil) = len(nil) by calculation
-  len(nil)
+  case nil:
+    prove len(nil) = len(nil) by calculation
+    len(nil)
 
-case cons(a, L):
-  prove len(cons(a, L)) = len(cons(a, L)) by calculation
-  len(cons(a, L))`;
+  case cons(a, L):
+    prove len(cons(a, L)) = len(cons(a, L)) by calculation
+    len(cons(a, L))`;
     const pf = parseProofFile(source);
     const lean = toLean(pf);
     assert.ok(lean.includes('cases xs with'));
@@ -645,9 +634,7 @@ case cons(a, L):
     ]);
     const thm = new TheoremAst('test_left', [['x', 'Int'], ['y', 'Int']], [], goal, 1);
     const decls = new DeclsAst([], [], [thm]);
-    const pf: ProofFile = {
-      decls, theoremName: 'test_left', theoremLine: 1, givens: [], proof,
-    };
+    const pf: ProofFile = { items: [{ kind: 'decls', decls }, { kind: 'proof', entry: { theoremName: 'test_left', theoremLine: 1, givens: [], proof } }] };
     const lean = toLean(pf);
     assert.ok(lean.includes('left'));
     assert.ok(lean.includes('omega'));
@@ -674,9 +661,7 @@ case cons(a, L):
     const goal = new AtomProp(new Formula(Variable.of('x'), '=', Constant.of(0n)));
     const thm = new TheoremAst('test_have', [['x', 'Int']], [], goal, 1);
     const decls = new DeclsAst([], [], [thm]);
-    const pf: ProofFile = {
-      decls, theoremName: 'test_have', theoremLine: 1, givens: [], proof,
-    };
+    const pf: ProofFile = { items: [{ kind: 'decls', decls }, { kind: 'proof', entry: { theoremName: 'test_have', theoremLine: 1, givens: [], proof } }] };
     const lean = toLean(pf);
     assert.ok(lean.includes('have h :'));
     assert.ok(lean.includes('x < 1'));
@@ -702,9 +687,7 @@ case cons(a, L):
     ]);
     const thm = new TheoremAst('test_right', [['x', 'Int'], ['y', 'Int']], [], goal, 1);
     const decls = new DeclsAst([], [], [thm]);
-    const pf: ProofFile = {
-      decls, theoremName: 'test_right', theoremLine: 1, givens: [], proof,
-    };
+    const pf: ProofFile = { items: [{ kind: 'decls', decls }, { kind: 'proof', entry: { theoremName: 'test_right', theoremLine: 1, givens: [], proof } }] };
     const lean = toLean(pf);
     assert.ok(lean.includes('right'));
     assert.ok(lean.includes('omega'));
@@ -735,9 +718,7 @@ case cons(a, L):
     const goal = new AtomProp(new Formula(Variable.of('x'), '=', Variable.of('x')));
     const thm = new TheoremAst('test_cases', [['x', 'Int']], [], goal, 1);
     const decls = new DeclsAst([], [], [thm]);
-    const pf: ProofFile = {
-      decls, theoremName: 'test_cases', theoremLine: 1, givens: [], proof,
-    };
+    const pf: ProofFile = { items: [{ kind: 'decls', decls }, { kind: 'proof', entry: { theoremName: 'test_cases', theoremLine: 1, givens: [], proof } }] };
     const lean = toLean(pf);
     assert.ok(lean.includes('rcases h with h0 | h1'));
     assert.ok(lean.includes('omega'));

@@ -22,25 +22,25 @@ theorem len_reverse (S : List)
 
 prove len_reverse by induction on S (a, L)
 
-case nil:
-  prove len(reverse(nil)) = len(nil) by calculation
+  case nil:
+    prove len(reverse(nil)) = len(nil) by calculation
 
-  len(reverse(nil))
-  defof reverse_1 = len(nil)
-  ---
-  len(nil)
+    len(reverse(nil))
+    defof reverse_1 = len(nil)
+    ---
+    len(nil)
 
-case cons(a, L):
-  given IH : len(reverse(L)) = len(L)
-  prove len(reverse(cons(a, L))) = len(cons(a, L)) by calculation
+  case cons(a, L):
+    given IH : len(reverse(L)) = len(L)
+    prove len(reverse(cons(a, L))) = len(cons(a, L)) by calculation
 
-  len(reverse(cons(a, L)))
-  defof reverse_2 = len(concat(reverse(L), cons(a, nil)))
-  apply len_concat = len(reverse(L)) + len(cons(a, nil))
-  defof len_2 => len(reverse(L)) + (1 + len(nil))
-  defof len_1 = len(reverse(L)) + (1 + 0)
-  apply IH = len(L) + (1 + 0)
-  ---
-  len(cons(a, L))
-  undef len_2 = 1 + len(L)
-  len(L) + (1 + 0) =
+    len(reverse(cons(a, L)))
+    defof reverse_2 = len(concat(reverse(L), cons(a, nil)))
+    apply len_concat = len(reverse(L)) + len(cons(a, nil))
+    defof len_2 => len(reverse(L)) + (1 + len(nil))
+    defof len_1 = len(reverse(L)) + (1 + 0)
+    apply IH = len(L) + (1 + 0)
+    ---
+    len(cons(a, L))
+    undef len_2 = 1 + len(L)
+    len(L) + (1 + 0) =

@@ -53,12 +53,19 @@ export interface TacticProofNode {
 
 export type ProofNode = CalcProofNode | TacticProofNode;
 
-export interface ProofFile {
-  decls: DeclsAst;
+export interface ProofEntry {
   theoremName: string;
   theoremLine: number;
   givens: GivenLine[];
   proof: ProofNode;
+}
+
+export type ProofFileItem =
+  | { kind: 'decls'; decls: DeclsAst }
+  | { kind: 'proof'; entry: ProofEntry };
+
+export interface ProofFile {
+  items: ProofFileItem[];
 }
 
 export class ParseError extends Error {
@@ -104,6 +111,7 @@ export function parseParams(text: string, line: number): [string, string][] {
 interface Lines {
   raw: string[];
   pos: number;
+  lineOffset: number;  // added to 1-indexed pos to get original file line numbers
 }
 
 function peekLine(lines: Lines): string | undefined {
@@ -120,7 +128,7 @@ function readLine(lines: Lines): { text: string; line: number } {
   if (lines.pos >= lines.raw.length) throw new Error("impossible: no line");
   /* v8 ignore stop */
   const text = lines.raw[lines.pos];
-  const line = lines.pos + 1;  // 1-indexed
+  const line = lines.pos + 1 + lines.lineOffset;  // 1-indexed, offset to original file
   lines.pos++;
   return { text, line };
 }
@@ -294,63 +302,100 @@ function parseCaseBlock(lines: Lines): CaseBlock {
   return { label, ihTheorems, givens, goal, goalLine: proveEntry.line, proof };
 }
 
+/** True if the line is indented (starts with whitespace). */
+function isIndented(line: string): boolean {
+  return line.length > 0 && (line[0] === ' ' || line[0] === '\t');
+}
+
+/** Strip the common leading whitespace from a block of indented lines. */
+function stripIndent(lines: string[]): string[] {
+  let minIndent = Infinity;
+  for (const line of lines) {
+    if (line.trim() === '') continue;
+    const indent = line.match(/^(\s*)/)![1].length;
+    if (indent < minIndent) minIndent = indent;
+  }
+  if (!isFinite(minIndent)) minIndent = 0;
+  return lines.map(l => l.substring(minIndent));
+}
+
 export function parseProofFile(source: string): ProofFile {
   const rawLines = source.split('\n');
+  const items: ProofFileItem[] = [];
 
-  // Find the "prove" line to split preamble from proof.
-  let proveIdx = -1;
-  for (let i = 0; i < rawLines.length; i++) {
-    if (rawLines[i].trim().startsWith('prove ')) {
-      proveIdx = i;
-      break;
+  let i = 0;
+  while (i < rawLines.length) {
+    // Skip blank lines.
+    if (rawLines[i].trim() === '') { i++; continue; }
+
+    // Check for an unindented "prove" line.
+    if (!isIndented(rawLines[i]) && rawLines[i].trim().startsWith('prove ')) {
+      const proveIdx = i;
+      const proveLine = rawLines[i].trim();
+      const proveMatch = proveLine.match(/^prove\s+(\S+)\s+by\s+(.+)$/);
+      if (!proveMatch) {
+        throw new ParseError(proveIdx + 1, 'expected "prove <name> by <method>"');
+      }
+      const theoremName = proveMatch[1];
+      const proofNode = parseMethod(proveMatch[2], proveIdx + 1);
+      i++;
+
+      // Collect all indented lines as the proof body.
+      const bodyLines: string[] = [];
+      while (i < rawLines.length && (rawLines[i].trim() === '' || isIndented(rawLines[i]))) {
+        bodyLines.push(rawLines[i]);
+        i++;
+      }
+
+      // Strip indent and parse the proof body.
+      // lineOffset maps 1-indexed positions in stripped back to original file lines.
+      const stripped = stripIndent(bodyLines);
+      const lines: Lines = { raw: stripped, pos: 0, lineOffset: proveIdx + 1 };
+
+      // Parse optional top-level "given N. <formula>" lines (premise).
+      const givens: GivenLine[] = [];
+      while (true) {
+        const next = peekLine(lines);
+        if (next === undefined) break;
+        const givenMatch = next.trim().match(/^given\s+(\d+)\.\s+(.+)$/);
+        if (!givenMatch) break;
+        const entry = readLine(lines);
+        givens.push({ index: parseInt(givenMatch[1]), text: givenMatch[2],
+            line: entry.line });
+      }
+
+      parseProofBody(lines, proofNode);
+
+      items.push({ kind: 'proof', entry: {
+        theoremName,
+        theoremLine: proveIdx + 1,
+        givens,
+        proof: proofNode,
+      }});
+      continue;
     }
+
+    // Otherwise, accumulate declaration lines until we hit a "prove" or EOF.
+    const declStart = i;
+    while (i < rawLines.length) {
+      if (!isIndented(rawLines[i]) && rawLines[i].trim().startsWith('prove ')) break;
+      i++;
+    }
+
+    const declText = rawLines.slice(declStart, i).join('\n').trim();
+    /* v8 ignore start */
+    if (declText.length === 0) continue;
+    /* v8 ignore stop */
+    const declsResult = ParseDecls(declText);
+    if (declsResult.error) {
+      throw new ParseError(declStart + 1, `declaration error: ${declsResult.error}`);
+    }
+    items.push({ kind: 'decls', decls: declsResult.ast! });
   }
-  if (proveIdx === -1) {
+
+  if (!items.some(item => item.kind === 'proof')) {
     throw new ParseError(rawLines.length, 'missing "prove" statement');
   }
 
-  // Parse declarations (everything before the prove line).
-  const preamble = rawLines.slice(0, proveIdx).join('\n').trim();
-  let decls: DeclsAst;
-  if (preamble.length === 0) {
-    decls = new DeclsAst([], [], []);
-  } else {
-    const declsResult = ParseDecls(preamble);
-    if (declsResult.error) {
-      throw new ParseError(1, `declaration error: ${declsResult.error}`);
-    }
-    decls = declsResult.ast!;
-  }
-
-  // Parse the prove line: "prove <name> by <method>"
-  const proveLine = rawLines[proveIdx].trim();
-  const proveMatch = proveLine.match(/^prove\s+(\S+)\s+by\s+(.+)$/);
-  if (!proveMatch) {
-    throw new ParseError(proveIdx + 1, 'expected "prove <name> by <method>"');
-  }
-  const theoremName = proveMatch[1];
-  const proofNode = parseMethod(proveMatch[2], proveIdx + 1);
-
-  // Parse optional top-level "given N. <formula>" lines (premise).
-  const lines: Lines = { raw: rawLines, pos: proveIdx + 1 };
-  const givens: GivenLine[] = [];
-  while (true) {
-    const next = peekLine(lines);
-    if (next === undefined) break;
-    const givenMatch = next.trim().match(/^given\s+(\d+)\.\s+(.+)$/);
-    if (!givenMatch) break;
-    const entry = readLine(lines);
-    givens.push({ index: parseInt(givenMatch[1]), text: givenMatch[2], line: entry.line });
-  }
-
-  // Parse the proof body.
-  parseProofBody(lines, proofNode);
-
-  return {
-    decls,
-    theoremName,
-    theoremLine: proveIdx + 1,
-    givens,
-    proof: proofNode,
-  };
+  return { items };
 }
