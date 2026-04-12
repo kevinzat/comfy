@@ -60,16 +60,55 @@ describe('decls_parser', function() {
     assert.equal(ast.theorems.length, 1);
   });
 
-  it('error on empty input', function() {
-    const { ast, error } = ParseDecls('');
-    assert.equal(ast, undefined);
-    assert.ok(error);
+  it('empty input returns empty ast and no errors', function() {
+    const { ast, errors } = ParseDecls('');
+    assert.ok(ast);
+    assert.equal(ast.types.length, 0);
+    assert.equal(ast.functions.length, 0);
+    assert.equal(ast.theorems.length, 0);
+    assert.deepStrictEqual(errors, []);
   });
 
-  it('error on invalid syntax', function() {
-    const { ast, error } = ParseDecls('foo bar');
-    assert.equal(ast, undefined);
-    assert.ok(error);
+  it('error on non-keyword tokens', function() {
+    const { errors } = ParseDecls('foo bar');
+    assert.ok(errors.length > 0);
+  });
+
+  it('recovers from bad declaration and parses next one', function() {
+    const { ast, errors } = ParseDecls(
+        `type BadType
+         def f : (Int) -> Int
+         | f(x) => x + 1`);
+    assert.ok(ast);
+    assert.ok(errors.length > 0, 'expected error for bad type');
+    assert.equal(ast.functions.length, 1);
+    assert.equal(ast.functions[0].name, 'f');
+  });
+
+  it('skips garbage before first keyword with error', function() {
+    const { ast, errors } = ParseDecls(
+        `garbage stuff
+         type Bool
+         | yes : Bool
+         | no : Bool`);
+    assert.ok(ast);
+    assert.ok(errors.length > 0, 'expected error for garbage');
+    assert.equal(ast.types.length, 1);
+    assert.equal(ast.types[0].name, 'Bool');
+  });
+
+  it('collects multiple errors and keeps good declarations', function() {
+    const { ast, errors } = ParseDecls(
+        `type BadType
+         def f : (Int) -> Int
+         | f(x) => x + 1
+         type AlsoBad
+         theorem foo (x : Int)
+         | x = x`);
+    assert.ok(ast);
+    assert.ok(errors.length >= 2, `expected >= 2 errors, got ${errors.length}`);
+    assert.equal(ast.functions.length, 1);
+    assert.equal(ast.theorems.length, 1);
   });
 
   it('ParsePremises throws on invalid premises', function() {

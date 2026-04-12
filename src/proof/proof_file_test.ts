@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { parseProofFile, parseParams, ParseError, ProofFile } from './proof_file';
+import { parseProofFile, parseParams, ParseError, ProofFile, ParseResult } from './proof_file';
 
 /** Extract the first proof entry from a ProofFile. */
 function firstProof(pf: ProofFile) {
@@ -8,19 +8,22 @@ function firstProof(pf: ProofFile) {
   return item.entry;
 }
 
+/** Parse and assert no errors. */
+function parseOk(source: string): ProofFile {
+  const result = parseProofFile(source);
+  assert.deepStrictEqual(result.errors, [],
+      `expected no errors, got: ${result.errors.map(e => e.message).join(', ')}`);
+  return result.file;
+}
 
-function parseFails(source: string, lineNum: number, pattern: RegExp): void {
-  try {
-    parseProofFile(source);
-    assert.fail('expected ParseError');
-  } catch (e: any) {
-    assert.ok(e instanceof ParseError,
-        `expected ParseError, got ${e.constructor.name}: ${e.message}`);
-    assert.strictEqual(e.line, lineNum,
-        `expected error on line ${lineNum}, got line ${e.line}: ${e.message}`);
-    assert.ok(pattern.test(e.message),
-        `expected message matching ${pattern}, got: ${e.message}`);
-  }
+/** Parse and assert at least one error matches. */
+function parseHasError(source: string, lineNum: number, pattern: RegExp): ParseResult {
+  const result = parseProofFile(source);
+  const match = result.errors.find(e => e.line === lineNum && pattern.test(e.message));
+  assert.ok(match,
+      `expected error on line ${lineNum} matching ${pattern}, got: [${
+        result.errors.map(e => `line ${e.line}: ${e.message}`).join(', ')}]`);
+  return result;
 }
 
 
@@ -74,21 +77,17 @@ describe('parseParams', () => {
 
 describe('parseProofFile', () => {
   it('parses empty preamble', () => {
-    const pf = parseProofFile('prove foo by calculation\n  x\n  = x');
+    const pf = parseOk('prove foo by calculation\n  x\n  = x');
     assert.strictEqual(firstProof(pf).theoremName, 'foo');
     assert.ok(!pf.items.some(i => i.kind === 'decls'));
   });
 
-  it('fails on missing prove', () => {
-    parseFails('', 1, /missing "prove"/);
+  it('returns error on missing prove', () => {
+    parseHasError('', 1, /missing "prove"/);
   });
 
-  it('fails on bad prove format', () => {
-    parseFails('prove foo', 1, /expected "prove <name> by <method>"/);
-  });
-
-  it('fails on unknown proof method', () => {
-    parseFails('prove foo by magic', 1, /expected "calculation"/);
+  it('returns error on unknown proof method', () => {
+    parseHasError('prove foo by magic', 1, /expected "calculation"/);
   });
 
   it('parses top-level givens', () => {
@@ -98,24 +97,31 @@ describe('parseProofFile', () => {
       '    x',
       '    = x',
     ].join('\n');
-    const pf = parseProofFile(source);
+    const pf = parseOk(source);
     assert.strictEqual(firstProof(pf).givens.length, 1);
     assert.strictEqual(firstProof(pf).givens[0].index, 1);
     assert.strictEqual(firstProof(pf).givens[0].text, 'x = y');
   });
 
-  it('fails on unrecognized calc rule', () => {
+  it('returns error on unrecognized calc rule but keeps good steps', () => {
     const source = [
       'prove foo by calculation',
       '    x',
       '    badrule here',
+      '    = y',
     ].join('\n');
-    parseFails(source, 3, /unrecognized rule/);
+    const result = parseHasError(source, 3, /unrecognized rule/);
+    const proof = firstProof(result.file).proof;
+    assert.strictEqual(proof.kind, 'calculate');
+    if (proof.kind === 'calculate') {
+      // The good step "= y" should still be parsed
+      assert.strictEqual(proof.forwardSteps.length, 1);
+    }
   });
 
   it('parses cases proof with no case blocks (EOF)', () => {
     const source = 'prove foo by simple cases on x > 0';
-    const pf = parseProofFile(source);
+    const pf = parseOk(source);
     const proof = firstProof(pf).proof;
     assert.strictEqual(proof.kind, 'tactic');
     if (proof.kind === 'tactic') {
@@ -128,7 +134,7 @@ describe('parseProofFile', () => {
       'prove foo by simple cases on x > 0',
       '  not a case',
     ].join('\n');
-    const pf = parseProofFile(source);
+    const pf = parseOk(source);
     const proof = firstProof(pf).proof;
     assert.strictEqual(proof.kind, 'tactic');
     if (proof.kind === 'tactic') {
@@ -136,32 +142,45 @@ describe('parseProofFile', () => {
     }
   });
 
-  it('fails on bad case header (no colon)', () => {
+  it('returns error on bad case header (no colon)', () => {
     const source = [
       'prove foo by induction on n',
       '  case zero',
     ].join('\n');
-    parseFails(source, 2, /expected "case <label>:"/);
+    parseHasError(source, 2, /expected "case <label>:"/);
   });
 
-  it('fails on missing prove after case header', () => {
+  it('returns error on missing prove after case header', () => {
     const source = [
       'prove foo by induction on n',
       '  case zero:',
     ].join('\n');
-    parseFails(source, 2, /expected "prove" after case header/);
+    const result = parseHasError(source, 2, /expected "prove" after case header/);
+    // Should still produce a case block with an incomplete proof
+    const proof = firstProof(result.file).proof;
+    assert.strictEqual(proof.kind, 'tactic');
+    if (proof.kind === 'tactic') {
+      assert.strictEqual(proof.cases.length, 1);
+      assert.strictEqual(proof.cases[0].proof.kind, 'none');
+    }
   });
 
-  it('fails on bad prove format in case block', () => {
+  it('returns error on bad prove format in case block', () => {
     const source = [
       'prove foo by induction on n',
       '  case zero:',
       '  prove stuff',
     ].join('\n');
-    parseFails(source, 3, /expected "prove <formula> by <method>"/);
+    const result = parseHasError(source, 3, /expected "prove <formula> by <method>"/);
+    const proof = firstProof(result.file).proof;
+    assert.strictEqual(proof.kind, 'tactic');
+    if (proof.kind === 'tactic') {
+      assert.strictEqual(proof.cases.length, 1);
+      assert.strictEqual(proof.cases[0].proof.kind, 'none');
+    }
   });
 
-  it('fails on bad IH premise', () => {
+  it('returns error on bad IH premise', () => {
     const source = [
       'prove foo by induction on n',
       '  case succ:',
@@ -170,7 +189,7 @@ describe('parseProofFile', () => {
       '    x',
       '    = x',
     ].join('\n');
-    parseFails(source, 3, /bad IH premise/);
+    parseHasError(source, 3, /bad IH premise/);
   });
 
   it('parses case block with givens', () => {
@@ -187,7 +206,7 @@ describe('parseProofFile', () => {
       '    x',
       '    = x',
     ].join('\n');
-    const pf = parseProofFile(source);
+    const pf = parseOk(source);
     const proof = firstProof(pf).proof;
     assert.strictEqual(proof.kind, 'tactic');
     if (proof.kind === 'tactic') {
@@ -209,7 +228,7 @@ describe('parseProofFile', () => {
       '    f(n + 1)',
       '    = f(n + 1)',
     ].join('\n');
-    const pf = parseProofFile(source);
+    const pf = parseOk(source);
     const proof = firstProof(pf).proof;
     assert.strictEqual(proof.kind, 'tactic');
     if (proof.kind === 'tactic') {
@@ -231,7 +250,7 @@ describe('parseProofFile', () => {
       '    f(n + 1)',
       '    = f(n + 1)',
     ].join('\n');
-    const pf = parseProofFile(source);
+    const pf = parseOk(source);
     const proof = firstProof(pf).proof;
 
     if (proof.kind === 'tactic') {
@@ -244,7 +263,7 @@ describe('parseProofFile', () => {
       'prove foo by induction on n',
       '  not a case line',
     ].join('\n');
-    const pf = parseProofFile(source);
+    const pf = parseOk(source);
     const proof = firstProof(pf).proof;
     assert.strictEqual(proof.kind, 'tactic');
     if (proof.kind === 'tactic') {
@@ -260,7 +279,7 @@ describe('parseProofFile', () => {
       '    0',
       '    = 0',
     ].join('\n');
-    const pf = parseProofFile(source);
+    const pf = parseOk(source);
     const proof = firstProof(pf).proof;
     assert.strictEqual(proof.kind, 'tactic');
     if (proof.kind === 'tactic') {
@@ -276,7 +295,7 @@ describe('parseProofFile', () => {
       '    0',
       '    = 0',
     ].join('\n');
-    const pf = parseProofFile(source);
+    const pf = parseOk(source);
     const proof = firstProof(pf).proof;
     assert.strictEqual(proof.kind, 'tactic');
     if (proof.kind === 'tactic') {
@@ -293,7 +312,7 @@ describe('parseProofFile', () => {
       '    z',
       '    = y',
     ].join('\n');
-    const pf = parseProofFile(source);
+    const pf = parseOk(source);
     const proof = firstProof(pf).proof;
 
     if (proof.kind === 'calculate') {
@@ -309,7 +328,7 @@ describe('parseProofFile', () => {
       '    x',
       '    = x',
     ].join('\n');
-    const pf = parseProofFile(source);
+    const pf = parseOk(source);
     const proof = firstProof(pf).proof;
     assert.strictEqual(proof.kind, 'tactic');
     if (proof.kind === 'tactic') {
@@ -333,10 +352,130 @@ describe('parseProofFile', () => {
       '  y',
       '  = y',
     ].join('\n');
-    const pf = parseProofFile(source);
+    const pf = parseOk(source);
     const proofs = pf.items.filter(i => i.kind === 'proof');
     assert.strictEqual(proofs.length, 2);
     assert.strictEqual((proofs[0] as any).entry.theoremName, 'foo');
     assert.strictEqual((proofs[1] as any).entry.theoremName, 'bar');
+  });
+
+  // --- Incomplete proof recovery tests ---
+
+  it('parses prove with no method as incomplete', () => {
+    const source = 'prove foo';
+    const result = parseProofFile(source);
+    assert.strictEqual(result.errors.length, 0);
+    const proof = firstProof(result.file).proof;
+    assert.strictEqual(proof.kind, 'none');
+  });
+
+  it('parses prove with bad method as incomplete with error', () => {
+    const source = 'prove foo by magic';
+    const result = parseHasError(source, 1, /expected "calculation"/);
+    const proof = firstProof(result.file).proof;
+    assert.strictEqual(proof.kind, 'none');
+  });
+
+  it('parses empty calculation body', () => {
+    const source = 'prove foo by calculation';
+    const pf = parseOk(source);
+    const proof = firstProof(pf).proof;
+    assert.strictEqual(proof.kind, 'calculate');
+    if (proof.kind === 'calculate') {
+      assert.strictEqual(proof.forwardStart, null);
+      assert.strictEqual(proof.forwardSteps.length, 0);
+    }
+  });
+
+  it('parses calculation with only forward start (no steps)', () => {
+    const source = [
+      'prove foo by calculation',
+      '  x + y',
+    ].join('\n');
+    const pf = parseOk(source);
+    const proof = firstProof(pf).proof;
+    assert.strictEqual(proof.kind, 'calculate');
+    if (proof.kind === 'calculate') {
+      assert.strictEqual(proof.forwardStart!.text, 'x + y');
+      assert.strictEqual(proof.forwardSteps.length, 0);
+    }
+  });
+
+  it('skips bad calc step and continues parsing good steps', () => {
+    const source = [
+      'prove foo by calculation',
+      '    x',
+      '    = y',
+      '    garbage line',
+      '    = z',
+    ].join('\n');
+    const result = parseHasError(source, 4, /unrecognized rule/);
+    const proof = firstProof(result.file).proof;
+    assert.strictEqual(proof.kind, 'calculate');
+    if (proof.kind === 'calculate') {
+      assert.strictEqual(proof.forwardSteps.length, 2);
+      assert.strictEqual(proof.forwardSteps[0].ruleText, '= y');
+      assert.strictEqual(proof.forwardSteps[1].ruleText, '= z');
+    }
+  });
+
+  it('recovers from missing prove in case block at EOF', () => {
+    const source = [
+      'prove foo by induction on n',
+      '  case zero:',
+    ].join('\n');
+    const result = parseHasError(source, 2, /expected "prove" after case header/);
+    const proof = firstProof(result.file).proof;
+    assert.strictEqual(proof.kind, 'tactic');
+    if (proof.kind === 'tactic') {
+      assert.strictEqual(proof.cases.length, 1);
+      assert.strictEqual(proof.cases[0].label, 'zero');
+      assert.strictEqual(proof.cases[0].proof.kind, 'none');
+    }
+  });
+
+  it('recovers from bad prove in case and continues to next case', () => {
+    const source = [
+      'prove foo by induction on n',
+      '  case zero:',
+      '  prove stuff',
+      '  case succ:',
+      '  prove x = x by calculation',
+      '    x',
+      '    = x',
+    ].join('\n');
+    const result = parseHasError(source, 3, /expected "prove <formula> by <method>"/);
+    const proof = firstProof(result.file).proof;
+    assert.strictEqual(proof.kind, 'tactic');
+    if (proof.kind === 'tactic') {
+      assert.strictEqual(proof.cases.length, 2);
+      assert.strictEqual(proof.cases[0].proof.kind, 'none');
+      assert.strictEqual(proof.cases[1].proof.kind, 'calculate');
+    }
+  });
+
+  it('returns error on malformed prove line and skips body', () => {
+    const source = [
+      'prove foo bar',
+      '  some indented body',
+      'prove baz by calculation',
+      '  x',
+      '  = x',
+    ].join('\n');
+    const result = parseHasError(source, 1, /expected "prove <name>"/);
+    // Should skip the malformed prove and its body, then parse the next proof
+    const proofs = result.file.items.filter(i => i.kind === 'proof');
+    assert.strictEqual(proofs.length, 1);
+    assert.strictEqual((proofs[0] as any).entry.theoremName, 'baz');
+  });
+
+  it('file with only declarations and no prove returns empty proofs', () => {
+    const source = [
+      'theorem foo (x : Int)',
+      '| x = x',
+    ].join('\n');
+    const result = parseHasError(source, 2, /missing "prove"/);
+    assert.ok(result.file.items.some(i => i.kind === 'decls'));
+    assert.ok(!result.file.items.some(i => i.kind === 'proof'));
   });
 });

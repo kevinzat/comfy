@@ -142,6 +142,9 @@ function checkProof(
     validateCalculation(goal, env, node);
     return;
   }
+  if (node.kind === 'none') {
+    throw new CheckError(node.methodLine, 'incomplete proof');
+  }
   const tactic = CreateProofTactic(node, goal, env, premises);
   const allGoals = tactic.decompose();
   const proofGoals = filterDischargedGoals(allGoals);

@@ -25,7 +25,7 @@ describe('toLean', function() {
   for (const file of proofFiles) {
     it(`translates ${file}`, function() {
       const source = fs.readFileSync(path.join(proofsDir, file), 'utf-8');
-      const pf = parseProofFile(source);
+      const pf = parseProofFile(source).file;
       const lean = toLean(pf);
 
       // Basic structure checks
@@ -38,7 +38,7 @@ describe('toLean', function() {
 
   it('concat_nil produces expected Lean structure', function() {
     const source = fs.readFileSync(path.join(proofsDir, 'concat_nil.prf'), 'utf-8');
-    const pf = parseProofFile(source);
+    const pf = parseProofFile(source).file;
     const lean = toLean(pf);
 
     assert.ok(lean.includes('inductive List where'));
@@ -55,7 +55,7 @@ describe('toLean', function() {
 
   it('tree_size has two IH names', function() {
     const source = fs.readFileSync(path.join(proofsDir, 'tree_size.prf'), 'utf-8');
-    const pf = parseProofFile(source);
+    const pf = parseProofFile(source).file;
     const lean = toLean(pf);
 
     assert.ok(lean.includes('| node L R ih_L ih_R =>'));
@@ -65,7 +65,7 @@ describe('toLean', function() {
 
   it('sum_positives has by_cases', function() {
     const source = fs.readFileSync(path.join(proofsDir, 'sum_positives.prf'), 'utf-8');
-    const pf = parseProofFile(source);
+    const pf = parseProofFile(source).file;
     const lean = toLean(pf);
 
     assert.ok(lean.includes('by_cases h : a < 0'));
@@ -74,7 +74,7 @@ describe('toLean', function() {
 
   it('rev_acc uses concat_assoc axiom', function() {
     const source = fs.readFileSync(path.join(proofsDir, 'rev_acc.prf'), 'utf-8');
-    const pf = parseProofFile(source);
+    const pf = parseProofFile(source).file;
     const lean = toLean(pf);
 
     assert.ok(lean.includes('axiom concat_assoc'));
@@ -83,7 +83,7 @@ describe('toLean', function() {
 
   it('expressions use Lean syntax (no parens for function calls)', function() {
     const source = fs.readFileSync(path.join(proofsDir, 'concat_nil.prf'), 'utf-8');
-    const pf = parseProofFile(source);
+    const pf = parseProofFile(source).file;
     const lean = toLean(pf);
 
     // Should use "concat S .nil" not "concat(S, nil)"
@@ -607,7 +607,7 @@ prove foo by cases on xs
   case cons(a, L):
     prove len(cons(a, L)) = len(cons(a, L)) by calculation
     len(cons(a, L))`;
-    const pf = parseProofFile(source);
+    const pf = parseProofFile(source).file;
     const lean = toLean(pf);
     assert.ok(lean.includes('cases xs with'));
     assert.ok(lean.includes('| nil =>'));

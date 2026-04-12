@@ -35,8 +35,7 @@ export class TypeCasesTactic implements ProofTactic {
     if (method.argNames !== undefined) {
       /* v8 ignore start */
       if (method.argNames.length !== totalParams) {
-        throw new Error(
-            `expected ${totalParams} argument names, got ${method.argNames.length}`);
+        throw new Error(`expected ${totalParams} argument names, got ${method.argNames.length}`);
       }
       /* v8 ignore stop */
       allNames = method.argNames;

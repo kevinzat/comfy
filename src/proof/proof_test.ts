@@ -14,7 +14,7 @@ describe('proof files', function() {
   for (const file of proofFiles) {
     it(file, function() {
       const source = fs.readFileSync(path.join(proofsDir, file), 'utf-8');
-      const pf = parseProofFile(source);
+      const pf = parseProofFile(source).file;
       checkProofFile(pf);
     });
   }

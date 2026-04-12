@@ -32,7 +32,7 @@ describe('lean compilation', function() {
   for (const file of prfFiles) {
     it(`${file} compiles in Lean`, function() {
       const source = fs.readFileSync(path.join(proofsDir, file), 'utf-8');
-      const pf = parseProofFile(source);
+      const pf = parseProofFile(source).file;
       const lean = toLean(pf);
 
       const leanFile = path.join(tmpDir, file.replace('.prf', '.lean'));

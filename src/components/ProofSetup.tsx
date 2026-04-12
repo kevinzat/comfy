@@ -87,9 +87,9 @@ export default class ProofSetup
     super(props);
     this.state = {
       declsText: '',
-      declsResult: {},
+      declsResult: { ast: new DeclsAst([], [], []), errors: [] },
       theoremText: '',
-      theoremResult: {},
+      theoremResult: { ast: new DeclsAst([], [], []), errors: [] },
       codeText: '',
       codeResult: {},
       checked: false,
@@ -107,8 +107,8 @@ export default class ProofSetup
   }
 
   isValid(): boolean {
-    if (this.state.declsText.length > 0 && !this.state.declsResult.ast) return false;
-    if (this.state.theoremText.length > 0 && this.state.theoremResult.error) return false;
+    if (this.state.declsText.length > 0 && this.state.declsResult.errors?.length > 0) return false;
+    if (this.state.theoremText.length > 0 && this.state.theoremResult.errors?.length > 0) return false;
     if (this.state.codeText.length > 0 && !this.state.codeResult.ast) return false;
     return (
       this.state.declsText.length > 0 ||
@@ -118,12 +118,12 @@ export default class ProofSetup
   }
 
   handleDeclsChange(text: string) {
-    const result = text.length > 0 ? ParseDecls(text) : {};
+    const result = ParseDecls(text);
     this.setState({ declsText: text, declsResult: result, checked: false, checkError: undefined, thmObligations: [], codeObligations: [] });
   }
 
   handleTheoremChange(text: string) {
-    const result = text.length > 0 ? ParseDecls(text) : {};
+    const result = ParseDecls(text);
     this.setState({ theoremText: text, theoremResult: result, checked: false, checkError: undefined, thmObligations: [], codeObligations: [] });
   }
 
@@ -134,7 +134,7 @@ export default class ProofSetup
 
   handleCheck() {
     try {
-      const decls = this.state.declsResult.ast ?? new DeclsAst([], [], []);
+      const decls = this.state.declsResult.ast;
       const env = new TopLevelEnv(decls.types, decls.functions, [], decls.theorems);
 
       const thmObligations: ProofObligation[] = [];
@@ -188,7 +188,7 @@ export default class ProofSetup
 
     const rows: JSX.Element[] = [];
 
-    const declsHasError = this.state.declsText.length > 0 && !this.state.declsResult.ast;
+    const declsHasError = this.state.declsText.length > 0 && this.state.declsResult.errors?.length > 0;
     rows.push(
       <tr key="decls">
         <td className="setup-label">Declarations</td>
@@ -202,8 +202,8 @@ export default class ProofSetup
                 placeholder={"e.g., type List\n  | nil : List\n  | cons : (Int, List) -> List\ndef len : (List) -> Int\n  | len(nil) => 0\n  | len(cons(a, L)) => 1 + len(L)"}
                 style={{ fontFamily: 'monospace', fontSize: 13, height: '100%' }} />
           </div>
-          {declsHasError && this.state.declsResult.error &&
-            formatParseError(this.state.declsText, this.state.declsResult.error)}
+          {declsHasError && this.state.declsResult.errors[0] &&
+            formatParseError(this.state.declsText, this.state.declsResult.errors[0])}
         </td>
       </tr>
     );
@@ -224,8 +224,8 @@ export default class ProofSetup
                 placeholder={"e.g., theorem comm (x, y : Int)\n  | x + y = y + x"}
                 style={{ fontFamily: 'monospace', fontSize: 13, height: '100%' }} />
           </div>
-          {theoremHasError && this.state.theoremResult.error &&
-            formatParseError(this.state.theoremText, this.state.theoremResult.error)}
+          {theoremHasError && this.state.theoremResult.errors[0] &&
+            formatParseError(this.state.theoremText, this.state.theoremResult.errors[0])}
         </td>
       </tr>
     );
@@ -286,7 +286,7 @@ export default class ProofSetup
     const { provedObls } = this.props;
     const { thmObligations, codeObligations } = this.state;
     const obligations = [...thmObligations, ...codeObligations];
-    const decls = this.state.declsResult.ast ?? new DeclsAst([], [], []);
+    const decls = this.state.declsResult.ast;
 
     return (
       <div style={{ marginTop: 8 }}>

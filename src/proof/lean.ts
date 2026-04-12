@@ -235,6 +235,12 @@ function proofToLean(
     return calcToLean(node, ihNames, condVar, indent);
   }
 
+  /* v8 ignore start */
+  if (node.kind === 'none') {
+    throw new Error('cannot translate incomplete proof to Lean');
+  }
+  /* v8 ignore stop */
+
   const method = parseTacticMethod(node.method);
   /* v8 ignore start */
   if (method === null || method.kind === 'calculate')
