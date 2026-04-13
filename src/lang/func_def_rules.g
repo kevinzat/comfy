@@ -1,10 +1,10 @@
 @lexer lexer2
 
 FuncDef -> %def %variable %colon TypeSig Cases
-      {% ([_def, name, _colon, type, cases]) => new funcAst.FuncAst(name.text, type, checkCaseNames(name, cases)) %}
+      {% ([_def, name, _colon, type, cases]) => new funcAst.FuncAst(name.text, type, checkCaseNames(name, cases), name.line, name.col, name.text.length) %}
 
 TypeSig -> %lparen Types %rparen %arrow %typeName
-      {% ([_lp, types, _rp, _arrow, ret]) => new funcAst.TypeAst(list_to_array(types, true), ret.text) %}
+      {% ([_lp, types, _rp, _arrow, ret]) => new funcAst.TypeAst(list_to_array(types, true), ret.text, _lp.line, _lp.col, 0) %}
 
 Cases -> Case
       {% ([c]) => [c] %}

@@ -48,7 +48,7 @@ export class AlgebraCalcTactic extends CalcTactic {
     this.known = knowns.map(i => {
       const prop = env.getFact(i);
       if (!(prop instanceof AtomProp))
-        throw new UserError(`algebra: fact ${i} is not a formula`);
+        throw new UserError(`algebra: fact ${i} is not a formula`, 0, 0, 0);
       return prop.formula;
     });
 
@@ -59,13 +59,15 @@ export class AlgebraCalcTactic extends CalcTactic {
       if (!IsInequalityImplied(this.known, formula)) {
         const facts = this.known.map(f => f.to_string());
         throw new UserError(
-          `algebra: ${formula.to_string()} is not implied by the cited facts: ${facts.join(' | ')}`);
+          `algebra: ${formula.to_string()} is not implied by the cited facts: ${facts.join(' | ')}`,
+          formula.left.line, formula.left.col, formula.left.tokenLength);
       }
     } else {
       if (!IsEquationImplied(this.known, formula)) {
         const facts = this.known.map(f => f.to_string());
         throw new UserError(
-          `algebra: ${formula.to_string()} is not implied by the cited equations: ${facts.join(' | ')}`);
+          `algebra: ${formula.to_string()} is not implied by the cited equations: ${facts.join(' | ')}`,
+          formula.left.line, formula.left.col, formula.left.tokenLength);
       }
     }
   }
@@ -99,7 +101,7 @@ export class SubstituteCalcTactic extends CalcTactic {
 
     const prop = env.getFact(known);
     if (!(prop instanceof AtomProp))
-      throw new UserError(`subst: fact ${known} is not a formula`);
+      throw new UserError(`subst: fact ${known} is not a formula`, goal.line, goal.col, goal.tokenLength);
     this.eq = prop.formula;
     this.right = right;
     this.known = known;
@@ -162,10 +164,12 @@ export class DefinitionCalcTactic extends CalcTactic {
 
     if (def.conditions.length > 0 && knowns.length === 0)
       throw new UserError(
-          `defof/undef: "${name}" has a condition; known facts must be provided`);
+          `defof/undef: "${name}" has a condition; known facts must be provided`,
+          goal.line, goal.col, name.length);
     if (def.conditions.length === 0 && knowns.length > 0)
       throw new UserError(
-          `defof/undef: "${name}" has no condition; known facts must not be provided`);
+          `defof/undef: "${name}" has no condition; known facts must not be provided`,
+          goal.line, goal.col, name.length);
 
     // Backward is opposite direction from forward
     const rewriter = new DefinitionRewriter(
@@ -203,20 +207,22 @@ export class ApplyCalcTactic extends CalcTactic {
     this.right = right;
 
     if (!env.hasTheorem(name))
-      throw new UserError(`apply/unapp: unknown theorem "${name}"`);
+      throw new UserError(`apply/unapp: unknown theorem "${name}"`, goal.line, goal.col, name.length);
     const theorem = env.getTheorem(name);
     const knownFacts = knowns.map(i => env.getFact(i));
 
     if (theorem.premises.length > 0 && knowns.length === 0)
       throw new UserError(
-          `apply/unapp: "${name}" has a premise; known facts must be provided`);
+          `apply/unapp: "${name}" has a premise; known facts must be provided`,
+          goal.line, goal.col, name.length);
     if (theorem.premises.length === 0 && knowns.length > 0)
       throw new UserError(
-          `apply/unapp: "${name}" has no premise; known facts must not be provided`);
+          `apply/unapp: "${name}" has no premise; known facts must not be provided`,
+          goal.line, goal.col, name.length);
 
     // Backward is opposite direction from forward
     if (theorem.conclusion.tag !== 'atom')
-      throw new UserError(`apply/unapp: "${name}" has a non-atomic conclusion`);
+      throw new UserError(`apply/unapp: "${name}" has a non-atomic conclusion`, goal.line, goal.col, name.length);
     const concl = theorem.conclusion.formula;
     if (concl.op === OP_EQUAL) {
       const rewriter = new TheoremEquationRewriter(

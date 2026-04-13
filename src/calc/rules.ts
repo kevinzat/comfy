@@ -22,18 +22,18 @@ export const RULE_APPLY = 5;
 export function lookupDefinition(env: Environment, name: string): Definition {
   const match = name.match(/^(.+)_(\d+[a-z]?)$/);
   if (!match)
-    throw new UserError(`defof/undef: invalid definition name "${name}"`);
+    throw new UserError(`defof/undef: invalid definition name "${name}"`, 0, 0, name.length);
   const funcName = match[1];
 
   if (!env.hasFunction(funcName))
-    throw new UserError(`defof/undef: unknown function "${funcName}"`);
+    throw new UserError(`defof/undef: unknown function "${funcName}"`, 0, 0, name.length);
 
   const funcAst = env.getFunctionDecl(funcName);
   const defs = funcToDefinitions(funcAst);
   const def = defs.find(d => d.name === name);
   if (!def)
     throw new UserError(
-        `defof/undef: unknown definition "${name}" (available: ${defs.map(d => d.name).join(', ')})`);
+        `defof/undef: unknown definition "${name}" (available: ${defs.map(d => d.name).join(', ')})`, 0, 0, name.length);
 
   return def;
 }
@@ -76,7 +76,7 @@ export class AlgebraCalcRule extends CalcRule {
     this.known = knowns.map(i => {
       const prop = env.getFact(i);
       if (!(prop instanceof AtomProp))
-        throw new UserError(`algebra: fact ${i} is not a formula`);
+        throw new UserError(`algebra: fact ${i} is not a formula`, 0, 0, 0);
       return prop.formula;
     });
 
@@ -87,13 +87,15 @@ export class AlgebraCalcRule extends CalcRule {
       if (!IsInequalityImplied(this.known, formula)) {
         const facts = this.known.map(f => f.to_string());
         throw new UserError(
-          `algebra: ${formula.to_string()} is not implied by the cited facts: ${facts.join(' | ')}`);
+          `algebra: ${formula.to_string()} is not implied by the cited facts: ${facts.join(' | ')}`,
+          formula.left.line, formula.left.col, formula.left.tokenLength);
       }
     } else {
       if (!IsEquationImplied(this.known, formula)) {
         const facts = this.known.map(f => f.to_string());
         throw new UserError(
-          `algebra: ${formula.to_string()} is not implied by the cited equations: ${facts.join(' | ')}`);
+          `algebra: ${formula.to_string()} is not implied by the cited equations: ${facts.join(' | ')}`,
+          formula.left.line, formula.left.col, formula.left.tokenLength);
       }
     }
   }
@@ -132,7 +134,7 @@ export class SubstituteCalcRule extends CalcRule {
 
     const prop = env.getFact(known);
     if (!(prop instanceof AtomProp))
-      throw new UserError(`subst: fact ${known} is not a formula`);
+      throw new UserError(`subst: fact ${known} is not a formula`, ex.line, ex.col, ex.tokenLength);
     this.eq = prop.formula;
     this.ex = ex;
     this.right = right;
@@ -195,10 +197,12 @@ export class DefinitionCalcRule extends CalcRule {
 
     if (def.conditions.length > 0 && knowns.length === 0)
       throw new UserError(
-          `defof/undef: "${name}" has a condition; known facts must be provided`);
+          `defof/undef: "${name}" has a condition; known facts must be provided`,
+          ex.line, ex.col, name.length);
     if (def.conditions.length === 0 && knowns.length > 0)
       throw new UserError(
-          `defof/undef: "${name}" has no condition; known facts must not be provided`);
+          `defof/undef: "${name}" has no condition; known facts must not be provided`,
+          ex.line, ex.col, name.length);
 
     const rewriter = new DefinitionRewriter(
         'defof/undef', env, ex, def.formula, right,
@@ -241,19 +245,21 @@ export class ApplyCalcRule extends CalcRule {
     this.knownIndices = knowns;
 
     if (!env.hasTheorem(name))
-      throw new UserError(`apply/unapp: unknown theorem "${name}"`);
+      throw new UserError(`apply/unapp: unknown theorem "${name}"`, ex.line, ex.col, name.length);
     const theorem = env.getTheorem(name);
     const knownFacts = knowns.map(i => env.getFact(i));
 
     if (theorem.premises.length > 0 && knowns.length === 0)
       throw new UserError(
-          `apply/unapp: "${name}" has a premise; known facts must be provided`);
+          `apply/unapp: "${name}" has a premise; known facts must be provided`,
+          ex.line, ex.col, name.length);
     if (theorem.premises.length === 0 && knowns.length > 0)
       throw new UserError(
-          `apply/unapp: "${name}" has no premise; known facts must not be provided`);
+          `apply/unapp: "${name}" has no premise; known facts must not be provided`,
+          ex.line, ex.col, name.length);
 
     if (theorem.conclusion.tag !== 'atom')
-      throw new UserError(`apply/unapp: "${name}" has a non-atomic conclusion`);
+      throw new UserError(`apply/unapp: "${name}" has a non-atomic conclusion`, ex.line, ex.col, name.length);
     const concl = theorem.conclusion.formula;
     if (concl.op === OP_EQUAL) {
       const rewriter = new TheoremEquationRewriter(

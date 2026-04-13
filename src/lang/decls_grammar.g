@@ -14,13 +14,15 @@ const checkCaseNames = util.checkCaseNames;
 const checkCtorReturnTypes = util.checkCtorReturnTypes;
 
 function expandParams(groups) {
-  const result = [];
+  const params = [];
+  const positions = [];
   for (const group of groups) {
     for (const name of group.names) {
-      result.push([name, group.type]);
+      params.push([name, group.type]);
+      positions.push(group.typePos);
     }
   }
-  return result;
+  return { params, positions };
 }
 %}
 
@@ -46,11 +48,15 @@ Types -> %typeName
       {% ([a, _comma, b]) => [b.text, a] %}
 
 TheoremDecl -> %kw_theorem %variable TheoremParamGroups %pipe Prop
-      {% ([thm, name, params, _pipe, concl]) =>
-          new theoremAst.TheoremAst(name.text, expandParams(params), [], concl, thm.line) %}
+      {% ([thm, name, groups, _pipe, concl]) => {
+          const ep = expandParams(groups);
+          return new theoremAst.TheoremAst(name.text, ep.params, [], concl, thm.line, thm.col, thm.text.length, ep.positions);
+      } %}
     | %kw_theorem %variable TheoremParamGroups %pipe Premises %fatArrow Prop
-      {% ([thm, name, params, _pipe, premises, _arrow, concl]) =>
-          new theoremAst.TheoremAst(name.text, expandParams(params), premises, concl, thm.line) %}
+      {% ([thm, name, groups, _pipe, premises, _arrow, concl]) => {
+          const ep = expandParams(groups);
+          return new theoremAst.TheoremAst(name.text, ep.params, premises, concl, thm.line, thm.col, thm.text.length, ep.positions);
+      } %}
 
 Premises -> Prop
       {% ([p]) => [p] %}
@@ -63,7 +69,7 @@ TheoremParamGroups -> TheoremParamGroup
       {% ([gs, g]) => gs.concat([g]) %}
 
 TheoremParamGroup -> %lparen TheoremNames %colon %typeName %rparen
-      {% ([_lp, names, _colon, type, _rp]) => ({ names, type: type.text }) %}
+      {% ([_lp, names, _colon, type, _rp]) => ({ names, type: type.text, typePos: { line: type.line, col: type.col, length: type.text.length } }) %}
 
 TheoremNames -> %variable
       {% ([v]) => [v.text] %}

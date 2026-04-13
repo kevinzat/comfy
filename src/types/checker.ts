@@ -14,30 +14,31 @@ function loc(line: number, col: number): string {
 }
 
 export class UnknownTypeError extends UserError {
-  constructor(name: string, line: number = 0, col: number = 0) {
-    super(`unknown type "${name}"${loc(line, col)}`, line, col);
+  constructor(name: string, line: number, col: number, length: number) {
+    super(`unknown type "${name}"${loc(line, col)}`, line, col, length);
     Object.setPrototypeOf(this, UnknownTypeError.prototype);
   }
 }
 
 export class UnknownNameError extends UserError {
-  constructor(name: string, line: number = 0, col: number = 0) {
-    super(`unknown name "${name}"${loc(line, col)}`, line, col);
+  constructor(name: string, line: number, col: number, length: number) {
+    super(`unknown name "${name}"${loc(line, col)}`, line, col, length);
     Object.setPrototypeOf(this, UnknownNameError.prototype);
   }
 }
 
 export class ArityError extends UserError {
   constructor(name: string, expected: number, actual: number,
-      line: number = 0, col: number = 0) {
-    super(`"${name}" expects ${expected} arguments but got ${actual}${loc(line, col)}`, line, col);
+      line: number, col: number, length: number) {
+    super(`"${name}" expects ${expected} arguments but got ${actual}${loc(line, col)}`, line, col, length);
     Object.setPrototypeOf(this, ArityError.prototype);
   }
 }
 
 export class TypeMismatchError extends UserError {
-  constructor(expected: string, actual: string, context: string) {
-    super(`expected type "${expected}" but got "${actual}" in ${context}`);
+  constructor(expected: string, actual: string, context: string,
+      line: number, col: number, length: number) {
+    super(`expected type "${expected}" but got "${actual}" in ${context}`, line, col, length);
     Object.setPrototypeOf(this, TypeMismatchError.prototype);
   }
 }
@@ -47,22 +48,22 @@ export class TypeMismatchError extends UserError {
  * and a TypeAst resolves to a FunctionType.
  * @throws UnknownTypeError if any referenced type name is not defined in the environment.
  */
-export function getType(env: Environment, ref: string, line?: number, col?: number): NamedType;
+export function getType(env: Environment, ref: string, line: number, col: number, length: number): NamedType;
 export function getType(env: Environment, ref: TypeAst): FunctionType;
-export function getType(env: Environment, ref: string | TypeAst, line?: number, col?: number): Type;
-export function getType(env: Environment, ref: string | TypeAst, line: number = 0, col: number = 0): Type {
+export function getType(env: Environment, ref: string | TypeAst, line?: number, col?: number, length?: number): Type;
+export function getType(env: Environment, ref: string | TypeAst, line: number = 0, col: number = 0, length: number = 0): Type {
   if (typeof ref === 'string') {
     if (!env.hasType(ref))
-      throw new UnknownTypeError(ref, line, col);
+      throw new UnknownTypeError(ref, line, col, length);
     return new NamedType(ref);
   } else {
     const paramTypes = ref.paramTypes.map(name => {
       if (!env.hasType(name))
-        throw new UnknownTypeError(name);
+        throw new UnknownTypeError(name, ref.line, ref.col, name.length);
       return new NamedType(name);
     });
     if (!env.hasType(ref.returnType))
-      throw new UnknownTypeError(ref.returnType);
+      throw new UnknownTypeError(ref.returnType, ref.line, ref.col, ref.returnType.length);
     const returnType = new NamedType(ref.returnType);
     return new FunctionType(paramTypes, returnType);
   }
@@ -86,9 +87,9 @@ export function checkExpr(env: Environment, expr: Expression): NamedType {
       if (ctorType.kind === 'named')
         return ctorType;
       throw new ArityError(expr.name, ctorType.paramTypes.length, 0,
-          expr.line, expr.col);
+          expr.line, expr.col, expr.tokenLength);
     }
-    throw new UnknownNameError(expr.name, expr.line, expr.col);
+    throw new UnknownNameError(expr.name, expr.line, expr.col, expr.tokenLength);
   } else {
     // Built-in arithmetic operations require Int arguments and return Int.
     if (expr.name.startsWith('_')) {
@@ -96,7 +97,8 @@ export function checkExpr(env: Environment, expr: Expression): NamedType {
         const argType = checkExpr(env, expr.args[i]);
         if (argType.name !== 'Int')
           throw new TypeMismatchError('Int', argType.name,
-              `argument ${i + 1} of built-in arithmetic at line ${expr.line} col ${expr.col}`);
+              `argument ${i + 1} of built-in arithmetic`,
+              expr.line, expr.col, expr.tokenLength);
       }
       return INT_TYPE;
     }
@@ -108,15 +110,15 @@ export function checkExpr(env: Environment, expr: Expression): NamedType {
     } else if (env.hasConstructor(expr.name)) {
       callType = env.getConstructorType(expr.name);
     } else {
-      throw new UnknownNameError(expr.name, expr.line, expr.col);
+      throw new UnknownNameError(expr.name, expr.line, expr.col, expr.tokenLength);
     }
 
     if (callType.kind !== 'function')
-      throw new ArityError(expr.name, 0, expr.args.length, expr.line, expr.col);
+      throw new ArityError(expr.name, 0, expr.args.length, expr.line, expr.col, expr.tokenLength);
 
     if (callType.paramTypes.length !== expr.args.length)
       throw new ArityError(expr.name, callType.paramTypes.length, expr.args.length,
-          expr.line, expr.col);
+          expr.line, expr.col, expr.tokenLength);
 
     for (let i = 0; i < expr.args.length; i++) {
       const argType = checkExpr(env, expr.args[i]);
@@ -124,7 +126,8 @@ export function checkExpr(env: Environment, expr: Expression): NamedType {
       if (argType.name !== expectedType.name)
         throw new TypeMismatchError(
             expectedType.name, argType.name,
-            `argument ${i + 1} of "${expr.name}" at line ${expr.line} col ${expr.col}`);
+            `argument ${i + 1} of "${expr.name}"`,
+            expr.args[i].line, expr.args[i].col, expr.args[i].tokenLength);
     }
 
     return callType.returnType;
@@ -143,14 +146,14 @@ function collectPatternVars(
     vars: [string, string][]): void {
   if (param instanceof ParamConstructor) {
     if (!env.hasConstructor(param.name))
-      throw new UnknownNameError(param.name);
+      throw new UnknownNameError(param.name, 0, 0, param.name.length);
     const ctorType = env.getConstructorType(param.name);
     if (ctorType.kind !== 'function') {
       if (param.args.length !== 0)
-        throw new ArityError(param.name, 0, param.args.length);
+        throw new ArityError(param.name, 0, param.args.length, 0, 0, param.name.length);
     } else {
       if (ctorType.paramTypes.length !== param.args.length)
-        throw new ArityError(param.name, ctorType.paramTypes.length, param.args.length);
+        throw new ArityError(param.name, ctorType.paramTypes.length, param.args.length, 0, 0, param.name.length);
       for (let i = 0; i < param.args.length; i++) {
         collectPatternVars(env, param.args[i], ctorType.paramTypes[i].name, vars);
       }
@@ -160,7 +163,7 @@ function collectPatternVars(
     if (env.hasConstructor(param.name)) {
       const ctorType = env.getConstructorType(param.name);
       if (ctorType.kind === 'function')
-        throw new ArityError(param.name, ctorType.paramTypes.length, 0);
+        throw new ArityError(param.name, ctorType.paramTypes.length, 0, 0, 0, param.name.length);
       // Zero-arg constructor: not a variable, nothing to bind.
     } else {
       vars.push([param.name, typeName]);
@@ -177,14 +180,18 @@ function checkBody(env: Environment, body: CaseBody): NamedType {
   const resultType = checkExpr(env, body.branches[0].body);
   for (let i = 1; i < body.branches.length; i++) {
     const branchType = checkExpr(env, body.branches[i].body);
-    if (branchType.name !== resultType.name)
+    if (branchType.name !== resultType.name) {
+      const e = body.branches[i].body;
       throw new TypeMismatchError(resultType.name, branchType.name,
-          'branch of if/else');
+          'branch of if/else', e.line, e.col, e.tokenLength);
+    }
   }
   const elseType = checkExpr(env, body.elseBody);
-  if (elseType.name !== resultType.name)
+  if (elseType.name !== resultType.name) {
+    const e = body.elseBody;
     throw new TypeMismatchError(resultType.name, elseType.name,
-        'else branch of if/else');
+        'else branch of if/else', e.line, e.col, e.tokenLength);
+  }
   return resultType;
 }
 
@@ -200,7 +207,8 @@ export function checkFuncDecl(env: Environment, func: FuncAst): void {
   for (let i = 0; i < func.cases.length; i++) {
     const c = func.cases[i];
     if (c.params.length !== expectedArity)
-      throw new ArityError(func.name, expectedArity, c.params.length);
+      throw new ArityError(func.name, expectedArity, c.params.length,
+          func.line, func.col, func.name.length);
 
     const vars: [string, string][] = [];
     for (let j = 0; j < c.params.length; j++) {
@@ -211,7 +219,8 @@ export function checkFuncDecl(env: Environment, func: FuncAst): void {
 
     if (bodyType.name !== func.type.returnType)
       throw new TypeMismatchError(func.type.returnType, bodyType.name,
-          `body of case ${i + 1} of "${func.name}"`);
+          `body of case ${i + 1} of "${func.name}"`,
+          func.line, func.col, func.name.length);
   }
 }
 
@@ -235,13 +244,16 @@ export function checkFormula(env: Environment, formula: Formula): void {
   if (formula.op === OP_EQUAL) {
     if (leftType.name !== rightType.name)
       throw new TypeMismatchError(leftType.name, rightType.name,
-          `sides of "${formula.op}"`);
+          `sides of "${formula.op}"`,
+          formula.right.line, formula.right.col, formula.right.tokenLength);
   } else {
     if (leftType.name !== 'Int')
       throw new TypeMismatchError('Int', leftType.name,
-          `left side of "${formula.op}"`);
+          `left side of "${formula.op}"`,
+          formula.left.line, formula.left.col, formula.left.tokenLength);
     if (rightType.name !== 'Int')
       throw new TypeMismatchError('Int', rightType.name,
-          `right side of "${formula.op}"`);
+          `right side of "${formula.op}"`,
+          formula.right.line, formula.right.col, formula.right.tokenLength);
   }
 }

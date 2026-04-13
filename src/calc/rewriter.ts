@@ -82,7 +82,8 @@ export abstract class Rewriter {
   validateConditions(conditions: Prop[]): void {
     if (conditions.length > 0) {
       throw new UserError(
-        `${this.label}: unexpected condition ${conditions[0].to_string()}`);
+        `${this.label}: unexpected condition ${conditions[0].to_string()}`,
+        this.ex.line, this.ex.col, this.ex.tokenLength);
     }
   }
 
@@ -95,7 +96,8 @@ export abstract class Rewriter {
 
     if (candidates.length === 0) {
       throw new UserError(
-        `${this.label}: no matches found in ${this.ex.to_string()}`);
+        `${this.label}: no matches found in ${this.ex.to_string()}`,
+        this.ex.line, this.ex.col, this.ex.tokenLength);
     }
 
     let chosen: RewriteCandidate;
@@ -103,13 +105,15 @@ export abstract class Rewriter {
       const found = candidates.find(c => c.result.equals(expectedResult));
       if (!found) {
         throw new UserError(
-          `${this.label}: provided result ${expectedResult.to_string()} cannot be produced`);
+          `${this.label}: provided result ${expectedResult.to_string()} cannot be produced`,
+          this.ex.line, this.ex.col, this.ex.tokenLength);
       }
       chosen = found;
     } else {
       if (candidates.length > 1) {
         throw new UserError(
-          `${this.label}: multiple matches found; provide an explicit result`);
+          `${this.label}: multiple matches found; provide an explicit result`,
+          this.ex.line, this.ex.col, this.ex.tokenLength);
       }
       chosen = candidates[0];
     }
@@ -402,7 +406,7 @@ function isConditionImplied(
 }
 
 function validateConditionsImplied(
-  env: Environment, label: string, knownFacts: Prop[], conditions: Prop[],
+  env: Environment, label: string, ex: Expression, knownFacts: Prop[], conditions: Prop[],
 ): void {
   const knownFormulas: Formula[] = [];
   for (const fact of knownFacts) {
@@ -413,7 +417,8 @@ function validateConditionsImplied(
   for (const condition of conditions) {
     if (!isConditionImplied(env, knownFacts, knownFormulas, condition)) {
       throw new UserError(
-        `${label}: premise ${condition.to_string()} is not implied by the cited facts: ${knownFacts.map(f => f.to_string()).join(' | ')}`);
+        `${label}: premise ${condition.to_string()} is not implied by the cited facts: ${knownFacts.map(f => f.to_string()).join(' | ')}`,
+        ex.line, ex.col, ex.tokenLength);
     }
   }
 }
@@ -456,7 +461,7 @@ export class DefinitionRewriter extends Rewriter {
   }
 
   validateConditions(conditions: Prop[]): void {
-    validateConditionsImplied(this.env, this.label, this.knownFacts, conditions);
+    validateConditionsImplied(this.env, this.label, this.ex, this.knownFacts, conditions);
   }
 }
 
@@ -499,7 +504,7 @@ export class TheoremEquationRewriter extends Rewriter {
   }
 
   validateConditions(conditions: Prop[]): void {
-    validateConditionsImplied(this.env, this.label, this.knownFacts, conditions);
+    validateConditionsImplied(this.env, this.label, this.ex, this.knownFacts, conditions);
   }
 }
 
@@ -556,6 +561,6 @@ export class TheoremInequalityRewriter extends Rewriter {
   }
 
   validateConditions(conditions: Prop[]): void {
-    validateConditionsImplied(this.env, this.label, this.knownFacts, conditions);
+    validateConditionsImplied(this.env, this.label, this.ex, this.knownFacts, conditions);
   }
 }

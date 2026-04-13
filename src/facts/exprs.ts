@@ -38,6 +38,9 @@ export abstract class ExpressionBase extends AstNode {
   /** Returns a list of all variable references in the expression. */
   abstract var_refs(): string[];
 
+  /** Length of the leading token at this expression's position. */
+  abstract tokenLength: number;
+
   /** Returns a set containing all the variables in the expression. */
   vars(): Set<string> {
     return new Set(this.var_refs());
@@ -145,6 +148,8 @@ export class Constant extends ExpressionBase {
   readonly variety = EXPR_CONSTANT;
   value: bigint;
 
+  get tokenLength(): number { return this.value.toString().length; }
+
   constructor(value: bigint, line: number = 0, col: number = 0) {
     super(line, col);
     this.value = value;
@@ -198,6 +203,8 @@ export class Variable extends ExpressionBase {
   readonly variety = EXPR_VARIABLE;
   name: string;
 
+  get tokenLength(): number { return this.name.length; }
+
   constructor(name: string, line: number = 0, col: number = 0) {
     super(line, col);
     this.name = name;
@@ -246,6 +253,8 @@ export class Call extends ExpressionBase {
   readonly variety = EXPR_FUNCTION;
   name: string;
   args: Expression[];
+
+  get tokenLength(): number { return this.name.length; }
 
   constructor(name: string, args: Expression[], line: number = 0, col: number = 0) {
     super(line, col);

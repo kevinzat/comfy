@@ -7,15 +7,16 @@ import { getType, checkProp, checkFuncDecl } from './checker';
 import { Type, NamedType } from './type';
 
 export class DuplicateError extends UserError {
-  constructor(kind: string, name: string) {
-    super(`duplicate ${kind}: "${name}"`);
+  constructor(kind: string, name: string, line: number, col: number, length: number) {
+    super(`duplicate ${kind}: "${name}"`, line, col, length);
     Object.setPrototypeOf(this, DuplicateError.prototype);
   }
 }
 
 export class ShadowError extends UserError {
-  constructor(name: string, shadowedKind: string, shadowingKind: string) {
-    super(`${shadowingKind} "${name}" shadows ${shadowedKind} "${name}"`);
+  constructor(name: string, shadowedKind: string, shadowingKind: string,
+      line: number, col: number, length: number) {
+    super(`${shadowingKind} "${name}" shadows ${shadowedKind} "${name}"`, line, col, length);
     Object.setPrototypeOf(this, ShadowError.prototype);
   }
 }
@@ -118,7 +119,7 @@ export class TopLevelEnv implements Environment {
     this.types = new Map<string, TypeDeclAst | null>([['Int', null]]);
     for (const t of types) {
       if (this.types.has(t.name))
-        throw new DuplicateError('type', t.name);
+        throw new DuplicateError('type', t.name, t.line, t.col, t.length);
       this.types.set(t.name, t);
     }
 
@@ -126,33 +127,40 @@ export class TopLevelEnv implements Environment {
     for (const t of types) {
       for (const ctor of t.constructors) {
         if (this.constructors.has(ctor.name))
-          throw new DuplicateError('constructor', ctor.name);
-        const ref = ctor.paramTypes.length > 0
-            ? new TypeAst(ctor.paramTypes, ctor.returnType) : ctor.returnType;
-        this.constructors.set(ctor.name, [getType(this, ref), ctor]);
+          throw new DuplicateError('constructor', ctor.name, ctor.line, ctor.col, ctor.length);
+        const ctorType = ctor.paramTypes.length > 0
+            ? getType(this, new TypeAst(ctor.paramTypes, ctor.returnType, ctor.line, ctor.col, ctor.length))
+            : getType(this, ctor.returnType, ctor.line, ctor.col, ctor.returnType.length);
+        this.constructors.set(ctor.name, [ctorType, ctor]);
       }
     }
 
     this.functions = new Map();
     for (const f of functions) {
       if (this.functions.has(f.name))
-        throw new DuplicateError('function', f.name);
+        throw new DuplicateError('function', f.name, f.line, f.col, f.length);
       if (this.constructors.has(f.name))
-        throw new ShadowError(f.name, 'constructor', 'function');
+        throw new ShadowError(f.name, 'constructor', 'function', f.line, f.col, f.length);
       this.functions.set(f.name, [getType(this, f.type), f]);
     }
 
     this.theorems_ = [];
     for (const thm of theorems) {
       if (this.functions.has(thm.name))
-        throw new DuplicateError('theorem (conflicts with function)', thm.name);
+        throw new DuplicateError('theorem (conflicts with function)', thm.name, thm.line, thm.col, thm.length);
       if (this.constructors.has(thm.name))
-        throw new DuplicateError('theorem (conflicts with constructor)', thm.name);
+        throw new DuplicateError('theorem (conflicts with constructor)', thm.name, thm.line, thm.col, thm.length);
       if (this.theorems_.some(t => t.name === thm.name))
-        throw new DuplicateError('theorem', thm.name);
+        throw new DuplicateError('theorem', thm.name, thm.line, thm.col, thm.length);
       // Validate that all param types exist
-      for (const [_, typeName] of thm.params) {
-        getType(this, typeName);
+      for (let i = 0; i < thm.params.length; i++) {
+        const typeName = thm.params[i][1];
+        const pos = thm.paramTypePositions[i];
+        if (pos) {
+          getType(this, typeName, pos.line, pos.col, pos.length);
+        } else {
+          getType(this, typeName, thm.line, thm.col, thm.length);
+        }
       }
       this.theorems_.push(thm);
     }
@@ -254,7 +262,7 @@ export class TopLevelEnv implements Environment {
   getFact(index: number): Prop {
     if (index < 1 || index > this.facts.length)
       throw new UserError(
-          `fact ${index} is out of range (have ${this.facts.length} facts)`);
+          `fact ${index} is out of range (have ${this.facts.length} facts)`, 0, 0, 0);
     return this.facts[index - 1];
   }
 
@@ -289,7 +297,7 @@ export class NestedEnv implements Environment {
     this.locals = new Map();
     this.readOnly_ = readOnly;
     for (const [name, typeName] of variables) {
-      this.locals.set(name, getType(parent, typeName));
+      this.locals.set(name, getType(parent, typeName, 0, 0, typeName.length));
     }
     this.localFacts = facts.slice(0);
     this.localTheorems = theorems.slice(0);
@@ -344,7 +352,7 @@ export class NestedEnv implements Environment {
     const total = this.numFacts();
     if (index < 1 || index > total)
       throw new UserError(
-          `fact ${index} is out of range (have ${total} facts)`);
+          `fact ${index} is out of range (have ${total} facts)`, 0, 0, 0);
     const parentN = this.parent.numFacts();
     if (index <= parentN)
       return this.parent.getFact(index);

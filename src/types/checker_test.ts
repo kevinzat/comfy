@@ -27,14 +27,14 @@ describe('getType', function() {
 
   it('resolves built-in type name to NamedType', function() {
     const env = new TopLevelEnv([], []);
-    const t = getType(env, 'Int');
+    const t: NamedType = getType(env, 'Int', 0, 0, 3);
     assert.equal(t.kind, 'named');
     assert.equal(t.name, 'Int');
   });
 
   it('resolves user-defined type name to NamedType', function() {
     const env = new TopLevelEnv([listType], []);
-    const t = getType(env, 'List');
+    const t: NamedType = getType(env, 'List', 0, 0, 4);
     assert.equal(t.kind, 'named');
     assert.equal(t.name, 'List');
   });
@@ -60,7 +60,7 @@ describe('getType', function() {
 
   it('throws UnknownTypeError for unknown type name', function() {
     const env = new TopLevelEnv([], []);
-    assert.throws(() => getType(env, 'Foo'), UnknownTypeError);
+    assert.throws(() => getType(env, 'Foo', 0, 0, 3), UnknownTypeError);
   });
 
   it('throws UnknownTypeError for unknown param type in TypeAst', function() {

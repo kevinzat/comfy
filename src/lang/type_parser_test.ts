@@ -3,6 +3,11 @@ import * as assert from 'assert';
 import { TypeDeclAst, ConstructorAst } from './type_ast';
 import { ParseTypeDecl } from './type_parser';
 
+function assertCtor(actual: ConstructorAst, name: string, paramTypes: string[], returnType: string) {
+  assert.equal(actual.name, name);
+  assert.deepEqual(actual.paramTypes, paramTypes);
+  assert.equal(actual.returnType, returnType);
+}
 
 describe('type_parser', function() {
 
@@ -14,10 +19,8 @@ describe('type_parser', function() {
     assert.ok(ast);
     assert.equal(ast.name, 'Bool');
     assert.equal(ast.constructors.length, 2);
-    assert.deepEqual(ast.constructors[0],
-        new ConstructorAst('true', [], 'Bool'));
-    assert.deepEqual(ast.constructors[1],
-        new ConstructorAst('false', [], 'Bool'));
+    assertCtor(ast.constructors[0], 'true', [], 'Bool');
+    assertCtor(ast.constructors[1], 'false', [], 'Bool');
   });
 
   it('parse list type', function() {
@@ -28,10 +31,8 @@ describe('type_parser', function() {
     assert.ok(ast);
     assert.equal(ast.name, 'List');
     assert.equal(ast.constructors.length, 2);
-    assert.deepEqual(ast.constructors[0],
-        new ConstructorAst('nil', [], 'List'));
-    assert.deepEqual(ast.constructors[1],
-        new ConstructorAst('cons', ['Int', 'List'], 'List'));
+    assertCtor(ast.constructors[0], 'nil', [], 'List');
+    assertCtor(ast.constructors[1], 'cons', ['Int', 'List'], 'List');
   });
 
   it('parse tree type', function() {
@@ -42,10 +43,8 @@ describe('type_parser', function() {
     assert.ok(ast);
     assert.equal(ast.name, 'Tree');
     assert.equal(ast.constructors.length, 2);
-    assert.deepEqual(ast.constructors[0],
-        new ConstructorAst('leaf', [], 'Tree'));
-    assert.deepEqual(ast.constructors[1],
-        new ConstructorAst('node', ['Tree', 'Int', 'Tree'], 'Tree'));
+    assertCtor(ast.constructors[0], 'leaf', [], 'Tree');
+    assertCtor(ast.constructors[1], 'node', ['Tree', 'Int', 'Tree'], 'Tree');
   });
 
   it('parse single constructor type', function() {
@@ -54,8 +53,7 @@ describe('type_parser', function() {
          | wrap : (Int) -> Wrapper`);
     assert.ok(ast);
     assert.equal(ast.constructors.length, 1);
-    assert.deepEqual(ast.constructors[0],
-        new ConstructorAst('wrap', ['Int'], 'Wrapper'));
+    assertCtor(ast.constructors[0], 'wrap', ['Int'], 'Wrapper');
   });
 
   it('error on missing constructors', function() {

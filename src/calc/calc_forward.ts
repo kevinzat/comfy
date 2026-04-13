@@ -16,7 +16,7 @@ export function ParseForwardRule(text: string): RuleAst {
   try {
     parser.feed(text.trim());
   } catch (_e) {
-    throw new UserError(`syntax error in rule "${text}"`);
+    throw new UserError(`syntax error in rule "${text}"`, 0, 0, text.length);
   }
   /* v8 ignore start */
   if (parser.results.length > 1) {
@@ -27,7 +27,7 @@ export function ParseForwardRule(text: string): RuleAst {
     const result: RuleAst = parser.results[0];
     return result;
   } else {
-    throw new UserError(`syntax error in rule "${text}"`);
+    throw new UserError(`syntax error in rule "${text}"`, 0, 0, text.length);
   }
 }
 

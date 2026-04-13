@@ -7,21 +7,35 @@ export class FuncAst {
   name: string;
   type: TypeAst;
   cases: CaseAst[];
+  line: number;
+  col: number;
+  length: number;
 
-  constructor(name: string, type: TypeAst, cases: CaseAst[]) {
+  constructor(name: string, type: TypeAst, cases: CaseAst[],
+      line: number = 0, col: number = 0, length: number = 0) {
     this.name = name;
     this.type = type;
     this.cases = cases;
+    this.line = line;
+    this.col = col;
+    this.length = length;
   }
 }
 
 export class TypeAst {
   paramTypes: string[];
   returnType: string;
+  line: number;
+  col: number;
+  length: number;
 
-  constructor(paramTypes: string[], returnType: string) {
+  constructor(paramTypes: string[], returnType: string,
+      line: number = 0, col: number = 0, length: number = 0) {
     this.paramTypes = paramTypes;
     this.returnType = returnType;
+    this.line = line;
+    this.col = col;
+    this.length = length;
   }
 }
 

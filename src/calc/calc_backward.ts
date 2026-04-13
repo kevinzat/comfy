@@ -16,7 +16,7 @@ export function ParseBackwardRule(text: string): TacticAst {
   try {
     parser.feed(text.trim());
   } catch (_e) {
-    throw new UserError(`syntax error in tactic "${text}"`);
+    throw new UserError(`syntax error in tactic "${text}"`, 0, 0, text.length);
   }
   /* v8 ignore start */
   if (parser.results.length > 1) {
@@ -27,7 +27,7 @@ export function ParseBackwardRule(text: string): TacticAst {
     const result: TacticAst = parser.results[0];
     return result;
   } else {
-    throw new UserError(`syntax error in tactic "${text}"`);
+    throw new UserError(`syntax error in tactic "${text}"`, 0, 0, text.length);
   }
 }
 

@@ -17,13 +17,15 @@ const checkCaseNames = util.checkCaseNames;
 const checkCtorReturnTypes = util.checkCtorReturnTypes;
 
 function expandParams(groups) {
-  const result = [];
+  const params = [];
+  const positions = [];
   for (const group of groups) {
     for (const name of group.names) {
-      result.push([name, group.type]);
+      params.push([name, group.type]);
+      positions.push(group.typePos);
     }
   }
-  return result;
+  return { params, positions };
 }
 var grammar = {
     Lexer: lexer2,
@@ -37,26 +39,30 @@ var grammar = {
     {"name": "Decl", "symbols": ["TheoremDecl"], "postprocess": ([d]) => new declsAst.DeclsAst([], [], [d])},
     {"name": "Types", "symbols": [(lexer2.has("typeName") ? {type: "typeName"} : typeName)], "postprocess": ([a]) => a.text},
     {"name": "Types", "symbols": ["Types", (lexer2.has("comma") ? {type: "comma"} : comma), (lexer2.has("typeName") ? {type: "typeName"} : typeName)], "postprocess": ([a, _comma, b]) => [b.text, a]},
-    {"name": "TheoremDecl", "symbols": [(lexer2.has("kw_theorem") ? {type: "kw_theorem"} : kw_theorem), (lexer2.has("variable") ? {type: "variable"} : variable), "TheoremParamGroups", (lexer2.has("pipe") ? {type: "pipe"} : pipe), "Prop"], "postprocess":  ([thm, name, params, _pipe, concl]) =>
-        new theoremAst.TheoremAst(name.text, expandParams(params), [], concl, thm.line) },
-    {"name": "TheoremDecl", "symbols": [(lexer2.has("kw_theorem") ? {type: "kw_theorem"} : kw_theorem), (lexer2.has("variable") ? {type: "variable"} : variable), "TheoremParamGroups", (lexer2.has("pipe") ? {type: "pipe"} : pipe), "Premises", (lexer2.has("fatArrow") ? {type: "fatArrow"} : fatArrow), "Prop"], "postprocess":  ([thm, name, params, _pipe, premises, _arrow, concl]) =>
-        new theoremAst.TheoremAst(name.text, expandParams(params), premises, concl, thm.line) },
+    {"name": "TheoremDecl", "symbols": [(lexer2.has("kw_theorem") ? {type: "kw_theorem"} : kw_theorem), (lexer2.has("variable") ? {type: "variable"} : variable), "TheoremParamGroups", (lexer2.has("pipe") ? {type: "pipe"} : pipe), "Prop"], "postprocess":  ([thm, name, groups, _pipe, concl]) => {
+            const ep = expandParams(groups);
+            return new theoremAst.TheoremAst(name.text, ep.params, [], concl, thm.line, thm.col, thm.text.length, ep.positions);
+        } },
+    {"name": "TheoremDecl", "symbols": [(lexer2.has("kw_theorem") ? {type: "kw_theorem"} : kw_theorem), (lexer2.has("variable") ? {type: "variable"} : variable), "TheoremParamGroups", (lexer2.has("pipe") ? {type: "pipe"} : pipe), "Premises", (lexer2.has("fatArrow") ? {type: "fatArrow"} : fatArrow), "Prop"], "postprocess":  ([thm, name, groups, _pipe, premises, _arrow, concl]) => {
+            const ep = expandParams(groups);
+            return new theoremAst.TheoremAst(name.text, ep.params, premises, concl, thm.line, thm.col, thm.text.length, ep.positions);
+        } },
     {"name": "Premises", "symbols": ["Prop"], "postprocess": ([p]) => [p]},
     {"name": "Premises", "symbols": ["Premises", (lexer2.has("comma") ? {type: "comma"} : comma), "Prop"], "postprocess": ([ps, _comma, p]) => ps.concat([p])},
     {"name": "TheoremParamGroups", "symbols": ["TheoremParamGroup"], "postprocess": ([g]) => [g]},
     {"name": "TheoremParamGroups", "symbols": ["TheoremParamGroups", "TheoremParamGroup"], "postprocess": ([gs, g]) => gs.concat([g])},
-    {"name": "TheoremParamGroup", "symbols": [(lexer2.has("lparen") ? {type: "lparen"} : lparen), "TheoremNames", (lexer2.has("colon") ? {type: "colon"} : colon), (lexer2.has("typeName") ? {type: "typeName"} : typeName), (lexer2.has("rparen") ? {type: "rparen"} : rparen)], "postprocess": ([_lp, names, _colon, type, _rp]) => ({ names, type: type.text })},
+    {"name": "TheoremParamGroup", "symbols": [(lexer2.has("lparen") ? {type: "lparen"} : lparen), "TheoremNames", (lexer2.has("colon") ? {type: "colon"} : colon), (lexer2.has("typeName") ? {type: "typeName"} : typeName), (lexer2.has("rparen") ? {type: "rparen"} : rparen)], "postprocess": ([_lp, names, _colon, type, _rp]) => ({ names, type: type.text, typePos: { line: type.line, col: type.col, length: type.text.length } })},
     {"name": "TheoremNames", "symbols": [(lexer2.has("variable") ? {type: "variable"} : variable)], "postprocess": ([v]) => [v.text]},
     {"name": "TheoremNames", "symbols": [(lexer2.has("typeName") ? {type: "typeName"} : typeName)], "postprocess": ([v]) => [v.text]},
     {"name": "TheoremNames", "symbols": ["TheoremNames", (lexer2.has("comma") ? {type: "comma"} : comma), (lexer2.has("variable") ? {type: "variable"} : variable)], "postprocess": ([ns, _comma, v]) => ns.concat([v.text])},
     {"name": "TheoremNames", "symbols": ["TheoremNames", (lexer2.has("comma") ? {type: "comma"} : comma), (lexer2.has("typeName") ? {type: "typeName"} : typeName)], "postprocess": ([ns, _comma, v]) => ns.concat([v.text])},
-    {"name": "TypeDecl", "symbols": [(lexer2.has("type") ? {type: "type"} : type), (lexer2.has("typeName") ? {type: "typeName"} : typeName), "Ctors"], "postprocess": ([_type, name, ctors]) => new typeAst.TypeDeclAst(name.text, checkCtorReturnTypes(name, ctors))},
+    {"name": "TypeDecl", "symbols": [(lexer2.has("type") ? {type: "type"} : type), (lexer2.has("typeName") ? {type: "typeName"} : typeName), "Ctors"], "postprocess": ([_type, name, ctors]) => new typeAst.TypeDeclAst(name.text, checkCtorReturnTypes(name, ctors), name.line, name.col, name.text.length)},
     {"name": "Ctors", "symbols": ["Ctor"], "postprocess": ([c]) => [c]},
     {"name": "Ctors", "symbols": ["Ctors", "Ctor"], "postprocess": ([cs, c]) => cs.concat([c])},
-    {"name": "Ctor", "symbols": [(lexer2.has("pipe") ? {type: "pipe"} : pipe), (lexer2.has("variable") ? {type: "variable"} : variable), (lexer2.has("colon") ? {type: "colon"} : colon), (lexer2.has("typeName") ? {type: "typeName"} : typeName)], "postprocess": ([_pipe, name, _colon, ret]) => ({retName: ret.text, retToken: ret, ast: new typeAst.ConstructorAst(name.text, [], ret.text)})},
-    {"name": "Ctor", "symbols": [(lexer2.has("pipe") ? {type: "pipe"} : pipe), (lexer2.has("variable") ? {type: "variable"} : variable), (lexer2.has("colon") ? {type: "colon"} : colon), (lexer2.has("lparen") ? {type: "lparen"} : lparen), "Types", (lexer2.has("rparen") ? {type: "rparen"} : rparen), (lexer2.has("arrow") ? {type: "arrow"} : arrow), (lexer2.has("typeName") ? {type: "typeName"} : typeName)], "postprocess": ([_pipe, name, _colon, _lp, types, _rp, _arrow, ret]) => ({retName: ret.text, retToken: ret, ast: new typeAst.ConstructorAst(name.text, list_to_array(types, true), ret.text)})},
-    {"name": "FuncDef", "symbols": [(lexer2.has("def") ? {type: "def"} : def), (lexer2.has("variable") ? {type: "variable"} : variable), (lexer2.has("colon") ? {type: "colon"} : colon), "TypeSig", "Cases"], "postprocess": ([_def, name, _colon, type, cases]) => new funcAst.FuncAst(name.text, type, checkCaseNames(name, cases))},
-    {"name": "TypeSig", "symbols": [(lexer2.has("lparen") ? {type: "lparen"} : lparen), "Types", (lexer2.has("rparen") ? {type: "rparen"} : rparen), (lexer2.has("arrow") ? {type: "arrow"} : arrow), (lexer2.has("typeName") ? {type: "typeName"} : typeName)], "postprocess": ([_lp, types, _rp, _arrow, ret]) => new funcAst.TypeAst(list_to_array(types, true), ret.text)},
+    {"name": "Ctor", "symbols": [(lexer2.has("pipe") ? {type: "pipe"} : pipe), (lexer2.has("variable") ? {type: "variable"} : variable), (lexer2.has("colon") ? {type: "colon"} : colon), (lexer2.has("typeName") ? {type: "typeName"} : typeName)], "postprocess": ([_pipe, name, _colon, ret]) => ({retName: ret.text, retToken: ret, ast: new typeAst.ConstructorAst(name.text, [], ret.text, name.line, name.col, name.text.length)})},
+    {"name": "Ctor", "symbols": [(lexer2.has("pipe") ? {type: "pipe"} : pipe), (lexer2.has("variable") ? {type: "variable"} : variable), (lexer2.has("colon") ? {type: "colon"} : colon), (lexer2.has("lparen") ? {type: "lparen"} : lparen), "Types", (lexer2.has("rparen") ? {type: "rparen"} : rparen), (lexer2.has("arrow") ? {type: "arrow"} : arrow), (lexer2.has("typeName") ? {type: "typeName"} : typeName)], "postprocess": ([_pipe, name, _colon, _lp, types, _rp, _arrow, ret]) => ({retName: ret.text, retToken: ret, ast: new typeAst.ConstructorAst(name.text, list_to_array(types, true), ret.text, name.line, name.col, name.text.length)})},
+    {"name": "FuncDef", "symbols": [(lexer2.has("def") ? {type: "def"} : def), (lexer2.has("variable") ? {type: "variable"} : variable), (lexer2.has("colon") ? {type: "colon"} : colon), "TypeSig", "Cases"], "postprocess": ([_def, name, _colon, type, cases]) => new funcAst.FuncAst(name.text, type, checkCaseNames(name, cases), name.line, name.col, name.text.length)},
+    {"name": "TypeSig", "symbols": [(lexer2.has("lparen") ? {type: "lparen"} : lparen), "Types", (lexer2.has("rparen") ? {type: "rparen"} : rparen), (lexer2.has("arrow") ? {type: "arrow"} : arrow), (lexer2.has("typeName") ? {type: "typeName"} : typeName)], "postprocess": ([_lp, types, _rp, _arrow, ret]) => new funcAst.TypeAst(list_to_array(types, true), ret.text, _lp.line, _lp.col, 0)},
     {"name": "Cases", "symbols": ["Case"], "postprocess": ([c]) => [c]},
     {"name": "Cases", "symbols": ["Cases", "Case"], "postprocess": ([cs, c]) => cs.concat([c])},
     {"name": "Case", "symbols": [(lexer2.has("pipe") ? {type: "pipe"} : pipe), (lexer2.has("variable") ? {type: "variable"} : variable), (lexer2.has("lparen") ? {type: "lparen"} : lparen), "Params", (lexer2.has("rparen") ? {type: "rparen"} : rparen), (lexer2.has("fatArrow") ? {type: "fatArrow"} : fatArrow), "Body"], "postprocess": ([_pipe, name, _lp, params, _rp, _arrow, body]) => ({name: name.text, token: name, ast: new funcAst.CaseAst(list_to_array(params, true), body)})},

@@ -4,32 +4,32 @@ import { Environment, NestedEnv } from './env';
 import { getType, checkExpr, TypeMismatchError } from './checker';
 
 export class UnknownVariableError extends UserError {
-  constructor(name: string, line: number = 0, col: number = 0) {
+  constructor(name: string, line: number, col: number, length: number) {
     const loc = line > 0 ? ` at line ${line} col ${col}` : '';
-    super(`unknown variable "${name}"${loc}`);
+    super(`unknown variable "${name}"${loc}`, line, col, length);
     Object.setPrototypeOf(this, UnknownVariableError.prototype);
   }
 }
 
 export class ShadowedVariableError extends UserError {
-  constructor(name: string, line: number = 0, col: number = 0) {
+  constructor(name: string, line: number, col: number, length: number) {
     const loc = line > 0 ? ` at line ${line} col ${col}` : '';
-    super(`variable declaration "${name}"${loc} shadows existing variable with the same name`);
+    super(`variable declaration "${name}"${loc} shadows existing variable with the same name`, line, col, length);
     Object.setPrototypeOf(this, ShadowedVariableError.prototype);
   }
 }
 
 export class ReadOnlyVariableError extends UserError {
-  constructor(name: string, line: number = 0, col: number = 0) {
+  constructor(name: string, line: number, col: number, length: number) {
     const loc = line > 0 ? ` at line ${line} col ${col}` : '';
-    super(`assignment to read-only variable "${name}"${loc}`);
+    super(`assignment to read-only variable "${name}"${loc}`, line, col, length);
     Object.setPrototypeOf(this, ReadOnlyVariableError.prototype);
   }
 }
 
 export class MissingReturnError extends UserError {
-  constructor() {
-    super('function body must end with a return statement or an if statement with returns in both branches');
+  constructor(line: number, col: number, length: number) {
+    super('function body must end with a return statement or an if statement with returns in both branches', line, col, length);
     Object.setPrototypeOf(this, MissingReturnError.prototype);
   }
 }
@@ -37,18 +37,17 @@ export class MissingReturnError extends UserError {
 function checkCond(env: Environment, cond: RelAst): void {
   const leftType = checkExpr(env, cond.left);
   const rightType = checkExpr(env, cond.right);
-  const loc = `line ${cond.line} col ${cond.col}`;
   if (cond.op === '<' || cond.op === '<=' || cond.op === '>' || cond.op === '>=') {
     if (leftType.name !== 'Int')
       throw new TypeMismatchError('Int', leftType.name,
-          `left side of "${cond.op}" at ${loc}`);
+          `left side of "${cond.op}"`, cond.line, cond.col, cond.op.length);
     if (rightType.name !== 'Int')
       throw new TypeMismatchError('Int', rightType.name,
-          `right side of "${cond.op}" at ${loc}`);
+          `right side of "${cond.op}"`, cond.line, cond.col, cond.op.length);
   } else {
     if (leftType.name !== rightType.name)
       throw new TypeMismatchError(leftType.name, rightType.name,
-          `sides of "${cond.op}" at ${loc}`);
+          `sides of "${cond.op}"`, cond.line, cond.col, cond.op.length);
   }
 }
 
@@ -68,24 +67,24 @@ function checkProp(env: Environment, prop: CondAst): void {
 function checkStmts(env: Environment, stmts: Stmt[], returnType: string): void {
   for (const stmt of stmts) {
     if (stmt.tag === 'decl') {
-      getType(env, stmt.type, stmt.line, stmt.col);
+      getType(env, stmt.type, stmt.line, stmt.col, stmt.type.length);
       if (env.hasVariable(stmt.name))
-        throw new ShadowedVariableError(stmt.name, stmt.line, stmt.col);
+        throw new ShadowedVariableError(stmt.name, stmt.line, stmt.col, stmt.name.length);
       const exprType = checkExpr(env, stmt.expr);
       if (exprType.name !== stmt.type)
         throw new TypeMismatchError(stmt.type, exprType.name,
-            `initialization of "${stmt.name}" at line ${stmt.line} col ${stmt.col}`);
+            `initialization of "${stmt.name}"`, stmt.line, stmt.col, stmt.name.length);
       env = new NestedEnv(env, [[stmt.name, stmt.type]]);
     } else if (stmt.tag === 'assign') {
       if (!env.hasVariable(stmt.name))
-        throw new UnknownVariableError(stmt.name, stmt.line, stmt.col);
+        throw new UnknownVariableError(stmt.name, stmt.line, stmt.col, stmt.name.length);
       if (env.isReadOnly(stmt.name))
-        throw new ReadOnlyVariableError(stmt.name, stmt.line, stmt.col);
+        throw new ReadOnlyVariableError(stmt.name, stmt.line, stmt.col, stmt.name.length);
       const varType = env.getVariable(stmt.name);
       const exprType = checkExpr(env, stmt.expr);
       if (exprType.name !== varType.name)
         throw new TypeMismatchError(varType.name, exprType.name,
-            `assignment to "${stmt.name}" at line ${stmt.line} col ${stmt.col}`);
+            `assignment to "${stmt.name}"`, stmt.line, stmt.col, stmt.name.length);
     } else if (stmt.tag === 'while') {
       checkProp(env, stmt.cond);
       for (const inv of stmt.invariant) {
@@ -100,7 +99,7 @@ function checkStmts(env: Environment, stmts: Stmt[], returnType: string): void {
       const exprType = checkExpr(env, stmt.expr);
       if (exprType.name !== returnType)
         throw new TypeMismatchError(returnType, exprType.name,
-            `return statement at line ${stmt.line} col ${stmt.col}`);
+            'return statement', stmt.line, stmt.col, 'return'.length);
     }
     // pass: no checks needed
   }
@@ -123,9 +122,9 @@ function endsWithReturn(stmts: Stmt[]): boolean {
  * @throws MissingReturnError if the body does not end with a return or if-with-returns.
  */
 export function checkFuncDef(env: Environment, func: FuncDef): void {
-  getType(env, func.returnType, func.line, func.col);
+  getType(env, func.returnType, func.line, func.col, func.returnType.length);
   for (const param of func.params) {
-    getType(env, param.type, param.line, param.col);
+    getType(env, param.type, param.line, param.col, param.type.length);
   }
   const vars: [string, string][] = func.params.map(p => [p.name, p.type]);
   const paramNames = new Set(func.params.map(p => p.name));
@@ -138,5 +137,5 @@ export function checkFuncDef(env: Environment, func: FuncDef): void {
     checkProp(ensuresEnv, cond);
   }
   checkStmts(bodyEnv, func.body, func.returnType);
-  if (!endsWithReturn(func.body)) throw new MissingReturnError();
+  if (!endsWithReturn(func.body)) throw new MissingReturnError(func.line, func.col, func.name.length);
 }

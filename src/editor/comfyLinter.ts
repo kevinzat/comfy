@@ -6,13 +6,6 @@ import { UserError } from '../facts/user_error';
 import { DeclsAst } from '../lang/decls_ast';
 
 
-/** Convert a 1-indexed line number to a character offset in the document. */
-function lineToOffset(view: EditorView, line: number): number {
-  const lineCount = view.state.doc.lines;
-  const clamped = Math.max(1, Math.min(line, lineCount));
-  return view.state.doc.line(clamped).from;
-}
-
 /**
  * Try to build a TopLevelEnv from declarations and run full type checking
  * (function bodies, facts, theorems). Returns the error if it fails.
@@ -25,8 +18,30 @@ function checkEnv(decls: DeclsAst): UserError | null {
   } catch (e: unknown) {
     if (e instanceof UserError) return e;
     const msg = e instanceof Error ? e.message : String(e);
-    return new UserError(msg);
+    return new UserError(msg, 0, 0, 0);
   }
+}
+
+/**
+ * Converts a UserError (with line/col/length relative to a text block starting
+ * at `startLine`) into a CodeMirror Diagnostic.
+ */
+function errorToDiagnostic(
+    view: EditorView, err: UserError, startLine: number): Diagnostic | null {
+  if (err.line <= 0) return null;
+
+  const docLine = startLine + err.line - 1;
+  const lineCount = view.state.doc.lines;
+  if (docLine < 1 || docLine > lineCount) return null;
+
+  const line = view.state.doc.line(docLine);
+  const from = line.from + Math.max(0, err.col - 1);
+  const to = err.length > 0
+    ? Math.min(from + err.length, line.to)
+    : line.to;
+
+  const msg = err.message.replace(/ at line \d+ col \d+/, '');
+  return { from, to, severity: 'error', message: msg };
 }
 
 export const comfyLinter = linter(
@@ -40,18 +55,11 @@ export const comfyLinter = linter(
     // Parse errors from the proof file parser.
     // Filter out "missing prove" — not useful while actively editing.
     for (const err of result.errors.filter(e => !e.message.includes('missing "prove"'))) {
-      const from = lineToOffset(view, err.line);
-      const line = view.state.doc.line(
-        Math.max(1, Math.min(err.line, view.state.doc.lines)),
-      );
-      // Strip the "line N: " prefix from the message if present.
+      const lineCount = view.state.doc.lines;
+      const clamped = Math.max(1, Math.min(err.line, lineCount));
+      const line = view.state.doc.line(clamped);
       const msg = err.message.replace(/^line \d+:\s*/, '');
-      diagnostics.push({
-        from,
-        to: line.to,
-        severity: 'error',
-        message: msg,
-      });
+      diagnostics.push({ from: line.from, to: line.to, severity: 'error', message: msg });
     }
 
     // Type-check declarations from each decls item.
@@ -59,30 +67,8 @@ export const comfyLinter = linter(
       if (item.kind !== 'decls') continue;
       const err = checkEnv(item.decls);
       if (err) {
-        let from: number;
-        let to: number;
-        if (err.line > 0) {
-          // err.line is relative to the decl block; offset to document line.
-          const docLine = item.startLine + err.line - 1;
-          const lineCount = view.state.doc.lines;
-          const clamped = Math.max(1, Math.min(docLine, lineCount));
-          const line = view.state.doc.line(clamped);
-          from = line.from + Math.max(0, err.col - 1);
-          to = line.to;
-        } else {
-          // No line info — try to find the quoted name in the document.
-          const nameMatch = err.message.match(/"([^"]+)"/);
-          const idx = nameMatch ? text.indexOf(nameMatch[1]) : -1;
-          if (idx >= 0) {
-            from = idx;
-            to = idx + nameMatch![1].length;
-          } else {
-            from = 0;
-            to = 0;
-          }
-        }
-        const msg = err.message.replace(/ at line \d+ col \d+/, '');
-        diagnostics.push({ from, to, severity: 'error', message: msg });
+        const diag = errorToDiagnostic(view, err, item.startLine);
+        if (diag) diagnostics.push(diag);
       }
     }
 
