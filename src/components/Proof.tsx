@@ -17,6 +17,8 @@ export interface ProofProps {
   decls: DeclsAst;
   obligation: ProofObligation;
   onBack: (proved: boolean) => void;
+  /** When true, hides the Back button and declarations section (for inline embedding). */
+  embedded?: boolean;
 }
 
 interface ProofState {
@@ -111,21 +113,21 @@ export default class Proof extends React.Component<ProofProps, ProofState> {
   }
 
   render() {
-    const { decls, obligation, onBack } = this.props;
+    const { decls, obligation, onBack, embedded } = this.props;
 
-    const backBtn = (
+    const backBtn = !embedded ? (
       <span className="btn-edit-chain"
           onClick={() => onBack(this.state.complete)}>← Back</span>
-    );
+    ) : null;
 
     if (!(obligation.goal instanceof AtomProp)) {
-      const backBtnUnprovable = (
+      const backBtnUnprovable = !embedded ? (
         <span className="btn-edit-chain"
             onClick={() => onBack(false)}>← Back</span>
-      );
+      ) : null;
       return (
         <div className="proof">
-          <div className="proof-toggle">{backBtnUnprovable}</div>
+          {backBtnUnprovable && <div className="proof-toggle">{backBtnUnprovable}</div>}
           <div className="check-error-msg">
             This obligation cannot be proven (goal involves ≠).
           </div>
@@ -147,7 +149,7 @@ export default class Proof extends React.Component<ProofProps, ProofState> {
 
     return (
       <div className="proof">
-        {hasDecls &&
+        {!embedded && hasDecls &&
           <div className="proof-decls">
             <div className="proof-decls-title">Declarations:</div>
             <div className="proof-decls-body">

@@ -3,6 +3,7 @@ import { DeclsAst } from '../lang/decls_ast';
 import { ProofObligation, oblKey } from '../program/obligations';
 import ProofSetup from './ProofSetup';
 import Proof from './Proof';
+import UnifiedEditor from '../editor/UnifiedEditor';
 
 
 interface OpenProof {
@@ -11,18 +12,25 @@ interface OpenProof {
 }
 
 interface AppState {
+  mode: 'basic' | 'advanced';
   view: 'setup' | 'proof';
   activeKey: string | null;
-  // All obligations that have been opened, keyed by oblKey. Kept mounted so
-  // proof state is preserved when navigating away and back.
   openProofs: Map<string, OpenProof>;
   provedObls: Set<string>;
 }
+
+const linkStyle: React.CSSProperties = {
+  cursor: 'pointer',
+  color: '#666',
+  fontSize: 13,
+  fontFamily: 'monospace',
+};
 
 export default class App extends React.Component<{}, AppState> {
   constructor(props: {}) {
     super(props);
     this.state = {
+      mode: 'basic',
       view: 'setup',
       activeKey: null,
       openProofs: new Map(),
@@ -50,10 +58,36 @@ export default class App extends React.Component<{}, AppState> {
     }
   }
 
+  private renderModeLink() {
+    const { mode } = this.state;
+    const label = mode === 'basic' ? 'Advanced' : 'Basic';
+    return (
+      <span style={linkStyle} onClick={() => this.setState({ mode: mode === 'basic' ? 'advanced' : 'basic' })}>
+        {label}
+      </span>
+    );
+  }
+
   render() {
+    const { mode } = this.state;
+
+    if (mode === 'advanced') {
+      return (
+        <div>
+          <div style={{ textAlign: 'right', padding: '6px 20px 0' }}>
+            {this.renderModeLink()}
+          </div>
+          <UnifiedEditor />
+        </div>
+      );
+    }
+
     const inProof = this.state.view === 'proof';
     return (
       <>
+        <div style={{ textAlign: 'right', padding: '10px 20px 0' }}>
+          {this.renderModeLink()}
+        </div>
         <div style={{ display: inProof ? 'none' : 'block' }}>
           <ProofSetup
               onStart={(decls, obl) => this.handleStart(decls, obl)}

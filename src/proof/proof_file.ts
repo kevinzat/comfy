@@ -66,7 +66,7 @@ export interface ProofEntry {
 }
 
 export type ProofFileItem =
-  | { kind: 'decls'; decls: DeclsAst }
+  | { kind: 'decls'; decls: DeclsAst; startLine: number }
   | { kind: 'proof'; entry: ProofEntry };
 
 export interface ProofFile {
@@ -423,7 +423,7 @@ export function parseProofFile(source: string): ParseResult {
     for (const e of declsResult.errors) {
       errors.push(new ParseError(declStart + 1, `declaration error: ${e}`));
     }
-    items.push({ kind: 'decls', decls: declsResult.ast });
+    items.push({ kind: 'decls', decls: declsResult.ast, startLine: declStart + 1 });
   }
 
   if (!items.some(item => item.kind === 'proof')) {

@@ -15,14 +15,14 @@ function loc(line: number, col: number): string {
 
 export class UnknownTypeError extends UserError {
   constructor(name: string, line: number = 0, col: number = 0) {
-    super(`unknown type "${name}"${loc(line, col)}`);
+    super(`unknown type "${name}"${loc(line, col)}`, line, col);
     Object.setPrototypeOf(this, UnknownTypeError.prototype);
   }
 }
 
 export class UnknownNameError extends UserError {
   constructor(name: string, line: number = 0, col: number = 0) {
-    super(`unknown name "${name}"${loc(line, col)}`);
+    super(`unknown name "${name}"${loc(line, col)}`, line, col);
     Object.setPrototypeOf(this, UnknownNameError.prototype);
   }
 }
@@ -30,7 +30,7 @@ export class UnknownNameError extends UserError {
 export class ArityError extends UserError {
   constructor(name: string, expected: number, actual: number,
       line: number = 0, col: number = 0) {
-    super(`"${name}" expects ${expected} arguments but got ${actual}${loc(line, col)}`);
+    super(`"${name}" expects ${expected} arguments but got ${actual}${loc(line, col)}`, line, col);
     Object.setPrototypeOf(this, ArityError.prototype);
   }
 }

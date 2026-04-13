@@ -1,0 +1,115 @@
+.ip {
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 2px 0;
+}
+
+.ip-line {
+  white-space: pre;
+}
+
+.ip-keyword {
+  color: #8060b0;
+}
+
+.ip-case-keyword {
+  color: #ce9178;
+}
+
+.ip-given-keyword {
+  color: #888;
+}
+
+.ip-formula {
+  color: #333;
+}
+
+.ip-rule {
+  color: #888;
+  margin-left: 2ch;
+}
+
+.ip-separator {
+  color: #aaa;
+}
+
+.ip-input {
+  font-family: monospace;
+  font-size: 13px;
+  border: none;
+  border-bottom: 1px solid #ccc;
+  background: #f5f0e8;
+  padding: 0 4px;
+  outline: none;
+  min-width: 20ch;
+}
+
+.ip-input:focus {
+  border-bottom-color: #b06000;
+  background: #faf5ec;
+}
+
+.ip-input-error {
+  background: #ffe0e0;
+  border-bottom-color: #c44;
+}
+
+.ip-input-error:focus {
+  background: #ffe0e0;
+  border-bottom-color: #c44;
+}
+
+.ip-error-msg {
+  color: #c44;
+  font-size: 12px;
+  margin-left: 1ch;
+}
+
+.ip-complete {
+  color: #3a7a3a;
+}
+
+.ip-validity-error {
+  color: #c44;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.ip-indent-1 { padding-left: 2ch; }
+.ip-indent-2 { padding-left: 4ch; }
+.ip-indent-3 { padding-left: 6ch; }
+.ip-indent-4 { padding-left: 8ch; }
+
+.ip-step .ip-delete {
+  visibility: hidden;
+  margin-left: 1ch;
+  color: #ccc;
+  cursor: pointer;
+}
+
+.ip-step:hover .ip-delete {
+  visibility: visible;
+}
+
+.ip-step .ip-delete:hover {
+  color: #c44;
+}
+
+.ip-suggest-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.ip-suggest-wrap .line-suggest {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  border: 1px solid #ccc;
+  box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.15);
+  background-color: #FDF9EF;
+  padding: 4px 6px;
+  z-index: 99;
+  font-size: 12px;
+  white-space: nowrap;
+}
