@@ -5,6 +5,41 @@
   padding: 2px 0;
 }
 
+.ip-bg-incomplete {
+  background: #fff0f0;
+}
+
+.ip-bg-complete {
+  background: #fff;
+}
+
+.ip-collapsed {
+  cursor: pointer;
+}
+
+.ip-collapsed:hover {
+  background: #f5f5f5;
+}
+
+.ip-collapse-hint {
+  color: #aaa;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ip-collapse-hint:hover {
+  color: #666;
+}
+
+.ip-collapsible {
+  cursor: pointer;
+}
+
+.ip-collapsible:hover {
+  text-decoration: underline;
+  text-decoration-color: #aaa;
+}
+
 .ip-line {
   white-space: pre;
 }

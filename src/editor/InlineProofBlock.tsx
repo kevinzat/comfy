@@ -21,6 +21,7 @@ export interface InlineProofBlockProps {
   defNames: string[];
   indent?: number;
   onComplete?: (complete: boolean) => void;
+  onCollapse?: () => void;
 }
 
 interface InlineProofBlockState {
@@ -102,7 +103,7 @@ export default class InlineProofBlock
   }
 
   render() {
-    const { formula, env, defNames, onComplete } = this.props;
+    const { formula, env, defNames, onComplete, onCollapse } = this.props;
     const indent = this.props.indent ?? 0;
     const { method, matches, methodText, focus, error } = this.state;
     const goalStr = formula.to_string();
@@ -114,7 +115,8 @@ export default class InlineProofBlock
 
     // "prove <goal>" header.
     lines.push(
-      <div key="goal" className={`ip-line${indentClass}`}>
+      <div key="goal" className={`ip-line${indentClass}${onCollapse ? ' ip-collapsible' : ''}`}
+           onClick={onCollapse}>
         <span className="ip-keyword">prove</span> <span className="ip-formula">{goalStr}</span>
       </div>
     );

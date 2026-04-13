@@ -14,11 +14,23 @@ export interface InlineProofProps {
   obligation: ProofObligation;
 }
 
+interface InlineProofState {
+  collapsed: boolean;
+  complete: boolean;
+}
+
 export default class InlineProof
-    extends React.Component<InlineProofProps, {}> {
+    extends React.Component<InlineProofProps, InlineProofState> {
+
+  constructor(props: InlineProofProps) {
+    super(props);
+    this.state = { collapsed: false, complete: false };
+  }
 
   render() {
     const { decls, obligation } = this.props;
+    const { collapsed, complete } = this.state;
+    const goalStr = obligation.goal.to_string();
 
     if (!(obligation.goal instanceof AtomProp)) {
       return (
@@ -30,6 +42,8 @@ export default class InlineProof
       );
     }
 
+    const bgClass = complete ? 'ip-bg-complete' : 'ip-bg-incomplete';
+
     const goal: Formula = obligation.goal.formula;
     const givens: AtomProp[] = obligation.premises
       .flatMap(p => p instanceof AtomProp ? [p] : []);
@@ -40,31 +54,39 @@ export default class InlineProof
     const premise = givens.length === 1 ? givens[0].formula : undefined;
     const defNames = decls.functions.flatMap(f => funcToDefinitions(f).map(d => d.name));
 
-    const lines: JSX.Element[] = [];
+    return (
+      <div className={`ip ${bgClass}`}>
+        {/* Collapsed summary — shown when collapsed, click to expand. */}
+        {collapsed && (
+          <div className="ip-line ip-collapsed"
+               onClick={() => this.setState({ collapsed: false })}>
+            <span className="ip-keyword">prove</span>{' '}
+            <span className="ip-formula">{goalStr}</span>{' '}
+            <span className="ip-collapse-hint">...</span>
+          </div>
+        )}
 
-    // Given lines.
-    for (let i = 0; i < givens.length; i++) {
-      lines.push(
-        <div key={`given-${i}`} className="ip-line ip-indent-1">
-          <span className="ip-given-keyword">given</span>{' '}
-          {i + 1}. {givens[i].formula.to_string()}
+        {/* Given lines — hidden when collapsed. */}
+        {!collapsed && givens.map((g, i) => (
+          <div key={`given-${i}`} className="ip-line ip-indent-1">
+            <span className="ip-given-keyword">given</span>{' '}
+            {i + 1}. {g.formula.to_string()}
+          </div>
+        ))}
+
+        {/* Proof block — always mounted, hidden when collapsed. */}
+        <div style={collapsed ? { display: 'none' } : undefined}>
+          <InlineProofBlock
+            formula={goal}
+            env={proofEnv}
+            premise={premise}
+            defNames={defNames}
+            indent={0}
+            onComplete={(c) => this.setState({ complete: c })}
+            onCollapse={() => this.setState({ collapsed: true })}
+          />
         </div>
-      );
-    }
-
-    // Proof block.
-    lines.push(
-      <div key="proof">
-        <InlineProofBlock
-          formula={goal}
-          env={proofEnv}
-          premise={premise}
-          defNames={defNames}
-          indent={0}
-        />
       </div>
     );
-
-    return <div className="ip">{lines}</div>;
   }
 }
