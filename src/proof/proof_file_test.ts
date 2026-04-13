@@ -401,6 +401,30 @@ describe('parseProofFile', () => {
     }
   });
 
+  it('parses algebra steps without spaces around operators', () => {
+    const source = [
+      'prove foo by calculation',
+      '  x',
+      '  =2*x-x+y',
+      '  =y+x',
+      '  ---',
+      '  z',
+      '  2*y-y+x=',
+      '  y+x=',
+    ].join('\n');
+    const pf = parseOk(source);
+    const proof = firstProof(pf).proof;
+    assert.strictEqual(proof.kind, 'calculate');
+    if (proof.kind === 'calculate') {
+      assert.strictEqual(proof.forwardSteps.length, 2);
+      assert.strictEqual(proof.forwardSteps[0].ruleText, '=2*x-x+y');
+      assert.strictEqual(proof.forwardSteps[1].ruleText, '=y+x');
+      assert.strictEqual(proof.backwardSteps!.length, 2);
+      assert.strictEqual(proof.backwardSteps[0].ruleText, '2*y-y+x=');
+      assert.strictEqual(proof.backwardSteps[1].ruleText, 'y+x=');
+    }
+  });
+
   it('skips bad calc step and continues parsing good steps', () => {
     const source = [
       'prove foo by calculation',

@@ -2,7 +2,7 @@ import { RangeSetBuilder, StateField, StateEffect, Transaction } from '@codemirr
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
 import { buildDocSections } from './proofRanges';
 import { ProofWidget } from './ProofWidget';
-import { ProofEntry } from '../proof/proof_file';
+import { ProofEntry, ProofNode, parseProofFile } from '../proof/proof_file';
 
 
 /** Simple string hash for comparing declarations text. */
@@ -22,10 +22,29 @@ function buildDecorations(doc: string, docLength: number): DecorationSet {
     if (!section.theorem) continue;
 
     const declsText = doc.substring(0, section.range.from);
+
+    // Parse the prove block text to extract an initial ProofNode.
+    const proveText = doc.substring(section.range.from, section.range.to);
+    let initialProof: ProofNode | undefined;
+    try {
+      const result = parseProofFile(proveText);
+      if (result.errors.length > 0) {
+        console.warn('[proofPlugin] parse errors:', result.errors.map(e => e.message));
+      }
+      const proofItem = result.file.items.find(i => i.kind === 'proof');
+      if (proofItem?.kind === 'proof' && proofItem.entry.proof.kind !== 'none') {
+        initialProof = proofItem.entry.proof;
+        console.log('[proofPlugin] initialProof:', JSON.stringify(initialProof));
+      } else {
+        console.warn('[proofPlugin] no proof node found in:', JSON.stringify(proveText));
+      }
+    } catch (_e) { /* ignore parse failures */ }
+
     const widget = new ProofWidget(
       section.theorem,
       section.decls,
       hashStr(declsText),
+      initialProof,
     );
 
     const to = Math.min(section.range.to, docLength);

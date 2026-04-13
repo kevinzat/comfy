@@ -13,6 +13,7 @@ import './InlineProof.css';
 export interface InlineProofProps {
   decls: DeclsAst;
   obligation: ProofObligation;
+  initialProof?: ProofNode;
 }
 
 interface InlineProofState {
@@ -98,6 +99,7 @@ export default class InlineProof
             premise={premise}
             defNames={defNames}
             indent={0}
+            initialProof={this.props.initialProof}
             onComplete={(c) => this.setState({ complete: c })}
             onCollapse={() => this.setState({ collapsed: true })}
           />

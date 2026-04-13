@@ -2,7 +2,7 @@ import React from 'react';
 import { Formula } from '../facts/formula';
 import { AtomProp } from '../facts/prop';
 import { Environment } from '../types/env';
-import { ProofNode, CaseBlock, IHLine } from '../proof/proof_file';
+import { ProofNode, CalcProofNode, CaseBlock, IHLine } from '../proof/proof_file';
 import { ProofTactic, ProofGoal, ParseProofMethod, FindProofMethodMatches } from '../proof/proof_tactic';
 import { Match, LongestCommonPrefix } from '../calc/calc_complete';
 import { RuleSuggest } from '../components/RuleSuggest';
@@ -21,6 +21,7 @@ export interface InlineProofBlockProps {
   premise?: Formula;
   defNames: string[];
   indent?: number;
+  initialProof?: ProofNode;
   onComplete?: (complete: boolean) => void;
   onCollapse?: () => void;
 }
@@ -38,16 +39,63 @@ export default class InlineProofBlock
 
   private calcRef = React.createRef<InlineCalcBlock>();
   private caseRef = React.createRef<InlineCaseBlock>();
+  private initialCalc: CalcProofNode | undefined;
+  private initialCaseProofs: ProofNode[] | undefined;
 
   constructor(props: InlineProofBlockProps) {
     super(props);
-    this.state = {
+
+    const init = props.initialProof;
+    if (init?.kind === 'calculate') {
+      this.initialCalc = init;
+      this.state = {
+        methodText: 'calculation',
+        matches: [],
+        method: { kind: 'calculate' },
+        error: undefined,
+        focus: false,
+      };
+    } else if (init?.kind === 'tactic') {
+      const state = this.tryInitTactic(init.method, props);
+      if (state) {
+        this.initialCaseProofs = init.cases.map(c => c.proof);
+        this.state = state;
+      } else {
+        this.state = this.defaultState(props);
+      }
+    } else {
+      this.state = this.defaultState(props);
+    }
+  }
+
+  private defaultState(props: InlineProofBlockProps): InlineProofBlockState {
+    return {
       methodText: '',
       matches: FindProofMethodMatches('', props.formula, props.env),
       method: { kind: 'none' },
       error: undefined,
       focus: false,
     };
+  }
+
+  private tryInitTactic(
+      methodText: string, props: InlineProofBlockProps,
+  ): InlineProofBlockState | null {
+    const premises = props.premise ? [new AtomProp(props.premise)] : [];
+    const result = ParseProofMethod(methodText, props.formula, props.env, premises);
+    if (typeof result === 'string' || result.kind === 'calculate') return null;
+    try {
+      const goals = result.tactic.decompose();
+      return {
+        methodText,
+        matches: [],
+        method: { kind: 'tactic', tactic: result.tactic, goals, methodText },
+        error: undefined,
+        focus: false,
+      };
+    } catch (_e) {
+      return null;
+    }
   }
 
   getProofNode(): ProofNode | null {
@@ -170,6 +218,7 @@ export default class InlineProofBlock
             env={env}
             goal={goalStr}
             defNames={defNames}
+            initialCalc={this.initialCalc}
             onComplete={onComplete}
           />
         </div>
@@ -190,6 +239,7 @@ export default class InlineProofBlock
             ref={this.caseRef}
             goals={method.goals}
             defNames={defNames}
+            initialProofs={this.initialCaseProofs}
             onComplete={onComplete}
           />
         </div>

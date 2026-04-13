@@ -5,7 +5,7 @@ import { Formula, FormulaOp } from '../facts/formula';
 import { ParseFormula } from '../facts/formula_parser';
 import { Environment } from '../types/env';
 import { Match, FindForwardMatches, FindBackwardMatches, LongestCommonPrefix } from '../calc/calc_complete';
-import { CalcProofNode } from '../proof/proof_file';
+import { CalcProofNode, CalcStep } from '../proof/proof_file';
 import { Step, applyForwardRule, applyBackwardRule, topFrontier, botFrontier, isComplete, checkValidity } from '../proof/calc_proof';
 import { ParseForwardRule } from '../calc/calc_forward';
 import { ParseBackwardRule } from '../calc/calc_backward';
@@ -24,6 +24,7 @@ export interface InlineCalcBlockProps {
   env: Environment;
   goal: string;
   defNames?: string[];
+  initialCalc?: CalcProofNode;
   onComplete?: (complete: boolean) => void;
 }
 
@@ -66,21 +67,68 @@ export default class InlineCalcBlock
     super(props);
     const goal = ParseFormula(props.goal);
     const defNames = props.defNames ?? [];
+
+    let topLines: Line[] = [];
+    let bottomLines: Line[] = [];
+
+    if (props.initialCalc) {
+      topLines = this.replayForwardSteps(
+          props.initialCalc.forwardSteps, goal.left, props.env);
+      bottomLines = this.replayBackwardSteps(
+          props.initialCalc.backwardSteps, goal.right, props.env);
+    }
+
     this.state = {
       goal,
-      topLines: [],
+      topLines,
       topText: '',
       topMatches: FindForwardMatches('', defNames),
       topError: undefined,
       topFocus: false,
       topDelayTimer: undefined,
-      bottomLines: [],
+      bottomLines,
       botText: '',
       botMatches: FindBackwardMatches('', defNames),
       botError: undefined,
       botFocus: false,
       botDelayTimer: undefined,
     };
+  }
+
+  /** Replay parsed forward steps to rebuild Line objects. Stops on first error. */
+  private replayForwardSteps(
+      steps: CalcStep[], start: Expression, env: Environment): Line[] {
+    const lines: Line[] = [];
+    let frontier = start;
+    for (const step of steps) {
+      try {
+        const result = applyForwardRule(step.ruleText, frontier, env);
+        lines.push({ op: result.op, expr: result.expr, ruleText: step.ruleText, forward: true });
+        frontier = result.expr;
+      } catch (e: any) {
+        console.warn(`[InlineCalcBlock] forward replay failed on "${step.ruleText}":`, e.message);
+        break;
+      }
+    }
+    return lines;
+  }
+
+  /** Replay parsed backward steps to rebuild Line objects. Stops on first error. */
+  private replayBackwardSteps(
+      steps: CalcStep[], start: Expression, env: Environment): Line[] {
+    const lines: Line[] = [];
+    let frontier = start;
+    for (const step of steps) {
+      try {
+        const result = applyBackwardRule(step.ruleText, frontier, env);
+        lines.push({ op: result.op, expr: result.expr, ruleText: step.ruleText, forward: false });
+        frontier = result.expr;
+      } catch (e: any) {
+        console.warn(`[InlineCalcBlock] backward replay failed on "${step.ruleText}":`, e.message);
+        break;
+      }
+    }
+    return lines;
   }
 
   private lastReportedComplete: boolean | undefined = undefined;

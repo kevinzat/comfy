@@ -2,12 +2,14 @@ import React from 'react';
 import { AtomProp } from '../facts/prop';
 import { TheoremAst } from '../lang/theorem_ast';
 import { ProofGoal } from '../proof/proof_tactic';
+import { ProofNode } from '../proof/proof_file';
 import InlineProofBlock from './InlineProofBlock';
 
 
 export interface InlineCaseBlockProps {
   goals: ProofGoal[];
   defNames: string[];
+  initialProofs?: ProofNode[];
   onComplete?: (complete: boolean) => void;
 }
 
@@ -99,6 +101,7 @@ export default class InlineCaseBlock
             env={pg.env}
             defNames={defNames}
             indent={2}
+            initialProof={this.props.initialProofs?.[idx]}
             onComplete={(c) => this.handleCaseComplete(idx, c)}
           />
         </div>

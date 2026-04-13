@@ -3,6 +3,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { DeclsAst } from '../lang/decls_ast';
 import { TheoremAst } from '../lang/theorem_ast';
+import { ProofNode } from '../proof/proof_file';
 import { theoremToProofObligation } from '../program/obligations';
 import InlineProof, { InlineProofProps } from './InlineProof';
 
@@ -17,6 +18,7 @@ export class ProofWidget extends WidgetType {
     readonly decls: DeclsAst,
     /** Hash of the declarations text, used for eq() comparison. */
     readonly declsHash: string,
+    readonly initialProof?: ProofNode,
   ) {
     super();
   }
@@ -36,6 +38,7 @@ export class ProofWidget extends WidgetType {
       ref: (instance: InlineProof | null) => { this.inlineProof = instance; },
       decls: this.decls,
       obligation,
+      initialProof: this.initialProof,
     };
     this.root.render(React.createElement(InlineProof, props));
 

@@ -156,20 +156,15 @@ function parseMethod(text: string, line: number, errors: ParseError[]): ProofNod
   return { kind: 'tactic', method: text.trim(), methodLine: line, cases: [] };
 }
 
-const ALGEBRA_PREFIX = /^(=|<=|<)\s/;
+const ALGEBRA_PREFIX = /^(<=|<|=)\s?/;
 const NON_ALGEBRA_PREFIX = /^(subst|unsub|defof|undef|apply|unapp)\s/;
-const BACKWARD_ALGEBRA_SUFFIX = /\s+(<=|<|=)(\s+since\s+[\d,\s]+)?$/;
+const BACKWARD_ALGEBRA_SUFFIX = /(<=|<|=)(\s+since\s+[\d,\s]+)?$/;
 const OP_SEPARATOR = /^(.*)\s+(<=|<|=)\s+(.+)$/;
 const HAS_ARROW = /=>/;
 
 function parseCalcStep(trimmed: string, line: number, errors: ParseError[]): CalcStep | null {
-  // Forward algebra: starts with "= expr", "< expr", "<= expr".
-  // Backward algebra: ends with a bare operator "expr =", "expr <", "expr <=".
-  if (ALGEBRA_PREFIX.test(trimmed) || BACKWARD_ALGEBRA_SUFFIX.test(trimmed)) {
-    return { ruleText: trimmed, line };
-  }
-
-  // Non-algebra rules.
+  // Non-algebra rules (checked first so keyword rules ending with "=" aren't
+  // mistakenly treated as backward algebra).
   if (NON_ALGEBRA_PREFIX.test(trimmed)) {
     // Rules with "=>" specify their own result — no separate "= expr" needed.
     if (HAS_ARROW.test(trimmed)) {
@@ -183,6 +178,12 @@ function parseCalcStep(trimmed: string, line: number, errors: ParseError[]): Cal
       return null;
     }
     return { ruleText: m[1], statedOp: m[2], statedExpr: m[3], line };
+  }
+
+  // Forward algebra: starts with "=", "<", "<=", optionally followed by a space.
+  // Backward algebra: ends with a bare operator "expr =", "expr <", "expr <=".
+  if (ALGEBRA_PREFIX.test(trimmed) || BACKWARD_ALGEBRA_SUFFIX.test(trimmed)) {
+    return { ruleText: trimmed, line };
   }
 
   errors.push(new ParseError(line, `unrecognized rule: "${trimmed}"`));
