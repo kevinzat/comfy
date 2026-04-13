@@ -1,5 +1,6 @@
 import * as assert from 'assert';
-import { parseProofFile, parseParams, ParseError, ProofFile } from './proof_file';
+import { parseProofFile, parseParams, ParseError, ProofFile, ProofEntry } from './proof_file';
+import { serializeProofEntry } from './proof_serialize';
 import { checkProofFile, CheckError } from './proof_file_checker';
 
 function firstProof(pf: ProofFile) {
@@ -8,12 +9,50 @@ function firstProof(pf: ProofFile) {
   return item.entry;
 }
 
+/**
+ * Replace prove blocks in source text with serialized proof entries.
+ * Used for round-trip testing: parse → serialize → reparse → recheck.
+ */
+function replaceProveBlocks(source: string, entries: ProofEntry[]): string {
+  const entryByName = new Map(entries.map(e => [e.theoremName, e]));
+  const lines = source.split('\n');
+  const result: string[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const isProve = !/^\s/.test(lines[i]) && lines[i].trim().startsWith('prove ');
+    if (isProve) {
+      const name = lines[i].trim().match(/^prove\s+(\S+)/)![1];
+      // Skip the original prove block (header + indented/blank body lines).
+      i++;
+      while (i < lines.length && (lines[i].trim() === '' || /^\s/.test(lines[i]))) i++;
+      // Insert serialized version.
+      const entry = entryByName.get(name);
+      if (entry) result.push(serializeProofEntry(entry));
+    } else {
+      result.push(lines[i]);
+      i++;
+    }
+  }
+
+  return result.join('\n');
+}
 
 function check(source: string): void {
   const result = parseProofFile(source);
   assert.deepStrictEqual(result.errors, [],
       `unexpected parse errors: ${result.errors.map(e => e.message).join(', ')}`);
   checkProofFile(result.file);
+
+  // Round-trip: serialize proof entries, reparse, re-check.
+  const entries = result.file.items
+    .filter((i): i is { kind: 'proof'; entry: ProofEntry } => i.kind === 'proof')
+    .map(i => i.entry);
+  const rebuilt = replaceProveBlocks(source, entries);
+  const result2 = parseProofFile(rebuilt);
+  assert.deepStrictEqual(result2.errors, [],
+      `round-trip parse errors: ${result2.errors.map(e => e.message).join(', ')}\n\nRebuilt:\n${rebuilt}`);
+  checkProofFile(result2.file);
 }
 
 function checkFails(source: string, lineNum: number, pattern: RegExp): void {
@@ -1406,5 +1445,163 @@ prove bar by induction on xs
       assert.equal(consCase.ihTheorems[0].name, 'IH');
       assert.deepEqual(consCase.ihTheorems[0].params, [['x', 'Int']]);
     }
+  });
+});
+
+
+/**
+ * Round-trip test for incomplete proofs: serialize → reparse and verify the
+ * ProofNode structure is preserved (same kind, same steps, same cases).
+ */
+function checkIncompleteRoundTrip(source: string): void {
+  const result1 = parseProofFile(source);
+  assert.deepStrictEqual(result1.errors, [],
+      `unexpected parse errors: ${result1.errors.map(e => e.message).join(', ')}`);
+
+  const entries = result1.file.items
+    .filter((i): i is { kind: 'proof'; entry: ProofEntry } => i.kind === 'proof')
+    .map(i => i.entry);
+
+  const rebuilt = replaceProveBlocks(source, entries);
+  const result2 = parseProofFile(rebuilt);
+  assert.deepStrictEqual(result2.errors, [],
+      `round-trip parse errors: ${result2.errors.map(e => e.message).join(', ')}\n\nRebuilt:\n${rebuilt}`);
+
+  // Compare proof structure (ignoring line numbers).
+  const entries2 = result2.file.items
+    .filter((i): i is { kind: 'proof'; entry: ProofEntry } => i.kind === 'proof')
+    .map(i => i.entry);
+
+  assert.strictEqual(entries.length, entries2.length, 'different number of proof entries');
+  for (let i = 0; i < entries.length; i++) {
+    assertProofNodeEqual(entries[i].proof, entries2[i].proof,
+        `proof "${entries[i].theoremName}"`);
+  }
+}
+
+/** Deep-compare two ProofNodes ignoring line numbers. */
+function assertProofNodeEqual(a: any, b: any, label: string): void {
+  assert.strictEqual(a.kind, b.kind, `${label}: kind mismatch`);
+  if (a.kind === 'calculate') {
+    assert.strictEqual(a.forwardStart?.text, b.forwardStart?.text,
+        `${label}: forwardStart text mismatch`);
+    assert.strictEqual(a.forwardSteps.length, b.forwardSteps.length,
+        `${label}: forwardSteps count mismatch`);
+    for (let i = 0; i < a.forwardSteps.length; i++) {
+      assert.strictEqual(a.forwardSteps[i].ruleText, b.forwardSteps[i].ruleText,
+          `${label}: forwardStep[${i}] ruleText mismatch`);
+    }
+    assert.strictEqual(a.backwardStart?.text ?? null, b.backwardStart?.text ?? null,
+        `${label}: backwardStart text mismatch`);
+    assert.strictEqual(a.backwardSteps.length, b.backwardSteps.length,
+        `${label}: backwardSteps count mismatch`);
+    for (let i = 0; i < a.backwardSteps.length; i++) {
+      assert.strictEqual(a.backwardSteps[i].ruleText, b.backwardSteps[i].ruleText,
+          `${label}: backwardStep[${i}] ruleText mismatch`);
+    }
+  } else if (a.kind === 'tactic') {
+    assert.strictEqual(a.method, b.method, `${label}: method mismatch`);
+    assert.strictEqual(a.cases.length, b.cases.length,
+        `${label}: cases count mismatch`);
+    for (let i = 0; i < a.cases.length; i++) {
+      assert.strictEqual(a.cases[i].label, b.cases[i].label,
+          `${label} case[${i}]: label mismatch`);
+      assert.strictEqual(a.cases[i].goal, b.cases[i].goal,
+          `${label} case[${i}]: goal mismatch`);
+      assertProofNodeEqual(a.cases[i].proof, b.cases[i].proof,
+          `${label} case[${i}]`);
+    }
+  }
+  // kind === 'none': nothing more to compare.
+}
+
+
+describe('incomplete proof round-trip', function() {
+
+  it('round-trips a prove with no method', function() {
+    checkIncompleteRoundTrip(`theorem foo (x : Int)\n| x = x\n\nprove foo`);
+  });
+
+  it('round-trips calculation with no steps', function() {
+    checkIncompleteRoundTrip(
+      `theorem foo (x : Int)\n| x = x\n\nprove foo by calculation`);
+  });
+
+  it('round-trips calculation with only forward start', function() {
+    checkIncompleteRoundTrip([
+      'theorem foo (x, y : Int)',
+      '| x + y = y + x',
+      '',
+      'prove foo by calculation',
+      '  x + y',
+    ].join('\n'));
+  });
+
+  it('round-trips partial forward steps', function() {
+    checkIncompleteRoundTrip([
+      'theorem foo (x : Int)',
+      '| x + 0 = 0 + x',
+      '',
+      'prove foo by calculation',
+      '  x + 0',
+      '  = x',
+    ].join('\n'));
+  });
+
+  it('round-trips forward and backward with gap', function() {
+    const source = `${preamble}
+
+prove len_zero_add by induction on xs
+
+  case nil:
+    prove 0 + len(nil) = len(nil) by calculation
+    0 + len(nil)
+    defof len_1 => 0 + 0
+    ---
+    len(nil)
+    undef len_1 = 0
+
+  case cons(a, L):
+    given IH : 0 + len(L) = len(L)
+    prove 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
+    0 + len(cons(a, L))
+    defof len_2 = 0 + (1 + len(L))`;
+    // cons case has forward steps but is incomplete (no backward section).
+    checkIncompleteRoundTrip(source);
+  });
+
+  it('round-trips induction with one case missing method', function() {
+    const source = `${preamble}
+
+prove len_zero_add by induction on xs
+
+${validNilCase}
+
+  case cons(a, L):
+    given IH : 0 + len(L) = len(L)
+    prove 0 + len(cons(a, L)) = len(cons(a, L))`;
+    // cons case has no method — proof node is 'none'.
+    checkIncompleteRoundTrip(source);
+  });
+
+  it('round-trips cases proof with no case blocks', function() {
+    checkIncompleteRoundTrip([
+      'theorem foo (x, y : Int)',
+      '| x < y => x <= y',
+      '',
+      'prove foo by simple cases on x < y - 1',
+      '  given 1. x < y',
+    ].join('\n'));
+  });
+
+  it('round-trips complete induction proof', function() {
+    const source = `${preamble}
+
+prove len_zero_add by induction on xs
+
+${validNilCase}
+
+${validConsCase}`;
+    checkIncompleteRoundTrip(source);
   });
 });

@@ -165,17 +165,18 @@ describe('parseProofFile', () => {
     }
   });
 
-  it('returns error on bad prove format in case block', () => {
+  it('accepts prove without method in case block as incomplete', () => {
     const source = [
       'prove foo by induction on n',
       '  case zero:',
       '  prove stuff',
     ].join('\n');
-    const result = parseHasError(source, 3, /expected "prove <formula> by <method>"/);
-    const proof = firstProof(result.file).proof;
+    const pf = parseOk(source);
+    const proof = firstProof(pf).proof;
     assert.strictEqual(proof.kind, 'tactic');
     if (proof.kind === 'tactic') {
       assert.strictEqual(proof.cases.length, 1);
+      assert.strictEqual(proof.cases[0].goal, 'stuff');
       assert.strictEqual(proof.cases[0].proof.kind, 'none');
     }
   });
@@ -458,7 +459,7 @@ describe('parseProofFile', () => {
     }
   });
 
-  it('recovers from bad prove in case and continues to next case', () => {
+  it('parses incomplete and complete cases together', () => {
     const source = [
       'prove foo by induction on n',
       '  case zero:',
@@ -468,8 +469,8 @@ describe('parseProofFile', () => {
       '    x',
       '    = x',
     ].join('\n');
-    const result = parseHasError(source, 3, /expected "prove <formula> by <method>"/);
-    const proof = firstProof(result.file).proof;
+    const pf = parseOk(source);
+    const proof = firstProof(pf).proof;
     assert.strictEqual(proof.kind, 'tactic');
     if (proof.kind === 'tactic') {
       assert.strictEqual(proof.cases.length, 2);

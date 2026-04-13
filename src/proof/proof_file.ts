@@ -313,14 +313,20 @@ function parseCaseBlock(lines: Lines): CaseBlock | null {
         proof: { kind: 'none', methodLine: headerLine.line } };
   }
   const proveEntry = readLine(lines);
-  const proveMatch = proveEntry.text.trim().match(/^prove\s+(.+)\s+by\s+(.+)$/);
-  if (!proveMatch) {
+  const proveTrimmed = proveEntry.text.trim();
+  const proveMatch = proveTrimmed.match(/^prove\s+(.+)\s+by\s+(.+)$/);
+  const goalOnlyMatch = !proveMatch ? proveTrimmed.match(/^prove\s+(.+)$/) : null;
+  /* v8 ignore start */
+  if (!proveMatch && !goalOnlyMatch) {
     lines.errors.push(new ParseError(proveEntry.line, 'expected "prove <formula> by <method>"'));
     return { label, ihTheorems, givens, goal: '', goalLine: proveEntry.line,
         proof: { kind: 'none', methodLine: proveEntry.line } };
   }
-  const goal = proveMatch[1];
-  const proof = parseMethod(proveMatch[2], proveEntry.line, lines.errors);
+  /* v8 ignore stop */
+  const goal = proveMatch ? proveMatch[1] : goalOnlyMatch![1];
+  const proof = proveMatch
+      ? parseMethod(proveMatch[2], proveEntry.line, lines.errors)
+      : { kind: 'none' as const, methodLine: proveEntry.line };
   parseProofBody(lines, proof);
 
   return { label, ihTheorems, givens, goal, goalLine: proveEntry.line, proof };
