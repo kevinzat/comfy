@@ -4,11 +4,13 @@ import { createRoot } from 'react-dom/client';
 import { DeclsAst } from '../lang/decls_ast';
 import { TheoremAst } from '../lang/theorem_ast';
 import { theoremToProofObligation } from '../program/obligations';
-import InlineProof from './InlineProof';
+import InlineProof, { InlineProofProps } from './InlineProof';
 
 
 export class ProofWidget extends WidgetType {
   private root: ReturnType<typeof createRoot> | null = null;
+  /** Reference to the InlineProof component for extracting proof state. */
+  inlineProof: InlineProof | null = null;
 
   constructor(
     readonly theorem: TheoremAst,
@@ -30,12 +32,12 @@ export class ProofWidget extends WidgetType {
     this.root = createRoot(container);
 
     const obligation = theoremToProofObligation(this.theorem);
-    this.root.render(
-      React.createElement(InlineProof, {
-        decls: this.decls,
-        obligation,
-      })
-    );
+    const props: React.ClassAttributes<InlineProof> & InlineProofProps = {
+      ref: (instance: InlineProof | null) => { this.inlineProof = instance; },
+      decls: this.decls,
+      obligation,
+    };
+    this.root.render(React.createElement(InlineProof, props));
 
     return container;
   }

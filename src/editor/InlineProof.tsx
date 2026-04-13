@@ -5,6 +5,7 @@ import { DeclsAst } from '../lang/decls_ast';
 import { funcToDefinitions } from '../lang/func_ast';
 import { TopLevelEnv, NestedEnv } from '../types/env';
 import { ProofObligation } from '../program/obligations';
+import { ProofEntry, ProofNode, GivenLine } from '../proof/proof_file';
 import InlineProofBlock from './InlineProofBlock';
 import './InlineProof.css';
 
@@ -22,9 +23,23 @@ interface InlineProofState {
 export default class InlineProof
     extends React.Component<InlineProofProps, InlineProofState> {
 
+  private proofBlockRef = React.createRef<InlineProofBlock>();
+
   constructor(props: InlineProofProps) {
     super(props);
     this.state = { collapsed: false, complete: false };
+  }
+
+  /** Returns a ProofEntry for serialization (text/Lean export). */
+  getProofEntry(theoremName: string): ProofEntry {
+    const { obligation } = this.props;
+    const givens: GivenLine[] = obligation.premises
+      .flatMap((p, i) => p instanceof AtomProp
+        ? [{ index: i + 1, text: p.formula.to_string(), line: 0 }]
+        : []);
+    const proof: ProofNode = this.proofBlockRef.current?.getProofNode()
+        ?? { kind: 'none', methodLine: 0 };
+    return { theoremName, theoremLine: 0, givens, proof };
   }
 
   render() {
@@ -77,6 +92,7 @@ export default class InlineProof
         {/* Proof block — always mounted, hidden when collapsed. */}
         <div style={collapsed ? { display: 'none' } : undefined}>
           <InlineProofBlock
+            ref={this.proofBlockRef}
             formula={goal}
             env={proofEnv}
             premise={premise}

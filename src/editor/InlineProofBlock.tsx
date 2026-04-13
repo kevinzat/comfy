@@ -2,6 +2,7 @@ import React from 'react';
 import { Formula } from '../facts/formula';
 import { AtomProp } from '../facts/prop';
 import { Environment } from '../types/env';
+import { ProofNode, CaseBlock, IHLine } from '../proof/proof_file';
 import { ProofTactic, ProofGoal, ParseProofMethod, FindProofMethodMatches } from '../proof/proof_tactic';
 import { Match, LongestCommonPrefix } from '../calc/calc_complete';
 import { RuleSuggest } from '../components/RuleSuggest';
@@ -35,6 +36,9 @@ interface InlineProofBlockState {
 export default class InlineProofBlock
     extends React.Component<InlineProofBlockProps, InlineProofBlockState> {
 
+  private calcRef = React.createRef<InlineCalcBlock>();
+  private caseRef = React.createRef<InlineCaseBlock>();
+
   constructor(props: InlineProofBlockProps) {
     super(props);
     this.state = {
@@ -44,6 +48,42 @@ export default class InlineProofBlock
       error: undefined,
       focus: false,
     };
+  }
+
+  getProofNode(): ProofNode | null {
+    const { method } = this.state;
+    if (method.kind === 'calculate') {
+      return this.calcRef.current?.getCalcProofNode() ?? null;
+    }
+    if (method.kind === 'tactic') {
+      const caseBlock = this.caseRef.current;
+      if (!caseBlock) return null;
+      const subProofs: ProofNode[] = [];
+      for (const ref of caseBlock.proofBlockRefs) {
+        const node = ref.current?.getProofNode() ?? null;
+        if (!node) return null;
+        subProofs.push(node);
+      }
+      const cases: CaseBlock[] = method.goals.map((pg, i) => {
+        const ihTheorems: IHLine[] = pg.newTheorems.map(thm => ({
+          name: thm.name,
+          params: thm.params,
+          premises: thm.premises,
+          formula: thm.conclusion.to_string(),
+          line: 0,
+        }));
+        return {
+          label: pg.label,
+          ihTheorems,
+          givens: [],
+          goal: pg.goal.to_string(),
+          goalLine: 0,
+          proof: subProofs[i],
+        };
+      });
+      return { kind: 'tactic', method: method.methodText.trim(), methodLine: 0, cases };
+    }
+    return { kind: 'none', methodLine: 0 };
   }
 
   private resetMethod() {
@@ -126,6 +166,7 @@ export default class InlineProofBlock
       lines.push(
         <div key="calc">
           <InlineCalcBlock
+            ref={this.calcRef}
             env={env}
             goal={goalStr}
             defNames={defNames}
@@ -146,6 +187,7 @@ export default class InlineProofBlock
       lines.push(
         <div key="cases">
           <InlineCaseBlock
+            ref={this.caseRef}
             goals={method.goals}
             defNames={defNames}
             onComplete={onComplete}

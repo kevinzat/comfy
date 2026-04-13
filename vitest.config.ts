@@ -8,7 +8,13 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text'],
       include: ['src/**/*.ts'],  // no .tsx!
-      exclude: ['src/**/*.test.ts', 'src/**/*.d.ts', 'src/**/*.tsx', 'src/editor/**'],
+      exclude: [
+        'src/**/*.test.ts', 'src/**/*.d.ts', 'src/**/*.tsx',
+        'src/editor/ProofWidget.ts',
+        'src/editor/comfyHighlight.ts',
+        'src/editor/comfyLinter.ts',
+        'src/editor/proofPlugin.ts',
+      ],
       thresholds: {
         lines: 100,
         functions: 100,

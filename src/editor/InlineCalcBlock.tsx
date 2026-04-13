@@ -5,6 +5,7 @@ import { Formula, FormulaOp } from '../facts/formula';
 import { ParseFormula } from '../facts/formula_parser';
 import { Environment } from '../types/env';
 import { Match, FindForwardMatches, FindBackwardMatches, LongestCommonPrefix } from '../calc/calc_complete';
+import { CalcProofNode } from '../proof/proof_file';
 import { Step, applyForwardRule, applyBackwardRule, topFrontier, botFrontier, isComplete, checkValidity } from '../proof/calc_proof';
 import { ParseForwardRule } from '../calc/calc_forward';
 import { ParseBackwardRule } from '../calc/calc_backward';
@@ -47,6 +48,19 @@ export default class InlineCalcBlock
 
   private topInputRef = React.createRef<HTMLInputElement>();
   private botInputRef = React.createRef<HTMLInputElement>();
+
+  getCalcProofNode(): CalcProofNode {
+    const { goal, topLines, bottomLines } = this.state;
+    return {
+      kind: 'calculate',
+      forwardStart: { text: goal.left.to_string(), line: 0 },
+      forwardSteps: topLines.map(l => ({ ruleText: l.ruleText, line: 0 })),
+      backwardStart: bottomLines.length > 0
+          ? { text: goal.right.to_string(), line: 0 }
+          : null,
+      backwardSteps: bottomLines.map(l => ({ ruleText: l.ruleText, line: 0 })),
+    };
+  }
 
   constructor(props: InlineCalcBlockProps) {
     super(props);

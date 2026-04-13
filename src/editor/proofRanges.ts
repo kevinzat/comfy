@@ -43,8 +43,8 @@ export function findProofRanges(text: string): ProofRange[] {
 
     if (!isIndented(line) && trimmed.startsWith('prove ')) {
       const from = charOffset;
-      const nameMatch = trimmed.match(/^prove\s+(\S+)/);
-      const theoremName = nameMatch ? nameMatch[1] : '';
+      const nameMatch = trimmed.match(/^prove\s+(\S+)/)!;
+      const theoremName = nameMatch[1];
       // Advance past the prove line.
       charOffset += line.length + 1; // +1 for newline
       i++;

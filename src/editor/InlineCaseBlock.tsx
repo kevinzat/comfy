@@ -34,9 +34,12 @@ function formatTheoremName(thm: TheoremAst): string {
 export default class InlineCaseBlock
     extends React.Component<InlineCaseBlockProps, InlineCaseBlockState> {
 
+  proofBlockRefs: React.RefObject<InlineProofBlock>[];
+
   constructor(props: InlineCaseBlockProps) {
     super(props);
     this.state = { caseComplete: props.goals.map(() => false) };
+    this.proofBlockRefs = props.goals.map(() => React.createRef<InlineProofBlock>());
   }
 
   private handleCaseComplete(index: number, complete: boolean) {
@@ -91,6 +94,7 @@ export default class InlineCaseBlock
       lines.push(
         <div key={`proof-${idx}`}>
           <InlineProofBlock
+            ref={this.proofBlockRefs[idx]}
             formula={pg.goal.formula}
             env={pg.env}
             defNames={defNames}
