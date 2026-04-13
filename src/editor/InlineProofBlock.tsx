@@ -23,7 +23,6 @@ export interface InlineProofBlockProps {
   indent?: number;
   initialProof?: ProofNode;
   onComplete?: (complete: boolean) => void;
-  onCollapse?: () => void;
 }
 
 interface InlineProofBlockState {
@@ -32,6 +31,7 @@ interface InlineProofBlockState {
   method: ProofMethod;
   error: string | undefined;
   focus: boolean;
+  collapsed: boolean;
 }
 
 export default class InlineProofBlock
@@ -54,6 +54,7 @@ export default class InlineProofBlock
         method: { kind: 'calculate' },
         error: undefined,
         focus: false,
+        collapsed: false,
       };
     } else if (init?.kind === 'tactic') {
       const state = this.tryInitTactic(init.method, props);
@@ -75,6 +76,7 @@ export default class InlineProofBlock
       method: { kind: 'none' },
       error: undefined,
       focus: false,
+      collapsed: false,
     };
   }
 
@@ -92,6 +94,7 @@ export default class InlineProofBlock
         method: { kind: 'tactic', tactic: result.tactic, goals, methodText },
         error: undefined,
         focus: false,
+        collapsed: false,
       };
     } catch (_e) {
       return null;
@@ -191,9 +194,9 @@ export default class InlineProofBlock
   }
 
   render() {
-    const { formula, env, defNames, onComplete, onCollapse } = this.props;
+    const { formula, env, defNames, onComplete } = this.props;
     const indent = this.props.indent ?? 0;
-    const { method, matches, methodText, focus, error } = this.state;
+    const { method, matches, methodText, focus, error, collapsed } = this.state;
     const goalStr = formula.to_string();
 
     const indentClass = indent > 0 ? ` ip-indent-${Math.min(indent, 4)}` : '';
@@ -201,11 +204,32 @@ export default class InlineProofBlock
 
     const lines: JSX.Element[] = [];
 
-    // "prove <goal>" header.
+    // "prove <goal>" header, with "by <method>" on the same line when chosen.
+    const methodSuffix = method.kind === 'calculate'
+      ? <>{' '}<span className="ip-keyword">by</span> calculation</>
+      : method.kind === 'tactic'
+        ? <>{' '}<span className="ip-keyword">by</span> {method.methodText}</>
+        : null;
+    const hasMethod = method.kind !== 'none';
+    const canCollapse = hasMethod;
+
+    if (collapsed) {
+      return (
+        <div className={`ip-line${indentClass} ip-collapsed`}
+             onClick={() => this.setState({ collapsed: false })}>
+          <span className="ip-keyword">prove</span> <span className="ip-formula">{goalStr}</span>
+          {methodSuffix}{' '}
+          <span className="ip-collapse-hint">...</span>
+        </div>
+      );
+    }
+
     lines.push(
-      <div key="goal" className={`ip-line${indentClass}${onCollapse ? ' ip-collapsible' : ''}`}
-           onClick={onCollapse}>
+      <div key="goal" className={`ip-line${indentClass}${canCollapse ? ' ip-collapsible' : ''}${hasMethod ? ' ip-step' : ''}`}
+           onClick={canCollapse ? () => this.setState({ collapsed: true }) : undefined}>
         <span className="ip-keyword">prove</span> <span className="ip-formula">{goalStr}</span>
+        {methodSuffix}
+        {hasMethod && <span className="ip-delete" onClick={(e) => { e.stopPropagation(); this.resetMethod(); }}>&times;</span>}
       </div>
     );
 
@@ -218,17 +242,10 @@ export default class InlineProofBlock
             env={env}
             goal={goalStr}
             defNames={defNames}
+            indent={indent}
             initialCalc={this.initialCalc}
             onComplete={onComplete}
           />
-        </div>
-      );
-
-      // "by calculation" at the bottom.
-      lines.push(
-        <div key="method" className={`ip-line${bodyIndentClass} ip-step`}>
-          <span className="ip-keyword">by</span> calculation
-          <span className="ip-delete" onClick={() => this.resetMethod()}>&times;</span>
         </div>
       );
     } else if (method.kind === 'tactic') {
@@ -239,17 +256,10 @@ export default class InlineProofBlock
             ref={this.caseRef}
             goals={method.goals}
             defNames={defNames}
+            indent={indent}
             initialProofs={this.initialCaseProofs}
             onComplete={onComplete}
           />
-        </div>
-      );
-
-      // "by <method>" at the bottom.
-      lines.push(
-        <div key="method" className={`ip-line${bodyIndentClass} ip-step`}>
-          <span className="ip-keyword">by</span> {method.methodText}
-          <span className="ip-delete" onClick={() => this.resetMethod()}>&times;</span>
         </div>
       );
     } else {

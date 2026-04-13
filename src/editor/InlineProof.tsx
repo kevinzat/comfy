@@ -17,7 +17,6 @@ export interface InlineProofProps {
 }
 
 interface InlineProofState {
-  collapsed: boolean;
   complete: boolean;
 }
 
@@ -28,7 +27,7 @@ export default class InlineProof
 
   constructor(props: InlineProofProps) {
     super(props);
-    this.state = { collapsed: false, complete: false };
+    this.state = { complete: false };
   }
 
   /** Returns a ProofEntry for serialization (text/Lean export). */
@@ -45,8 +44,7 @@ export default class InlineProof
 
   render() {
     const { decls, obligation } = this.props;
-    const { collapsed, complete } = this.state;
-    const goalStr = obligation.goal.to_string();
+    const { complete } = this.state;
 
     if (!(obligation.goal instanceof AtomProp)) {
       return (
@@ -72,38 +70,23 @@ export default class InlineProof
 
     return (
       <div className={`ip ${bgClass}`}>
-        {/* Collapsed summary — shown when collapsed, click to expand. */}
-        {collapsed && (
-          <div className="ip-line ip-collapsed"
-               onClick={() => this.setState({ collapsed: false })}>
-            <span className="ip-keyword">prove</span>{' '}
-            <span className="ip-formula">{goalStr}</span>{' '}
-            <span className="ip-collapse-hint">...</span>
-          </div>
-        )}
-
-        {/* Given lines — hidden when collapsed. */}
-        {!collapsed && givens.map((g, i) => (
+        {givens.map((g, i) => (
           <div key={`given-${i}`} className="ip-line ip-indent-1">
             <span className="ip-given-keyword">given</span>{' '}
             {i + 1}. {g.formula.to_string()}
           </div>
         ))}
 
-        {/* Proof block — always mounted, hidden when collapsed. */}
-        <div style={collapsed ? { display: 'none' } : undefined}>
-          <InlineProofBlock
-            ref={this.proofBlockRef}
-            formula={goal}
-            env={proofEnv}
-            premise={premise}
-            defNames={defNames}
-            indent={0}
-            initialProof={this.props.initialProof}
-            onComplete={(c) => this.setState({ complete: c })}
-            onCollapse={() => this.setState({ collapsed: true })}
-          />
-        </div>
+        <InlineProofBlock
+          ref={this.proofBlockRef}
+          formula={goal}
+          env={proofEnv}
+          premise={premise}
+          defNames={defNames}
+          indent={0}
+          initialProof={this.props.initialProof}
+          onComplete={(c) => this.setState({ complete: c })}
+        />
       </div>
     );
   }

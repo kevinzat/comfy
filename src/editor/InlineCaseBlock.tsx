@@ -9,6 +9,7 @@ import InlineProofBlock from './InlineProofBlock';
 export interface InlineCaseBlockProps {
   goals: ProofGoal[];
   defNames: string[];
+  indent?: number;
   initialProofs?: ProofNode[];
   onComplete?: (complete: boolean) => void;
 }
@@ -45,16 +46,22 @@ export default class InlineCaseBlock
   }
 
   private handleCaseComplete(index: number, complete: boolean) {
-    const caseComplete = this.state.caseComplete.slice();
-    caseComplete[index] = complete;
-    this.setState({ caseComplete });
-    if (this.props.onComplete) {
-      this.props.onComplete(caseComplete.every(c => c));
-    }
+    this.setState(prev => {
+      const caseComplete = prev.caseComplete.slice();
+      caseComplete[index] = complete;
+      return { caseComplete };
+    }, () => {
+      if (this.props.onComplete) {
+        this.props.onComplete(this.state.caseComplete.every(c => c));
+      }
+    });
   }
 
   render() {
     const { goals, defNames } = this.props;
+    const indent = (this.props.indent ?? 0) + 1;
+    const indentClass = `ip-indent-${Math.min(indent, 4)}`;
+    const bodyIndentClass = `ip-indent-${Math.min(indent + 1, 4)}`;
     const lines: JSX.Element[] = [];
 
     for (let idx = 0; idx < goals.length; idx++) {
@@ -62,7 +69,7 @@ export default class InlineCaseBlock
 
       // Case header.
       lines.push(
-        <div key={`case-${idx}`} className="ip-line ip-indent-1">
+        <div key={`case-${idx}`} className={`ip-line ${indentClass}`}>
           <span className="ip-case-keyword">case</span> {pg.label}:
         </div>
       );
@@ -71,7 +78,7 @@ export default class InlineCaseBlock
       for (let i = 0; i < pg.newTheorems.length; i++) {
         const thm = pg.newTheorems[i];
         lines.push(
-          <div key={`ih-${idx}-${i}`} className="ip-line ip-indent-2">
+          <div key={`ih-${idx}-${i}`} className={`ip-line ${bodyIndentClass}`}>
             <span className="ip-given-keyword">given</span>{' '}
             {formatTheoremName(thm)}: {thm.conclusion.to_string()}
           </div>
@@ -84,7 +91,7 @@ export default class InlineCaseBlock
         const fact = pg.newFacts[i];
         if (!(fact instanceof AtomProp)) continue;
         lines.push(
-          <div key={`given-${idx}-${i}`} className="ip-line ip-indent-2">
+          <div key={`given-${idx}-${i}`} className={`ip-line ${bodyIndentClass}`}>
             <span className="ip-given-keyword">given</span>{' '}
             {parentNumFacts + i + 1}. {fact.formula.to_string()}
           </div>
@@ -100,7 +107,7 @@ export default class InlineCaseBlock
             formula={pg.goal.formula}
             env={pg.env}
             defNames={defNames}
-            indent={2}
+            indent={indent + 1}
             initialProof={this.props.initialProofs?.[idx]}
             onComplete={(c) => this.handleCaseComplete(idx, c)}
           />

@@ -24,6 +24,7 @@ export interface InlineCalcBlockProps {
   env: Environment;
   goal: string;
   defNames?: string[];
+  indent?: number;
   initialCalc?: CalcProofNode;
   onComplete?: (complete: boolean) => void;
 }
@@ -322,25 +323,33 @@ export default class InlineCalcBlock
   private renderStep(key: string, line: Line, onDelete?: () => void): JSX.Element {
     const rule = this.formatRule(line);
     return (
-      <div key={key} className="ip-line ip-indent-2 ip-step">
-        <span className="ip-formula">{line.op} {line.expr.to_string()}</span>
-        {rule && <span className="ip-rule">... {rule}</span>}
-        {onDelete && <span className="ip-delete" onClick={onDelete}>&times;</span>}
-      </div>
+      <tr key={key} className="ip-calc-row ip-step">
+        <td className="ip-calc-formula">
+          <span className="ip-formula">{line.op} {line.expr.to_string()}</span>
+        </td>
+        <td className="ip-calc-rule">
+          {rule && <span className="ip-rule">{rule}</span>}
+          {onDelete && <span className="ip-delete" onClick={onDelete}>&times;</span>}
+        </td>
+      </tr>
     );
   }
 
   render() {
     const { goal, topLines, bottomLines } = this.state;
+    const indent = (this.props.indent ?? 0) + 1;
     const complete = this.isComplete();
     const validityError = complete ? checkValidity(goal, topLines, bottomLines) : undefined;
-    const lines: JSX.Element[] = [];
+    const rows: JSX.Element[] = [];
 
     // Start expression.
-    lines.push(
-      <div key="start" className="ip-line ip-indent-2">
-        <span className="ip-formula">{goal.left.to_string()}</span>
-      </div>
+    rows.push(
+      <tr key="start" className="ip-calc-row">
+        <td className="ip-calc-formula">
+          <span className="ip-formula">{goal.left.to_string()}</span>
+        </td>
+        <td className="ip-calc-rule"></td>
+      </tr>
     );
 
     // Forward steps.
@@ -350,32 +359,41 @@ export default class InlineCalcBlock
     const topCount = skipLastTop ? topLines.length - 1 : topLines.length;
     for (let i = 0; i < topCount; i++) {
       const isLast = i === topLines.length - 1;
-      lines.push(this.renderStep(`top-${i}`, topLines[i],
+      rows.push(this.renderStep(`top-${i}`, topLines[i],
         isLast ? () => this.handleDelete('top') : undefined));
     }
 
     if (!complete) {
       // Forward input.
-      lines.push(
-        <div key="top-input" className="ip-line ip-indent-2">
-          <span className="ip-formula">= </span>
-          {this.renderInput('top')}
-        </div>
+      rows.push(
+        <tr key="top-input" className="ip-calc-row">
+          <td className="ip-calc-formula">
+            <span className="ip-formula">= </span>
+            {this.renderInput('top')}
+          </td>
+          <td className="ip-calc-rule"></td>
+        </tr>
       );
 
       // Separator.
-      lines.push(
-        <div key="sep" className="ip-line ip-indent-2">
-          <span className="ip-separator">---</span>
-        </div>
+      rows.push(
+        <tr key="sep" className="ip-calc-row">
+          <td className="ip-calc-formula">
+            <span className="ip-separator">---</span>
+          </td>
+          <td className="ip-calc-rule"></td>
+        </tr>
       );
 
       // Backward input.
-      lines.push(
-        <div key="bot-input" className="ip-line ip-indent-2">
-          <span className="ip-formula">= </span>
-          {this.renderInput('bottom')}
-        </div>
+      rows.push(
+        <tr key="bot-input" className="ip-calc-row">
+          <td className="ip-calc-formula">
+            <span className="ip-formula">= </span>
+            {this.renderInput('bottom')}
+          </td>
+          <td className="ip-calc-rule"></td>
+        </tr>
       );
     }
 
@@ -386,7 +404,13 @@ export default class InlineCalcBlock
     for (let i = bottomLines.length - 1; i >= 0; i--) {
       if (skipLastBot && i === bottomLines.length - 1) continue;
       const isLast = i === bottomLines.length - 1;
-      lines.push(this.renderStep(`bot-${i}`, bottomLines[i],
+      // When complete, backward steps are displayed in forward order.
+      // Each step's rule explains the backward transition, so shift:
+      // use the rule from bottomLines[i+1] which explains this forward step.
+      const displayLine = skipLastBot
+        ? { ...bottomLines[i], ruleText: bottomLines[i + 1].ruleText }
+        : bottomLines[i];
+      rows.push(this.renderStep(`bot-${i}`, displayLine,
         isLast ? () => this.handleDelete('bottom') : undefined));
     }
 
@@ -402,22 +426,35 @@ export default class InlineCalcBlock
       : skipLastBot
         ? () => this.handleDelete('bottom')
         : undefined;
-    lines.push(
-      <div key="end" className={`ip-line ip-indent-2${endDelete ? ' ip-step' : ''}`}>
-        <span className="ip-formula">{goal.op} {goal.right.to_string()}</span>
-        {lastRule && <span className="ip-rule">... {lastRule}</span>}
-        {endDelete && <span className="ip-delete" onClick={endDelete}>&times;</span>}
-      </div>
+    rows.push(
+      <tr key="end" className={`ip-calc-row${endDelete ? ' ip-step' : ''}`}>
+        <td className="ip-calc-formula">
+          <span className="ip-formula">{goal.op} {goal.right.to_string()}</span>
+        </td>
+        <td className="ip-calc-rule">
+          {lastRule && <span className="ip-rule">{lastRule}</span>}
+          {endDelete && <span className="ip-delete" onClick={endDelete}>&times;</span>}
+        </td>
+      </tr>
     );
 
+    const tableStyle = { marginLeft: `${indent * 2}ch` };
+    const indentClass = `ip-indent-${Math.min(indent, 4)}`;
+
+    const extra: JSX.Element[] = [];
     if (validityError) {
-      lines.push(
-        <div key="validity" className="ip-line ip-indent-2">
+      extra.push(
+        <div key="validity" className={`ip-line ${indentClass}`}>
           <span className="ip-validity-error">{validityError}</span>
         </div>
       );
     }
 
-    return <>{lines}</>;
+    return (
+      <>
+        <table className="ip-calc-table" style={tableStyle}><tbody>{rows}</tbody></table>
+        {extra}
+      </>
+    );
   }
 }

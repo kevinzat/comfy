@@ -62,7 +62,6 @@
 
 .ip-rule {
   color: #888;
-  margin-left: 2ch;
 }
 
 .ip-separator {
@@ -115,6 +114,20 @@
 .ip-indent-2 { padding-left: 4ch; }
 .ip-indent-3 { padding-left: 6ch; }
 .ip-indent-4 { padding-left: 8ch; }
+
+.ip-calc-table {
+  border-collapse: collapse;
+}
+
+.ip-calc-formula {
+  white-space: pre;
+  color: #333;
+}
+
+.ip-calc-rule {
+  white-space: nowrap;
+  padding-left: 3ch;
+}
 
 .ip-step .ip-delete {
   visibility: hidden;
