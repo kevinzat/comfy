@@ -556,7 +556,7 @@ describe('oblToLean', function() {
     };
     const caseBlock: CaseBlock = {
       label: 'false', ihTheorems: [], givens: [],
-      goal: 'false', goalLine: 1, proof: calcProof,
+      goal: new ConstProp(false), goalLine: 1, proof: calcProof,
     };
     const proof: TacticProofNode = {
       kind: 'tactic', method: 'absurdum', methodLine: 1,
@@ -583,6 +583,19 @@ describe('oblToLean', function() {
     const lean = toLean(pf);
     assert.ok(lean.includes('exact absurd'));
     assert.ok(lean.includes('x < 0'));
+  });
+
+  it('generates auto tactic in Lean as omega', function() {
+    const proof: TacticProofNode = {
+      kind: 'tactic', method: 'auto', methodLine: 1,
+      cases: [],
+    };
+    const goal = new AtomProp(new Formula(Variable.of('x'), '=', Variable.of('x')));
+    const thm = new TheoremAst('test_auto', [['x', 'Int']], [], goal, 1);
+    const decls = new DeclsAst([], [], [thm]);
+    const pf: ProofFile = { items: [{ kind: 'decls', decls, startLine: 1 }, { kind: 'proof', entry: { theoremName: 'test_auto', theoremLine: 1, givens: [], proof } }] };
+    const lean = toLean(pf);
+    assert.ok(lean.includes('omega'));
   });
 
   it('generates type cases in Lean', function() {
@@ -621,7 +634,8 @@ prove foo by cases on xs
     };
     const caseBlock: CaseBlock = {
       label: 'x = 0', ihTheorems: [], givens: [],
-      goal: 'x = 0', goalLine: 1, proof: calcProof,
+      goal: new AtomProp(new Formula(Variable.of('x'), '=', Constant.of(0n))),
+      goalLine: 1, proof: calcProof,
     };
     const proof: TacticProofNode = {
       kind: 'tactic', method: 'left', methodLine: 1,
@@ -647,11 +661,13 @@ prove foo by cases on xs
     };
     const haveCase: CaseBlock = {
       label: 'x < 1', ihTheorems: [], givens: [],
-      goal: 'x < 1', goalLine: 1, proof: calcProof,
+      goal: new AtomProp(new Formula(Variable.of('x'), '<', Constant.of(1n))),
+      goalLine: 1, proof: calcProof,
     };
     const mainCase: CaseBlock = {
       label: 'x = 0', ihTheorems: [], givens: [],
-      goal: 'x = 0', goalLine: 2, proof: calcProof,
+      goal: new AtomProp(new Formula(Variable.of('x'), '=', Constant.of(0n))),
+      goalLine: 2, proof: calcProof,
     };
     const proof: TacticProofNode = {
       kind: 'tactic', method: 'have x < 1', methodLine: 1,
@@ -674,7 +690,8 @@ prove foo by cases on xs
     };
     const caseBlock: CaseBlock = {
       label: 'y = 0', ihTheorems: [], givens: [],
-      goal: 'y = 0', goalLine: 1, proof: calcProof,
+      goal: new AtomProp(new Formula(Variable.of('y'), '=', Constant.of(0n))),
+      goalLine: 1, proof: calcProof,
     };
     const proof: TacticProofNode = {
       kind: 'tactic', method: 'right', methodLine: 1,
@@ -698,17 +715,22 @@ prove foo by cases on xs
       forwardStart: null, forwardSteps: [],
       backwardStart: null, backwardSteps: [],
     };
+    const xEqX = new AtomProp(new Formula(Variable.of('x'), '=', Variable.of('x')));
     const case1: CaseBlock = {
       label: 'x < 0 or 0 <= x', ihTheorems: [], givens: [],
-      goal: 'x < 0 or 0 <= x', goalLine: 1, proof: calcProof,
+      goal: new OrProp([
+        new AtomProp(new Formula(Variable.of('x'), '<', Constant.of(0n))),
+        new AtomProp(new Formula(Constant.of(0n), '<=', Variable.of('x'))),
+      ]),
+      goalLine: 1, proof: calcProof,
     };
     const case2: CaseBlock = {
       label: 'x < 0', ihTheorems: [], givens: [],
-      goal: 'x = x', goalLine: 2, proof: calcProof,
+      goal: xEqX, goalLine: 2, proof: calcProof,
     };
     const case3: CaseBlock = {
       label: '0 <= x', ihTheorems: [], givens: [],
-      goal: 'x = x', goalLine: 3, proof: calcProof,
+      goal: xEqX, goalLine: 3, proof: calcProof,
     };
     const proof: TacticProofNode = {
       kind: 'tactic', method: 'cases x < 0 or 0 <= x', methodLine: 1,

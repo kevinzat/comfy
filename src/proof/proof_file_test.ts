@@ -100,7 +100,7 @@ describe('parseProofFile', () => {
     const pf = parseOk(source);
     assert.strictEqual(firstProof(pf).givens.length, 1);
     assert.strictEqual(firstProof(pf).givens[0].index, 1);
-    assert.strictEqual(firstProof(pf).givens[0].text, 'x = y');
+    assert.strictEqual(firstProof(pf).givens[0].prop.to_string(), 'x = y');
   });
 
   it('returns error on unrecognized calc rule but keeps good steps', () => {
@@ -169,14 +169,14 @@ describe('parseProofFile', () => {
     const source = [
       'prove foo by induction on n',
       '  case zero:',
-      '  prove stuff',
+      '  prove a = a',
     ].join('\n');
     const pf = parseOk(source);
     const proof = firstProof(pf).proof;
     assert.strictEqual(proof.kind, 'tactic');
     if (proof.kind === 'tactic') {
       assert.strictEqual(proof.cases.length, 1);
-      assert.strictEqual(proof.cases[0].goal, 'stuff');
+      assert.strictEqual(proof.cases[0].goal.to_string(), 'a = a');
       assert.strictEqual(proof.cases[0].proof.kind, 'none');
     }
   });
@@ -195,14 +195,14 @@ describe('parseProofFile', () => {
 
   it('parses case block with givens', () => {
     const source = [
-      'prove foo by simple cases on x > 0',
+      'prove foo by simple cases on 0 < x',
       '  case then:',
-      '  given 1. x > 0',
+      '  given 1. 0 < x',
       '  prove x = x by calculation',
       '    x',
       '    = x',
       '  case else:',
-      '  given 1. not (x > 0)',
+      '  given 1. not (0 < x)',
       '  prove x = x by calculation',
       '    x',
       '    = x',
@@ -463,7 +463,7 @@ describe('parseProofFile', () => {
     const source = [
       'prove foo by induction on n',
       '  case zero:',
-      '  prove stuff',
+      '  prove a = a',
       '  case succ:',
       '  prove x = x by calculation',
       '    x',

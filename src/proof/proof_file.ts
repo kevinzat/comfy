@@ -1,6 +1,7 @@
 import { DeclsAst } from '../lang/decls_ast';
 import { ParseDecls, ParsePremises } from '../lang/decls_parser';
-import { Prop } from '../facts/prop';
+import { Prop, ConstProp } from '../facts/prop';
+import { ParseProp } from '../facts/props_parser';
 import { parseTacticMethod } from './proof_tactic';
 
 
@@ -23,7 +24,7 @@ export interface CalcProofNode {
 
 export interface GivenLine {
   index: number;
-  text: string;
+  prop: Prop;
   line: number;
 }
 
@@ -31,7 +32,7 @@ export interface IHLine {
   name: string;
   params: [string, string][];
   premises: Prop[];
-  formula: string;
+  conclusion: Prop;
   line: number;
 }
 
@@ -39,7 +40,7 @@ export interface CaseBlock {
   label: string;
   ihTheorems: IHLine[];
   givens: GivenLine[];
-  goal: string;
+  goal: Prop;
   goalLine: number;
   proof: ProofNode;
 }
@@ -276,7 +277,7 @@ function parseCaseBlock(lines: Lines): CaseBlock | null {
     // Split on => for optional premises.
     const arrowIdx = body.indexOf('=>');
     let premises: Prop[];
-    let formula: string;
+    let conclusionText: string;
     if (arrowIdx !== -1) {
       const premiseText = body.substring(0, arrowIdx).trim();
       try {
@@ -285,31 +286,29 @@ function parseCaseBlock(lines: Lines): CaseBlock | null {
         lines.errors.push(new ParseError(entry.line, `bad IH premise: ${e.message}`));
         continue;
       }
-      formula = body.substring(arrowIdx + 2).trim();
+      conclusionText = body.substring(arrowIdx + 2).trim();
     } else {
       premises = [];
-      formula = body;
+      conclusionText = body;
     }
-    ihTheorems.push({ name, params, premises, formula, line: entry.line });
+    let conclusion: Prop;
+    try {
+      conclusion = ParseProp(conclusionText);
+    } catch (e: any) {
+      lines.errors.push(new ParseError(entry.line, `bad IH formula: ${e.message}`));
+      continue;
+    }
+    ihTheorems.push({ name, params, premises, conclusion, line: entry.line });
   }
 
   // Parse optional "given N. <formula>" lines (cases-on conditions).
-  const givens: GivenLine[] = [];
-  while (true) {
-    const next = peekLine(lines);
-    if (next === undefined) break;
-    const givenMatch = next.trim().match(/^given\s+(\d+)\.\s+(.+)$/);
-    if (!givenMatch) break;
-    const entry = readLine(lines);
-    givens.push({ index: parseInt(givenMatch[1]), text: givenMatch[2], line: entry.line });
-  }
+  const givens = parseGivenLines(lines);
 
   // Parse "prove <formula> by <method>"
   const provePeek = peekLine(lines);
   if (provePeek === undefined || !provePeek.trim().startsWith('prove ')) {
     lines.errors.push(new ParseError(headerLine.line, 'expected "prove" after case header'));
-    return { label, ihTheorems, givens, goal: '', goalLine: headerLine.line,
-        proof: { kind: 'none', methodLine: headerLine.line } };
+    return placeholderCaseBlock(label, ihTheorems, givens, headerLine.line);
   }
   const proveEntry = readLine(lines);
   const proveTrimmed = proveEntry.text.trim();
@@ -318,17 +317,56 @@ function parseCaseBlock(lines: Lines): CaseBlock | null {
   /* v8 ignore start */
   if (!proveMatch && !goalOnlyMatch) {
     lines.errors.push(new ParseError(proveEntry.line, 'expected "prove <formula> by <method>"'));
-    return { label, ihTheorems, givens, goal: '', goalLine: proveEntry.line,
-        proof: { kind: 'none', methodLine: proveEntry.line } };
+    return placeholderCaseBlock(label, ihTheorems, givens, proveEntry.line);
   }
   /* v8 ignore stop */
-  const goal = proveMatch ? proveMatch[1] : goalOnlyMatch![1];
+  const goalText = proveMatch ? proveMatch[1] : goalOnlyMatch![1];
+  let goal: Prop;
+  try {
+    goal = ParseProp(goalText);
+  } catch (e: any) {
+    lines.errors.push(new ParseError(proveEntry.line, `bad goal: ${e.message}`));
+    return placeholderCaseBlock(label, ihTheorems, givens, proveEntry.line);
+  }
   const proof = proveMatch
       ? parseMethod(proveMatch[2], proveEntry.line, lines.errors)
       : { kind: 'none' as const, methodLine: proveEntry.line };
   parseProofBody(lines, proof);
 
   return { label, ihTheorems, givens, goal, goalLine: proveEntry.line, proof };
+}
+
+/** Builds a placeholder CaseBlock used when parsing aborts after an error. */
+function placeholderCaseBlock(
+    label: string, ihTheorems: IHLine[], givens: GivenLine[],
+    line: number): CaseBlock {
+  return {
+    label, ihTheorems, givens,
+    goal: new ConstProp(false),
+    goalLine: line,
+    proof: { kind: 'none', methodLine: line },
+  };
+}
+
+/** Parses a run of "given N. <formula>" lines; stops at the first non-given line. */
+function parseGivenLines(lines: Lines): GivenLine[] {
+  const givens: GivenLine[] = [];
+  while (true) {
+    const next = peekLine(lines);
+    if (next === undefined) break;
+    const givenMatch = next.trim().match(/^given\s+(\d+)\.\s+(.+)$/);
+    if (!givenMatch) break;
+    const entry = readLine(lines);
+    let prop: Prop;
+    try {
+      prop = ParseProp(givenMatch[2]);
+    } catch (e: any) {
+      lines.errors.push(new ParseError(entry.line, `bad given: ${e.message}`));
+      continue;
+    }
+    givens.push({ index: parseInt(givenMatch[1]), prop, line: entry.line });
+  }
+  return givens;
 }
 
 /** True if the line is indented (starts with whitespace). */
@@ -395,16 +433,7 @@ export function parseProofFile(source: string): ParseResult {
       const lines: Lines = { raw: stripped, pos: 0, lineOffset: proveIdx + 1, errors };
 
       // Parse optional top-level "given N. <formula>" lines (premise).
-      const givens: GivenLine[] = [];
-      while (true) {
-        const next = peekLine(lines);
-        if (next === undefined) break;
-        const givenMatch = next.trim().match(/^given\s+(\d+)\.\s+(.+)$/);
-        if (!givenMatch) break;
-        const entry = readLine(lines);
-        givens.push({ index: parseInt(givenMatch[1]), text: givenMatch[2],
-            line: entry.line });
-      }
+      const givens = parseGivenLines(lines);
 
       parseProofBody(lines, proofNode);
 
@@ -429,13 +458,10 @@ export function parseProofFile(source: string): ParseResult {
     // out in source-file (not block-local) coordinates.
     const declsResult = ParseDecls(declText, { startLine: declStart + 1 });
     for (const e of declsResult.errors) {
-      // ParseDecls messages carry a "line X col Y:" prefix that now uses
-      // source-absolute line numbers. Strip it — the ParseError line is the
-      // authoritative location.
-      const m = e.match(/^line (\d+) col \d+:\s*(.+)$/);
-      const line = m ? parseInt(m[1]) : declStart + 1;
-      const msg = m ? m[2] : e;
-      errors.push(new ParseError(line, `declaration error: ${msg}`));
+      // ParseDecls messages carry a "line X col Y:" prefix with source-absolute
+      // line numbers. Strip it — the ParseError line is the authoritative location.
+      const m = e.match(/^line (\d+) col \d+:\s*(.+)$/)!;
+      errors.push(new ParseError(parseInt(m[1]), `declaration error: ${m[2]}`));
     }
     items.push({ kind: 'decls', decls: declsResult.ast, startLine: declStart + 1 });
   }

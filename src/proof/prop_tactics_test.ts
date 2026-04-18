@@ -176,6 +176,13 @@ describe('absurdum', function() {
     assert.strictEqual(result.kind, 'tactic');
   });
 
+  it('rejects "absurdum" when the goal is not a negation', function() {
+    const atomGoal = new AtomProp(ParseFormula('x = 0'));
+    const result = ParseProofMethod('absurdum', atomGoal, env, []);
+    assert.ok(typeof result === 'string');
+    assert.ok(/negation/.test(result));
+  });
+
   it('decompose returns one goal: false in env with P added', function() {
     // Goal is "not x < 0", so P is "x < 0"
     const goalFormula = ParseFormula('x < 0');
@@ -215,6 +222,13 @@ describe('left', function() {
     assert.strictEqual(result.kind, 'tactic');
   });
 
+  it('rejects "left" when the goal is neither a disjunction nor not(a = b)', function() {
+    const atomGoal = new AtomProp(ParseFormula('x = 0'));
+    const result = ParseProofMethod('left', atomGoal, env, []);
+    assert.ok(typeof result === 'string');
+    assert.ok(/disjunction/.test(result));
+  });
+
   it('decompose returns first disjunct as goal', function() {
     const p: Literal = new AtomProp(ParseFormula('x < 0'));
     const q: Literal = new AtomProp(ParseFormula('0 <= x'));
@@ -247,6 +261,13 @@ describe('left', function() {
     assert.strictEqual(goals[0].goal.to_string(), 'x < 0');
   });
 
+  it('parses "left" against a not(a = b) goal', function() {
+    const notEqGoal = new NotProp(ParseFormula('x = 0'));
+    const result = ParseProofMethod('left', notEqGoal, env, []);
+    assert.ok(typeof result !== 'string');
+    assert.strictEqual(result.kind, 'tactic');
+  });
+
   it('autocompletes "le" to "left"', function() {
     const matches = FindProofMethodMatches('le', formula, env);
     assert.ok(matches.some(m => m.completion === 'left'));
@@ -267,6 +288,13 @@ describe('right', function() {
     const result = ParseProofMethod('right', orGoal, env, []);
     assert.ok(typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
+  });
+
+  it('rejects "right" when the goal is neither a disjunction nor not(a = b)', function() {
+    const atomGoal = new AtomProp(ParseFormula('x = 0'));
+    const result = ParseProofMethod('right', atomGoal, env, []);
+    assert.ok(typeof result === 'string');
+    assert.ok(/disjunction/.test(result));
   });
 
   it('decompose returns second disjunct as goal', function() {
@@ -298,6 +326,13 @@ describe('right', function() {
     const goals = tactic.decompose();
     assert.strictEqual(goals.length, 1);
     assert.strictEqual(goals[0].goal.to_string(), '0 < x');
+  });
+
+  it('parses "right" against a not(a = b) goal', function() {
+    const notEqGoal = new NotProp(ParseFormula('x = 0'));
+    const result = ParseProofMethod('right', notEqGoal, env, []);
+    assert.ok(typeof result !== 'string');
+    assert.strictEqual(result.kind, 'tactic');
   });
 
   it('autocompletes "ri" to "right"', function() {

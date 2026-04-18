@@ -11,6 +11,7 @@ import { calculationParser } from './calc_proof';
 import { VerumTactic, verumParser, ExfalsoTactic, exfalsoParser, ContradictionTactic, contradictionParser, AbsurdumTactic, absurdumParser, LeftTactic, leftParser, RightTactic, rightParser, DisjCasesTactic, disjCasesParser, HaveTactic, haveParser } from './prop_tactics';
 import { ParseProp } from '../facts/props_parser';
 import { TypeCasesTactic, typeCasesParser } from './type_cases';
+import { AutoTactic, autoParser } from './auto';
 
 
 export interface ProofGoal {
@@ -39,7 +40,8 @@ export type TacticMethod =
   | { kind: 'right' }
   | { kind: 'disj_cases'; condition: string }
   | { kind: 'type_cases'; varName: string; argNames?: string[] }
-  | { kind: 'have'; condition: string };
+  | { kind: 'have'; condition: string }
+  | { kind: 'auto'; refs: number[] };
 
 export function parseTacticMethod(text: string): TacticMethod | null {
   const trimmed = text.trim();
@@ -86,6 +88,14 @@ export function parseTacticMethod(text: string): TacticMethod | null {
     return { kind: 'simple_cases', condition: casesMatch[1] };
   }
 
+  const autoMatch = trimmed.match(/^auto(?:\s+(\d+(?:\s+\d+)*))?$/);
+  if (autoMatch) {
+    const refs = autoMatch[1]
+        ? autoMatch[1].split(/\s+/).map(s => parseInt(s, 10))
+        : [];
+    return { kind: 'auto', refs };
+  }
+
   return null;
 }
 
@@ -114,6 +124,7 @@ const parsers: ProofMethodParser[] = [
   disjCasesParser,
   typeCasesParser,
   haveParser,
+  autoParser,
 ];
 
 export function ParseProofMethod(
@@ -200,5 +211,7 @@ export function CreateProofTactic(
       return new TypeCasesTactic(goal, env, method);
     case 'have':
       return new HaveTactic(env, goal, ParseProp(method.condition));
+    case 'auto':
+      return new AutoTactic(env, goal, method.refs);
   }
 }

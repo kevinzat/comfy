@@ -67,14 +67,14 @@ export default class ProofBlock
         name: thm.name,
         params: thm.params,
         premises: thm.premises,
-        formula: thm.conclusion.to_string(),
+        conclusion: thm.conclusion,
         line: 0,
       }));
       return {
         label: pg.label,
         ihTheorems,
         givens: [],
-        goal: pg.goal.to_string(),
+        goal: pg.goal,
         goalLine: 0,
         proof: subProofs[i],
       };

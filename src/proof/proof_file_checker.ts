@@ -1,5 +1,3 @@
-import { Formula } from '../facts/formula';
-import { ParseFormula } from '../facts/formula_parser';
 import { Prop } from '../facts/prop';
 import { Environment, TopLevelEnv, NestedEnv } from '../types/env';
 import { UserError } from '../facts/user_error';
@@ -41,15 +39,9 @@ function checkGivens(
           `expected fact number ${expectedIdx}, got ${g.index}`);
     }
     const actual = env.getFact(g.index);
-    let parsed;
-    try {
-      parsed = ParseFormula(g.text);
-    } catch (e: any) {
-      throw new CheckError(g.line, `bad given formula: ${e.message}`);
-    }
-    if (parsed.to_string() !== actual.to_string()) {
+    if (g.prop.to_string() !== actual.to_string()) {
       throw new CheckError(g.line,
-          `given ${g.index} is ${actual.to_string()}, not ${parsed.to_string()}`);
+          `given ${g.index} is ${actual.to_string()}, not ${g.prop.to_string()}`);
     }
   }
 }
@@ -109,15 +101,9 @@ function checkIHTheorems(
       }
     }
     // Check conclusion.
-    let parsed: Formula;
-    try {
-      parsed = ParseFormula(ih.formula);
-    } catch (e: any) {
-      throw new CheckError(ih.line, `bad IH formula: ${e.message}`);
-    }
-    if (parsed.to_string() !== exp.conclusion.to_string()) {
+    if (ih.conclusion.to_string() !== exp.conclusion.to_string()) {
       throw new CheckError(ih.line,
-          `IH ${ih.name} is ${exp.conclusion.to_string()}, not ${parsed.to_string()}`);
+          `IH ${ih.name} is ${exp.conclusion.to_string()}, not ${ih.conclusion.to_string()}`);
     }
   }
 }
@@ -132,15 +118,9 @@ function checkCaseBlock(
   checkGivens(block.givens, env, parentFactCount);
 
   // Check stated goal matches the expected goal.
-  let statedGoal;
-  try {
-    statedGoal = ParseFormula(block.goal);
-  } catch (e: any) {
-    throw new CheckError(block.goalLine, `bad goal formula: ${e.message}`);
-  }
-  if (statedGoal.to_string() !== goal.to_string()) {
+  if (block.goal.to_string() !== goal.to_string()) {
     throw new CheckError(block.goalLine,
-        `stated goal ${statedGoal.to_string()} does not match ` +
+        `stated goal ${block.goal.to_string()} does not match ` +
         `expected goal ${goal.to_string()}`);
   }
 
@@ -224,9 +204,12 @@ export function checkProofFile(pf: ProofFile): CheckResult {
   const provedTheorems: TheoremAst[] = [];    // theorems proved so far
 
   const captureError = (e: unknown): void => {
+    /* v8 ignore start */
+    if (!(e instanceof CheckError || e instanceof UserError))
+      throw new Error(`unexpected error: ${String(e)}`);
+    /* v8 ignore stop */
     if (e instanceof CheckError) errors.push(e);
-    else if (e instanceof UserError) errors.push(CheckError.fromUserError(e));
-    else throw e;
+    else errors.push(CheckError.fromUserError(e));
   };
 
   for (const item of pf.items) {
@@ -251,8 +234,7 @@ export function checkProofFile(pf: ProofFile): CheckResult {
 
   // Final validation: build an env with all accumulated declarations. This
   // catches errors in theorems or functions that were never referenced by a
-  // proof (including decls-only files). Errors here may overlap with ones
-  // already surfaced via checkProofEntry, so dedupe at the end.
+  // proof (including decls-only files).
   try {
     const env = new TopLevelEnv(types, functions, [],
         [...provedTheorems, ...declaredTheorems]);
@@ -261,13 +243,5 @@ export function checkProofFile(pf: ProofFile): CheckResult {
     captureError(e);
   }
 
-  const seen = new Set<string>();
-  const deduped: CheckError[] = [];
-  for (const e of errors) {
-    const key = `${e.line}:${e.col}:${e.message}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    deduped.push(e);
-  }
-  return { errors: deduped };
+  return { errors };
 }

@@ -104,10 +104,11 @@ function serializeCaseBlock(block: CaseBlock): string[] {
 
   // "prove <goal> by <method>" line.
   const methodStr = proofMethodString(block.proof);
+  const goalStr = block.goal.to_string();
   if (methodStr) {
-    lines.push(`prove ${block.goal} by ${methodStr}`);
+    lines.push(`prove ${goalStr} by ${methodStr}`);
   } else {
-    lines.push(`prove ${block.goal}`);
+    lines.push(`prove ${goalStr}`);
   }
 
   // Nested proof body (indented one more level).
@@ -120,7 +121,7 @@ function serializeCaseBlock(block: CaseBlock): string[] {
 }
 
 function serializeGiven(g: GivenLine): string {
-  return `given ${g.index}. ${g.text}`;
+  return `given ${g.index}. ${g.prop.to_string()}`;
 }
 
 function serializeIH(ih: IHLine): string {
@@ -130,7 +131,7 @@ function serializeIH(ih: IHLine): string {
   const premiseStr = ih.premises.length > 0
       ? ih.premises.map(p => p.to_string()).join(', ') + ' => '
       : '';
-  return `given ${ih.name}${params} : ${premiseStr}${ih.formula}`;
+  return `given ${ih.name}${params} : ${premiseStr}${ih.conclusion.to_string()}`;
 }
 
 function serializeIHParams(params: [string, string][]): string {

@@ -10,6 +10,9 @@ import { findProofRanges } from './proofRanges';
 import InlineProof, { InlineProofProps } from './InlineProof';
 
 
+const widgetForDOM = new WeakMap<HTMLElement, ProofWidget>();
+
+
 export class ProofWidget extends WidgetType {
   private root: ReturnType<typeof createRoot> | null = null;
   /** Reference to the InlineProof component for extracting proof state. */
@@ -43,7 +46,7 @@ export class ProofWidget extends WidgetType {
       onStateChange: () => this.scheduleSync(),
     };
     this.root.render(React.createElement(InlineProof, props));
-    (container as any).__proofWidget = this;
+    widgetForDOM.set(container, this);
   }
 
   toDOM(view: EditorView): HTMLElement {
@@ -68,7 +71,7 @@ export class ProofWidget extends WidgetType {
    * in-progress input) survives decls edits that change `declsHash`.
    */
   updateDOM(dom: HTMLElement, view: EditorView): boolean {
-    const oldWidget = (dom as any).__proofWidget as ProofWidget | undefined;
+    const oldWidget = widgetForDOM.get(dom);
     if (!oldWidget || !oldWidget.root) return false;
 
     this.view = view;

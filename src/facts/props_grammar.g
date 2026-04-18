@@ -12,6 +12,7 @@ const lexer2 = util.makeLexer(moo, {
   notequal: '/=',
   equal: '=',
   constant: /[0-9]+/,
+  typeName: /[A-Z][_a-zA-Z0-9]*/,
   variable: { match: /[a-z][_a-zA-Z0-9]*/, type: moo.keywords({
     kw_or: 'or', kw_not: 'not', kw_true: 'true', kw_false: 'false'
   }) },
@@ -29,3 +30,8 @@ Main -> Prop {% ([a]) => a %}
 @include "./expr_rules.g"
 
 @include "./prop_rules.g"
+
+Primary -> %typeName
+      {% ([a]) => new exprs.Variable(a.text, a.line, a.col) %}
+    | %typeName %lparen Exprs %rparen
+      {% ([a, b, c, d]) => new exprs.Call(a.text, list_to_array(c, true), a.line, a.col) %}

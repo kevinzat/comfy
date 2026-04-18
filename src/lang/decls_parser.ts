@@ -65,7 +65,7 @@ export function ParseDecls(text: string, options: ParseDeclsOptions = {}): Decls
       const tok = gatedLexer.peek();
       hasPeeked = false;
       peeked = undefined;
-      if (tok) lastTok = tok;
+      lastTok = tok;
       return tok;
     },
     startDecl() { first = true; },
@@ -118,12 +118,12 @@ export function ParseDecls(text: string, options: ParseDeclsOptions = {}): Decls
         // Incomplete declaration (gate closed or EOF before a full Decl).
         // Cite the last token consumed, since that's the farthest the parser
         // reached — more helpful than pointing at the decl keyword.
-        const pos = gatedLexer.getLastTok() ?? tok;
+        const pos = gatedLexer.getLastTok();
         errors.push(`line ${pos.line} col ${pos.col}: incomplete ${tok.value} declaration`);
       }
     } catch (e: any) {
       // Nearley attaches the rejected token as e.token; prefer its position.
-      const pos = e.token ?? gatedLexer.getLastTok() ?? tok;
+      const pos = e.token ?? gatedLexer.getLastTok();
       errors.push(`line ${pos.line} col ${pos.col}: ${shortenNearleyError(e.message)}`);
       // Skip remaining tokens until the next declaration keyword.
       while (gatedLexer.peek() && !DECL_KEYWORDS.has(gatedLexer.peek().type)) {

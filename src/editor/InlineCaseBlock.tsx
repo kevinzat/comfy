@@ -1,6 +1,6 @@
 import React from 'react';
 import { AtomProp, NotProp } from '../facts/prop';
-import { OP_EQUAL } from '../facts/formula';
+import { Formula, OP_EQUAL } from '../facts/formula';
 import { TheoremAst } from '../lang/theorem_ast';
 import { ProofGoal } from '../proof/proof_tactic';
 import { ProofNode } from '../proof/proof_file';
@@ -102,9 +102,16 @@ export default class InlineCaseBlock
 
       // Nested proof block for this case. Accept AtomProp goals and
       // NotProp(a = b) goals (the only NotProp shape the calc checker supports).
-      const isNotEq = pg.goal instanceof NotProp && pg.goal.formula.op === OP_EQUAL;
-      if (!(pg.goal instanceof AtomProp) && !isNotEq) continue;
-      const goalFormula = (pg.goal as AtomProp | NotProp).formula;
+      let goalFormula: Formula;
+      let isNotEq = false;
+      if (pg.goal instanceof AtomProp) {
+        goalFormula = pg.goal.formula;
+      } else if (pg.goal instanceof NotProp && pg.goal.formula.op === OP_EQUAL) {
+        goalFormula = pg.goal.formula;
+        isNotEq = true;
+      } else {
+        continue;
+      }
       lines.push(
         <div key={`proof-${idx}`}>
           <InlineProofBlock

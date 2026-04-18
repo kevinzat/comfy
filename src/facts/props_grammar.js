@@ -15,6 +15,7 @@ const lexer2 = util.makeLexer(moo, {
   notequal: '/=',
   equal: '=',
   constant: /[0-9]+/,
+  typeName: /[A-Z][_a-zA-Z0-9]*/,
   variable: { match: /[a-z][_a-zA-Z0-9]*/, type: moo.keywords({
     kw_or: 'or', kw_not: 'not', kw_true: 'true', kw_false: 'false'
   }) },
@@ -55,7 +56,9 @@ var grammar = {
     {"name": "Literal", "symbols": [(lexer2.has("kw_false") ? {type: "kw_false"} : kw_false)], "postprocess": () => new prop.ConstProp(false)},
     {"name": "Formula", "symbols": ["Expr", (lexer2.has("equal") ? {type: "equal"} : equal), "Expr"], "postprocess": ([l, _op, r]) => new formula.Formula(l, '=', r)},
     {"name": "Formula", "symbols": ["Expr", (lexer2.has("lessthan") ? {type: "lessthan"} : lessthan), "Expr"], "postprocess": ([l, _op, r]) => new formula.Formula(l, '<', r)},
-    {"name": "Formula", "symbols": ["Expr", (lexer2.has("lessequal") ? {type: "lessequal"} : lessequal), "Expr"], "postprocess": ([l, _op, r]) => new formula.Formula(l, '<=', r)}
+    {"name": "Formula", "symbols": ["Expr", (lexer2.has("lessequal") ? {type: "lessequal"} : lessequal), "Expr"], "postprocess": ([l, _op, r]) => new formula.Formula(l, '<=', r)},
+    {"name": "Primary", "symbols": [(lexer2.has("typeName") ? {type: "typeName"} : typeName)], "postprocess": ([a]) => new exprs.Variable(a.text, a.line, a.col)},
+    {"name": "Primary", "symbols": [(lexer2.has("typeName") ? {type: "typeName"} : typeName), (lexer2.has("lparen") ? {type: "lparen"} : lparen), "Exprs", (lexer2.has("rparen") ? {type: "rparen"} : rparen)], "postprocess": ([a, b, c, d]) => new exprs.Call(a.text, list_to_array(c, true), a.line, a.col)}
 ]
   , ParserStart: "Main"
 };

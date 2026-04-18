@@ -2,6 +2,7 @@ import * as assert from 'assert';
 import { Prop, AtomProp, NotProp, OrProp } from './prop';
 import { Formula } from './formula';
 import { ParseProp } from './props_parser';
+import { UserError } from './user_error';
 
 
 /** Converts a Prop to a string for structural comparison in tests. */
@@ -94,12 +95,22 @@ describe('props_parser', function() {
     assert.strictEqual((result as NotProp).formula.op, '<');
   });
 
-  it('throws syntax error on empty input', function() {
-    assert.throws(() => ParseProp(''), /syntax error/);
+  it('throws UserError on empty input', function() {
+    assert.throws(
+        () => ParseProp(''),
+        (e: unknown) => e instanceof UserError && /syntax error/.test(e.message));
   });
 
-  it('throws syntax error on incomplete proposition', function() {
-    assert.throws(() => ParseProp('x = '), /syntax error/);
+  it('throws UserError on incomplete proposition', function() {
+    assert.throws(
+        () => ParseProp('x = '),
+        (e: unknown) => e instanceof UserError && /syntax error/.test(e.message));
+  });
+
+  it('throws UserError on unrecognized tokens', function() {
+    assert.throws(
+        () => ParseProp('@#$'),
+        (e: unknown) => e instanceof UserError && /syntax error/.test(e.message));
   });
 
 });

@@ -317,7 +317,7 @@ prove foo by calculation
 prove foo by calculation
   given 1. @@@
     x + 1`;
-    checkFails(source, 5, /bad given formula/);
+    parseHasError(source, 5, /bad given/);
   });
 
   it('reports wrong IH premise count', function() {
@@ -420,7 +420,7 @@ ${validNilCase}
     ---
     len(cons(a, L))
     undef len_2 = 1 + len(L)`;
-    checkFails(source, 24, /bad IH formula/);
+    parseHasError(source, 24, /bad IH formula/);
   });
 
   it('reports bad goal formula parse error in case block', function() {
@@ -434,7 +434,7 @@ ${validNilCase}
     given IH : 0 + len(L) = len(L)
     prove @@@ by calculation
     0 + len(cons(a, L))`;
-    checkFails(source, 25, /bad goal formula/);
+    parseHasError(source, 25, /bad goal/);
   });
 
   it('reports bad condition parse error in cases proof', function() {
@@ -794,7 +794,7 @@ prove foo by simple cases on x < 0
   case then:
     prove not x < 0 by calculation
     x`;
-    checkFails(source, 7, /bad goal formula/);
+    checkFails(source, 0, /calculation requires a formula goal/);
   });
 
   it('handles theorem with not-premise (non-atom premise)', function() {
@@ -995,7 +995,7 @@ ${validConsCase}`;
       assert.equal(proof.cases[1].ihTheorems[0].name, 'IH');
       assert.deepEqual(proof.cases[1].ihTheorems[0].params, []);
       assert.deepEqual(proof.cases[1].ihTheorems[0].premises, []);
-      assert.equal(proof.cases[1].ihTheorems[0].formula, '0 + len(L) = len(L)');
+      assert.equal(proof.cases[1].ihTheorems[0].conclusion.to_string(), '0 + len(L) = len(L)');
     }
   });
 });
@@ -1300,7 +1300,7 @@ theorem foo (xs : List)
 prove foo by induction on xs
 
   case nil:
-    prove nil = nil => 0 + len(nil) = len(nil) by calculation
+    prove 0 + len(nil) = len(nil) by calculation
     0 + len(nil)
     defof len_1 => 0 + 0
     = 0
@@ -1310,14 +1310,14 @@ prove foo by induction on xs
 
   case cons(a, L):
     given IH : cons(a, L) = nil => 0 + len(L) = len(L)
-    prove cons(a, L) = nil => 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
+    prove 0 + len(cons(a, L)) = len(cons(a, L)) by calculation
     0 + len(cons(a, L))
     defof len_2 = 0 + (1 + len(L))
     = 1 + len(L)
     ---
     len(cons(a, L))
     undef len_2 = 1 + len(L)`;
-    // Parse should succeed and capture premise.
+    // Parse should succeed and capture the IH premise.
     const pf = parseProofFile(source).file;
     const proof = firstProof(pf).proof;
 
@@ -1326,7 +1326,7 @@ prove foo by induction on xs
       assert.equal(consCase.ihTheorems.length, 1);
       assert.equal(consCase.ihTheorems[0].name, 'IH');
       assert.equal(consCase.ihTheorems[0].premises[0].to_string(), 'cons(a, L) = nil');
-      assert.equal(consCase.ihTheorems[0].formula, '0 + len(L) = len(L)');
+      assert.equal(consCase.ihTheorems[0].conclusion.to_string(), '0 + len(L) = len(L)');
     }
   });
 
@@ -1430,7 +1430,7 @@ prove foo by calculation
     const pf = parseProofFile(source).file;
     assert.equal(firstProof(pf).givens.length, 1);
     assert.equal(firstProof(pf).givens[0].index, 1);
-    assert.equal(firstProof(pf).givens[0].text, 'xs = nil');
+    assert.equal(firstProof(pf).givens[0].prop.to_string(), 'xs = nil');
   });
 
   it('rejects wrong top-level given formula', function() {
@@ -1598,7 +1598,7 @@ function assertProofNodeEqual(a: any, b: any, label: string): void {
     for (let i = 0; i < a.cases.length; i++) {
       assert.strictEqual(a.cases[i].label, b.cases[i].label,
           `${label} case[${i}]: label mismatch`);
-      assert.strictEqual(a.cases[i].goal, b.cases[i].goal,
+      assert.strictEqual(a.cases[i].goal.to_string(), b.cases[i].goal.to_string(),
           `${label} case[${i}]: goal mismatch`);
       assertProofNodeEqual(a.cases[i].proof, b.cases[i].proof,
           `${label} case[${i}]`);

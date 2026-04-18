@@ -315,6 +315,8 @@ function proofToLean(
       lines.push(proofToLean(block.proof, ctors, indent + '  ', []));
     }
     return lines.join('\n');
+  } else if (method.kind === 'auto') {
+    return `${indent}omega`;
   } else {
     // simple_cases
     const condFormula = ParseFormula(method.condition);

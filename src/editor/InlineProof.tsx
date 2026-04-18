@@ -34,10 +34,8 @@ export default class InlineProof
   /** Returns a ProofEntry for serialization (text/Lean export). */
   getProofEntry(theoremName: string): ProofEntry {
     const { obligation } = this.props;
-    const givens: GivenLine[] = obligation.premises
-      .flatMap((p, i) => p instanceof AtomProp
-        ? [{ index: i + 1, text: p.formula.to_string(), line: 0 }]
-        : []);
+    const givens: GivenLine[] = obligation.premises.map((p, i) =>
+        ({ index: i + 1, prop: p, line: 0 }));
     const proof: ProofNode = this.proofBlockRef.current?.getProofNode()
         ?? { kind: 'none', methodLine: 0 };
     return { theoremName, theoremLine: 0, givens, proof };
@@ -47,9 +45,15 @@ export default class InlineProof
     const { decls, obligation } = this.props;
     const { complete } = this.state;
 
-    const isNotGoal = obligation.goal instanceof NotProp
-        && obligation.goal.formula.op === OP_EQUAL;
-    if (!(obligation.goal instanceof AtomProp) && !isNotGoal) {
+    let goal: Formula;
+    let isNotGoal = false;
+    if (obligation.goal instanceof AtomProp) {
+      goal = obligation.goal.formula;
+    } else if (obligation.goal instanceof NotProp
+        && obligation.goal.formula.op === OP_EQUAL) {
+      goal = obligation.goal.formula;
+      isNotGoal = true;
+    } else {
       return (
         <div className="ip">
           <div className="ip-line">
@@ -60,8 +64,6 @@ export default class InlineProof
     }
 
     const bgClass = complete ? 'ip-bg-complete' : 'ip-bg-incomplete';
-
-    const goal: Formula = (obligation.goal as AtomProp | NotProp).formula;
     const givens: AtomProp[] = obligation.premises
       .flatMap(p => p instanceof AtomProp ? [p] : []);
 
