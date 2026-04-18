@@ -12,6 +12,7 @@ const lexer2 = util.makeLexer(moo, {
   NL: { match: /\n/, lineBreaks: true },
   lessequal: '<=',
   lessthan: '<',
+  notequal: '/=',
   equal: '=',
   constant: /[0-9]+/,
   variable: { match: /[a-z][_a-zA-Z0-9]*/, type: moo.keywords({
@@ -48,6 +49,8 @@ var grammar = {
         } },
     {"name": "Literal", "symbols": ["Formula"], "postprocess": ([f]) => new prop.AtomProp(f)},
     {"name": "Literal", "symbols": [(lexer2.has("kw_not") ? {type: "kw_not"} : kw_not), "Formula"], "postprocess": ([_op, f]) => new prop.NotProp(f)},
+    {"name": "Literal", "symbols": [(lexer2.has("kw_not") ? {type: "kw_not"} : kw_not), (lexer2.has("lparen") ? {type: "lparen"} : lparen), "Formula", (lexer2.has("rparen") ? {type: "rparen"} : rparen)], "postprocess": ([_op, _lp, f, _rp]) => new prop.NotProp(f)},
+    {"name": "Literal", "symbols": ["Expr", (lexer2.has("notequal") ? {type: "notequal"} : notequal), "Expr"], "postprocess": ([l, _op, r]) => new prop.NotProp(new formula.Formula(l, '=', r))},
     {"name": "Literal", "symbols": [(lexer2.has("kw_true") ? {type: "kw_true"} : kw_true)], "postprocess": () => new prop.ConstProp(true)},
     {"name": "Literal", "symbols": [(lexer2.has("kw_false") ? {type: "kw_false"} : kw_false)], "postprocess": () => new prop.ConstProp(false)},
     {"name": "Formula", "symbols": ["Expr", (lexer2.has("equal") ? {type: "equal"} : equal), "Expr"], "postprocess": ([l, _op, r]) => new formula.Formula(l, '=', r)},

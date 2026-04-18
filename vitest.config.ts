@@ -13,6 +13,7 @@ export default defineConfig({
         'src/editor/ProofWidget.ts',
         'src/editor/comfyHighlight.ts',
         'src/editor/comfyLinter.ts',
+        'src/editor/nativeMenu.ts',
         'src/editor/proofPlugin.ts',
       ],
       thresholds: {

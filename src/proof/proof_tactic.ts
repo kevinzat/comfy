@@ -96,7 +96,7 @@ export type ParsedMethod =
   | { kind: 'tactic'; tactic: ProofTactic };
 
 export interface ProofMethodParser {
-  tryParse(text: string, formula: Formula, env: Environment,
+  tryParse(text: string, goal: Prop, env: Environment,
       premises: Prop[]): ParsedMethod | string | null;
   getMatches(text: string, formula: Formula, env: Environment): Match[];
 }
@@ -117,12 +117,12 @@ const parsers: ProofMethodParser[] = [
 ];
 
 export function ParseProofMethod(
-    text: string, formula: Formula, env: Environment,
+    text: string, goal: Prop, env: Environment,
     premises: Prop[]): ParsedMethod | string {
   const trimmed = text.trim();
   if (trimmed === '') return 'expected "calculation", "induction on <variable>", or "simple cases on <inequality>"';
   for (const parser of parsers) {
-    const result = parser.tryParse(trimmed, formula, env, premises);
+    const result = parser.tryParse(trimmed, goal, env, premises);
     if (result !== null) return result;
   }
   return 'expected "calculation", "induction on <variable>", or "simple cases on <inequality>"';

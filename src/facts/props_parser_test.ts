@@ -37,6 +37,23 @@ describe('props_parser', function() {
     AssertParseProp('not x <= y', 'not(x <= y)');
   });
 
+  it('parse not with parenthesized formula', function() {
+    AssertParseProp('not (x = y)', 'not(x = y)');
+    AssertParseProp('not (f(x) = g(y))', 'not(f(x) = g(y))');
+    AssertParseProp('not (x + 1 <= y)', 'not(x + 1 <= y)');
+  });
+
+  it('parse /= as NotProp of equality', function() {
+    AssertParseProp('x /= y', 'not(x = y)');
+    AssertParseProp('f(x) /= 0', 'not(f(x) = 0)');
+    AssertParseProp('x + 1 /= y * 2', 'not(x + 1 = y*2)');
+  });
+
+  it('parse /= combines with or', function() {
+    AssertParseProp('x /= 0 or y = 0', '(not(x = 0) or y = 0)');
+    AssertParseProp('x = 0 or y /= 0', '(x = 0 or not(y = 0))');
+  });
+
   it('parse or', function() {
     AssertParseProp('x = 0 or y = 0', '(x = 0 or y = 0)');
     AssertParseProp('x < 0 or y < 0 or z < 0', '(x < 0 or y < 0 or z < 0)');

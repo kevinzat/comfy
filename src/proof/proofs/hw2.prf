@@ -1,0 +1,272 @@
+type List
+| nil : List
+| cons : (Int, List) -> List
+
+def head : (List) -> Int
+| head(cons(x, L)) => x
+
+def tail : (List) -> List
+| tail(cons(x, L)) => L
+
+def concat : (List, List) -> List
+| concat(nil, R) => R
+| concat(cons(x, L), R) => cons(x, concat(L, R))
+
+def len : (List) -> Int
+| len(nil) => 0
+| len(cons(x, L)) => 1 + len(L)
+
+theorem task1a (x : Int)
+| head(concat(nil, cons(x, nil))) = x
+
+prove task1a by calculation
+  head(concat(nil, cons(x, nil)))
+  defof concat_1
+  defof head_1
+
+theorem task1b (x : Int)
+| tail(concat(nil, cons(x, nil))) = nil
+
+prove task1b by calculation
+  tail(concat(nil, cons(x, nil)))
+  defof concat_1
+  defof tail_1
+
+theorem task1c (x, y : Int) (L : List)
+| head(concat(cons(y, L), cons(x, nil))) = y
+
+prove task1c by calculation
+  head(concat(cons(y, L), cons(x, nil)))
+  defof concat_2
+  defof head_1
+
+theorem task1d (x, y : Int) (L : List)
+| tail(concat(cons(y, L), cons(x, nil))) = concat(L, cons(x, nil))
+
+prove task1d by calculation
+  tail(concat(cons(y, L), cons(x, nil)))
+  defof concat_2
+  defof tail_1
+
+theorem task1e (x, y : Int) (L : List)
+| len(tail(concat(cons(x, cons(y, nil)), L))) = 1 + len(L)
+
+prove task1e by calculation
+  len(tail(concat(cons(x, cons(y, nil)), L)))
+  defof concat_2
+  defof tail_1
+  defof concat_2
+  defof len_2
+  defof concat_1
+
+theorem task2 (x : Int) (L : List)
+| not concat(L, cons(x, nil)) = nil
+
+prove task2 by cases on L
+  case nil:
+  prove not concat(nil, cons(x, nil)) = nil by calculation
+    concat(nil, cons(x, nil))
+    defof concat_1
+  case cons(a, M):
+  prove not concat(cons(a, M), cons(x, nil)) = nil by calculation
+    concat(cons(a, M), cons(x, nil))
+    defof concat_2
+
+type Nat
+| zero : Nat
+| succ : (Nat) -> Nat
+
+def add : (Nat, Nat) -> Nat
+| add(zero, m) => m
+| add(succ(n), m) => succ(add(n, m))
+
+theorem task3 (n, m : Nat)
+| add(succ(n), m) = add(n, succ(m))
+
+prove task3 by induction on n
+  case zero:
+  prove add(succ(zero), m) = add(zero, succ(m)) by calculation
+    add(succ(zero), m)
+    defof add_2
+    defof add_1
+    ---
+    add(zero, succ(m))
+    undef add_1
+  case succ(N):
+  given IH (m : Nat) : add(succ(N), m) = add(N, succ(m))
+  prove add(succ(succ(N)), m) = add(succ(N), succ(m)) by calculation
+    add(succ(succ(N)), m)
+    defof add_2
+    apply IH
+    ---
+    add(succ(N), succ(m))
+    undef add_2
+
+theorem task4a (n : Nat)
+| add(n, zero) = n
+
+prove task4a by induction on n
+  case zero:
+  prove add(zero, zero) = zero by calculation
+    add(zero, zero)
+    defof add_1
+  case succ(N):
+  given IH : add(N, zero) = N
+  prove add(succ(N), zero) = succ(N) by calculation
+    add(succ(N), zero)
+    defof add_2
+    apply IH
+
+theorem task4b (n, m : Nat)
+| add(n, m) = add(m, n)
+
+prove task4b by induction on n
+  case zero:
+  prove add(zero, m) = add(m, zero) by calculation
+    add(zero, m)
+    defof add_1
+    ---
+    add(m, zero)
+    unapp task4a
+  case succ(N):
+  given IH (m : Nat) : add(N, m) = add(m, N)
+  prove add(succ(N), m) = add(m, succ(N)) by calculation
+    add(succ(N), m)
+    defof add_2
+    apply IH
+    undef add_2
+    ---
+    add(m, succ(N))
+    apply task3
+
+def shift_left : (List) -> List
+| shift_left(nil) => nil
+| shift_left(cons(x, L)) => concat(L, cons(x, nil))
+
+def shift_right : (List) -> List
+| shift_right(nil) => nil
+| shift_right(cons(x, L)) => cons(last(cons(x, L)), init(cons(x, L)))
+
+def last : (List) -> Int
+| last(cons(x, nil)) => x
+| last(cons(x, cons(y, L))) => last(cons(y, L))
+
+def init : (List) -> List
+| init(cons(x, nil)) => nil
+| init(cons(x, cons(y, L))) => cons(x, init(cons(y, L)))
+
+theorem task5ahelper (x, y : Int) (L : List)
+| last(cons(x, concat(L, cons(y, nil)))) = last(concat(L, cons(y, nil)))
+
+prove task5ahelper by cases on L
+  case nil:
+  prove last(cons(x, concat(nil, cons(y, nil)))) = last(concat(nil, cons(y, nil))) by calculation
+    last(cons(x, concat(nil, cons(y, nil))))
+    defof concat_1
+    defof last_2
+    ---
+    last(concat(nil, cons(y, nil)))
+    undef concat_1
+  case cons(a, M):
+  prove last(cons(x, concat(cons(a, M), cons(y, nil)))) = last(concat(cons(a, M), cons(y, nil))) by calculation
+    last(cons(x, concat(cons(a, M), cons(y, nil))))
+    defof concat_2
+    defof last_2
+    undef concat_2
+
+theorem task5bhelper (x, y : Int) (L : List)
+| init(cons(x, concat(L, cons(y, nil)))) = cons(x, init(concat(L, cons(y, nil))))
+
+prove task5bhelper by induction on L
+  case nil:
+  prove init(cons(x, concat(nil, cons(y, nil)))) = cons(x, init(concat(nil, cons(y, nil)))) by calculation
+    init(cons(x, concat(nil, cons(y, nil))))
+    defof concat_1
+    defof init_2
+    ---
+    cons(x, init(concat(nil, cons(y, nil))))
+    undef concat_1
+  case cons(a, M):
+  given IH (x, y : Int) : init(cons(x, concat(M, cons(y, nil)))) = cons(x, init(concat(M, cons(y, nil))))
+  prove init(cons(x, concat(cons(a, M), cons(y, nil)))) = cons(x, init(concat(cons(a, M), cons(y, nil)))) by calculation
+    init(cons(x, concat(cons(a, M), cons(y, nil))))
+    defof concat_2
+    defof init_2
+    ---
+    cons(x, init(concat(cons(a, M), cons(y, nil))))
+    undef concat_2
+
+theorem task5a (x : Int) (L : List)
+| last(concat(L, cons(x, nil))) = x
+
+prove task5a by induction on L
+  case nil:
+  prove last(concat(nil, cons(x, nil))) = x by calculation
+    last(concat(nil, cons(x, nil)))
+    defof concat_1
+    defof last_1
+  case cons(a, M):
+  given IH (x : Int) : last(concat(M, cons(x, nil))) = x
+  prove last(concat(cons(a, M), cons(x, nil))) = x by calculation
+    last(concat(cons(a, M), cons(x, nil)))
+    defof concat_2
+    apply task5ahelper
+    apply IH
+
+
+theorem task5b (x : Int) (L : List)
+| init(concat(L, cons(x, nil))) = L
+
+prove task5b by induction on L
+  case nil:
+  prove init(concat(nil, cons(x, nil))) = nil by calculation
+    init(concat(nil, cons(x, nil)))
+    defof concat_1
+    defof init_1
+  case cons(a, M):
+  given IH (x : Int) : init(concat(M, cons(x, nil))) = M
+  prove init(concat(cons(a, M), cons(x, nil))) = cons(a, M) by calculation
+    init(concat(cons(a, M), cons(x, nil)))
+    defof concat_2
+    apply task5bhelper
+    apply IH
+
+theorem task5chelper (x : Int) (L : List)
+| shift_right(concat(L, cons(x, nil))) = cons(last(concat(L, cons(x, nil))), init(concat(L, cons(x, nil))))
+
+prove task5chelper by cases on L
+  case nil:
+  prove shift_right(concat(nil, cons(x, nil))) = cons(last(concat(nil, cons(x, nil))), init(concat(nil, cons(x, nil)))) by calculation
+    shift_right(concat(nil, cons(x, nil)))
+    defof concat_1
+    defof shift_right_2
+    ---
+    cons(last(concat(nil, cons(x, nil))), init(concat(nil, cons(x, nil))))
+    undef concat_1 => cons(last(cons(x, nil)), init(concat(nil, cons(x, nil))))
+    undef concat_1
+  case cons(a, M):
+  prove shift_right(concat(cons(a, M), cons(x, nil))) = cons(last(concat(cons(a, M), cons(x, nil))), init(concat(cons(a, M), cons(x, nil)))) by calculation
+    shift_right(concat(cons(a, M), cons(x, nil)))
+    defof concat_2
+    defof shift_right_2
+    undef concat_2 => cons(last(concat(cons(a, M), cons(x, nil))), init(cons(a, concat(M, cons(x, nil)))))
+    undef concat_2
+
+theorem task5c (L : List)
+| shift_right(shift_left(L)) = L
+
+prove task5c by induction on L
+  case nil:
+  prove shift_right(shift_left(nil)) = nil by calculation
+    shift_right(shift_left(nil))
+    defof shift_left_1
+    defof shift_right_1
+  case cons(a, M):
+  given IH : shift_right(shift_left(M)) = M
+  prove shift_right(shift_left(cons(a, M))) = cons(a, M) by calculation
+    shift_right(shift_left(cons(a, M)))
+    defof shift_left_2
+    apply task5chelper
+    apply task5a
+    apply task5b
+

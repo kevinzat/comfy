@@ -1,5 +1,8 @@
 import * as assert from 'assert';
+import * as fs from 'fs';
+import * as path from 'path';
 import { parseProofFile } from './proof_file';
+import { checkProofFile } from './proof_file_checker';
 import { serializeProofEntry } from './proof_serialize';
 
 
@@ -236,4 +239,93 @@ describe('serializeProofEntry', () => {
       '      = 0',
     ].join('\n'));
   });
+
+  it('serializes bare subst rule (no result expression)', () => {
+    roundTrip([
+      'prove foo by calculation',
+      '  b',
+      '  subst 1',
+    ].join('\n'));
+  });
+
+  it('serializes bare defof rule (no result expression)', () => {
+    roundTrip([
+      'prove foo by calculation',
+      '  f(x)',
+      '  defof f',
+    ].join('\n'));
+  });
+});
+
+/**
+ * Roundtrip test for all .prf files: parse, serialize, re-parse, and
+ * re-validate. This catches bugs where saving and reloading loses proof steps.
+ */
+const proofsDir = path.join(__dirname, 'proofs');
+const proofFiles = fs.readdirSync(proofsDir)
+    .filter(f => f.endsWith('.prf'))
+    .sort();
+
+describe('proof file roundtrip', function() {
+  for (const file of proofFiles) {
+    it(`${file} survives serialize/re-parse/re-check`, function() {
+      const source = fs.readFileSync(path.join(proofsDir, file), 'utf-8');
+      const original = parseProofFile(source);
+
+      // Rebuild the file by serializing each proof entry back into the
+      // declaration text, replacing the original prove blocks.
+      const parts: string[] = [];
+      let cursor = 0;
+      for (const item of original.file.items) {
+        if (item.kind === 'decls') {
+          // Declarations are stored with their startLine but we reconstruct
+          // from the raw text to preserve formatting.
+          continue;
+        }
+        // Find the prove block in the source by searching for "prove <name>".
+        const entry = item.entry;
+        const provePattern = `prove ${entry.theoremName}`;
+        const idx = source.indexOf(provePattern, cursor);
+        if (idx === -1) continue;
+        // Include text before this prove block.
+        parts.push(source.substring(cursor, idx));
+        // Serialize the proof entry.
+        parts.push(serializeProofEntry(entry));
+        parts.push('\n');
+        // Skip past the original prove block.
+        let end = idx;
+        const lines = source.substring(idx).split('\n');
+        end += lines[0].length + 1;  // prove line
+        for (let i = 1; i < lines.length; i++) {
+          if (lines[i].length > 0 && (lines[i][0] === ' ' || lines[i][0] === '\t')) {
+            end += lines[i].length + 1;
+          } else if (lines[i].trim() === '') {
+            // Blank line — only include if followed by an indented line.
+            let j = i + 1;
+            while (j < lines.length && lines[j].trim() === '') j++;
+            if (j < lines.length && lines[j].length > 0 &&
+                (lines[j][0] === ' ' || lines[j][0] === '\t')) {
+              end += lines[i].length + 1;
+            } else {
+              break;
+            }
+          } else {
+            break;
+          }
+        }
+        cursor = end;
+      }
+      parts.push(source.substring(cursor));
+      const rebuilt = parts.join('');
+
+      // Re-parse and re-check the rebuilt file.
+      const reparsed = parseProofFile(rebuilt);
+      const reErrors = reparsed.errors.filter(e => !e.message.includes('missing "prove"'));
+      assert.deepStrictEqual(reErrors, [],
+          `re-parse errors in ${file}: ${reErrors.map(e => e.message).join(', ')}`);
+      const { errors: reCheckErrors } = checkProofFile(reparsed.file);
+      assert.deepStrictEqual(reCheckErrors, [],
+          `re-check errors in ${file}: ${reCheckErrors.map(e => e.message).join(', ')}`);
+    });
+  }
 });

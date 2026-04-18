@@ -1,5 +1,6 @@
 import * as assert from 'assert';
 import { ParseFormula } from '../facts/formula_parser';
+import { AtomProp } from '../facts/prop';
 import { TopLevelEnv, NestedEnv } from '../types/env';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
 import { FuncAst, TypeAst, CaseAst, ExprBody, ParamVar } from '../lang/func_ast';
@@ -23,15 +24,16 @@ describe('ParseProofMethod', function() {
 
   const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['xs', 'List']]);
   const formula = ParseFormula('len(xs) = len(xs)');
+  const goal = new AtomProp(formula);
 
   it('parses "calculation"', function() {
-    const result = ParseProofMethod('calculation', formula, env, []);
+    const result = ParseProofMethod('calculation', goal, env, []);
     assert.ok(typeof result !== 'string');
     assert.strictEqual(result.kind, 'calculate');
   });
 
   it('parses "induction on xs"', function() {
-    const result = ParseProofMethod('induction on xs', formula, env, []);
+    const result = ParseProofMethod('induction on xs', goal, env, []);
     assert.ok(typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
   });
@@ -39,18 +41,18 @@ describe('ParseProofMethod', function() {
   it('parses "simple cases on x < y"', function() {
     const intEnv = new NestedEnv(new TopLevelEnv([], []), [['x', 'Int'], ['y', 'Int']]);
     const f = ParseFormula('x = x');
-    const result = ParseProofMethod('simple cases on x < y', f, intEnv, []);
+    const result = ParseProofMethod('simple cases on x < y', new AtomProp(f), intEnv, []);
     assert.ok(typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
   });
 
   it('returns error for empty text', function() {
-    const result = ParseProofMethod('', formula, env, []);
+    const result = ParseProofMethod('', goal, env, []);
     assert.ok(typeof result === 'string');
   });
 
   it('returns error for unknown method', function() {
-    const result = ParseProofMethod('magic', formula, env, []);
+    const result = ParseProofMethod('magic', goal, env, []);
     assert.ok(typeof result === 'string');
   });
 });

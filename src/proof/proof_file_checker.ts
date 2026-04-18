@@ -2,6 +2,7 @@ import { Formula } from '../facts/formula';
 import { ParseFormula } from '../facts/formula_parser';
 import { Prop } from '../facts/prop';
 import { Environment, TopLevelEnv, NestedEnv } from '../types/env';
+import { UserError } from '../facts/user_error';
 import { TypeDeclAst } from '../lang/type_ast';
 import { FuncAst } from '../lang/func_ast';
 import { TheoremAst } from '../lang/theorem_ast';
@@ -13,11 +14,22 @@ import { CreateProofTactic, filterDischargedGoals } from './proof_tactic';
 
 export class CheckError extends Error {
   line: number;
-  constructor(line: number, message: string) {
+  col: number;
+  length: number;
+  constructor(line: number, message: string, col: number = 0, length: number = 0) {
     super(`line ${line}: ${message}`);
     this.line = line;
+    this.col = col;
+    this.length = length;
     Object.setPrototypeOf(this, CheckError.prototype);
   }
+  static fromUserError(e: UserError): CheckError {
+    return new CheckError(e.line, e.message, e.col, e.length);
+  }
+}
+
+export interface CheckResult {
+  errors: CheckError[];
 }
 
 function checkGivens(
@@ -197,12 +209,25 @@ function checkProofEntry(
   checkProof(theorem.conclusion, proofEnv, entry.proof, theorem.premises);
 }
 
-export function checkProofFile(pf: ProofFile): void {
-  // Process items in order, accumulating declarations and proved theorems.
+/**
+ * Validates a parsed proof file, accumulating errors rather than throwing.
+ * Declarations from all decls blocks are treated as a single cumulative set,
+ * so theorems in a later block can reference functions in an earlier block.
+ * Also validates declarations even when no proof references them, so that
+ * decls-only files (and trailing decls after all proofs) still get checked.
+ */
+export function checkProofFile(pf: ProofFile): CheckResult {
+  const errors: CheckError[] = [];
   const types: TypeDeclAst[] = [];
   const functions: FuncAst[] = [];
   const declaredTheorems: TheoremAst[] = [];  // unproved theorems from current decl block
   const provedTheorems: TheoremAst[] = [];    // theorems proved so far
+
+  const captureError = (e: unknown): void => {
+    if (e instanceof CheckError) errors.push(e);
+    else if (e instanceof UserError) errors.push(CheckError.fromUserError(e));
+    else throw e;
+  };
 
   for (const item of pf.items) {
     if (item.kind === 'decls') {
@@ -210,13 +235,39 @@ export function checkProofFile(pf: ProofFile): void {
       functions.push(...item.decls.functions);
       declaredTheorems.push(...item.decls.theorems);
     } else {
-      checkProofEntry(item.entry, types, functions, provedTheorems, declaredTheorems);
-      // Move the proved theorem from declared to proved.
-      const idx = declaredTheorems.findIndex(t => t.name === item.entry.theoremName);
-      if (idx !== -1) {
-        provedTheorems.push(declaredTheorems[idx]);
-        declaredTheorems.splice(idx, 1);
+      try {
+        checkProofEntry(item.entry, types, functions, provedTheorems, declaredTheorems);
+        // Move the proved theorem from declared to proved.
+        const idx = declaredTheorems.findIndex(t => t.name === item.entry.theoremName);
+        if (idx !== -1) {
+          provedTheorems.push(declaredTheorems[idx]);
+          declaredTheorems.splice(idx, 1);
+        }
+      } catch (e) {
+        captureError(e);
       }
     }
   }
+
+  // Final validation: build an env with all accumulated declarations. This
+  // catches errors in theorems or functions that were never referenced by a
+  // proof (including decls-only files). Errors here may overlap with ones
+  // already surfaced via checkProofEntry, so dedupe at the end.
+  try {
+    const env = new TopLevelEnv(types, functions, [],
+        [...provedTheorems, ...declaredTheorems]);
+    env.check();
+  } catch (e) {
+    captureError(e);
+  }
+
+  const seen = new Set<string>();
+  const deduped: CheckError[] = [];
+  for (const e of errors) {
+    const key = `${e.line}:${e.col}:${e.message}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(e);
+  }
+  return { errors: deduped };
 }

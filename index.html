@@ -4,8 +4,23 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Comfy</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
+    <script>
+      if ('__TAURI_INTERNALS__' in window) {
+        const s = document.createElement('style');
+        s.textContent = '#titlebar{display:none!important}html,body,#root{height:100%;margin:0}';
+        document.head.appendChild(s);
+      } else {
+        // Bootstrap and Font Awesome are only needed for the web UI (App component).
+        const bs = document.createElement('link');
+        bs.rel = 'stylesheet';
+        bs.href = 'https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css';
+        document.head.appendChild(bs);
+        const fa = document.createElement('link');
+        fa.rel = 'stylesheet';
+        fa.href = 'https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css';
+        document.head.appendChild(fa);
+      }
+    </script>
   </head>
   <body>
     <div id="titlebar" style="background:#4a3660;color:#fff;padding:14px 24px;display:flex;align-items:center;gap:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">

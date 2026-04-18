@@ -6,7 +6,7 @@ import { ParseFormula } from '../facts/formula_parser';
 import { Environment } from '../types/env';
 import { Match, FindForwardMatches, FindBackwardMatches, LongestCommonPrefix } from '../calc/calc_complete';
 import { CalcProofNode, CalcStep } from '../proof/proof_file';
-import { Step, applyForwardRule, applyBackwardRule, topFrontier, botFrontier, isComplete, checkValidity } from '../proof/calc_proof';
+import { Step, applyForwardRule, applyBackwardRule, topFrontier, botFrontier, isComplete, checkValidity, constructorHead } from '../proof/calc_proof';
 import { ParseForwardRule } from '../calc/calc_forward';
 import { ParseBackwardRule } from '../calc/calc_backward';
 import { RuleToHtml, TacticToHtml } from '../components/ProofElements';
@@ -23,10 +23,14 @@ interface Line {
 export interface InlineCalcBlockProps {
   env: Environment;
   goal: string;
+  /** When true, prove `not (goal)` — forward chain only, complete when the
+   * frontier's constructor differs from goal.right's constructor. */
+  isNegated?: boolean;
   defNames?: string[];
   indent?: number;
   initialCalc?: CalcProofNode;
   onComplete?: (complete: boolean) => void;
+  onStateChange?: () => void;
 }
 
 interface InlineCalcBlockState {
@@ -140,7 +144,11 @@ export default class InlineCalcBlock
 
   private reportComplete() {
     const complete = this.isComplete();
-    const validityError = complete ? checkValidity(this.state.goal, this.state.topLines, this.state.bottomLines) : undefined;
+    const validityError = complete
+        ? (this.props.isNegated
+            ? this.negatedValidity()
+            : checkValidity(this.state.goal, this.state.topLines, this.state.bottomLines))
+        : undefined;
     const valid = complete && validityError === undefined;
     if (complete !== this.lastReportedComplete || validityError !== this.lastReportedValidity) {
       this.lastReportedComplete = complete;
@@ -158,7 +166,28 @@ export default class InlineCalcBlock
   }
 
   private isComplete(): boolean {
+    if (this.props.isNegated) {
+      // For `not a = b`, done when the forward frontier's constructor head
+      // differs from goal.right's constructor head.
+      const rightCtor = constructorHead(this.state.goal.right, this.props.env);
+      if (rightCtor === null) return false;
+      const frontierCtor = constructorHead(this.topFrontier(), this.props.env);
+      return frontierCtor !== null && frontierCtor !== rightCtor;
+    }
     return isComplete(this.state.goal, this.state.topLines, this.state.bottomLines);
+  }
+
+  private negatedValidity(): string | undefined {
+    const rightCtor = constructorHead(this.state.goal.right, this.props.env);
+    if (rightCtor === null) {
+      return `right-hand side must be a constructor call`;
+    }
+    const frontierCtor = constructorHead(this.topFrontier(), this.props.env);
+    if (frontierCtor === null) return undefined;  // still working
+    if (frontierCtor === rightCtor) {
+      return `reached ${frontierCtor}(...), same constructor as ${this.state.goal.right.to_string()}`;
+    }
+    return undefined;
   }
 
   private setText(which: 'top' | 'bottom', text: string) {
@@ -202,7 +231,7 @@ export default class InlineCalcBlock
         this.setState({
           topLines, topText: '', topError: undefined, topDelayTimer: undefined,
           topMatches: FindForwardMatches('', this.props.defNames ?? []),
-        });
+        }, () => this.props.onStateChange?.());
       } else {
         const step = applyBackwardRule(text, this.botFrontier(), this.props.env);
         const bottomLines = [...this.state.bottomLines, { op: step.op, expr: step.expr, ruleText: text, forward: false }];
@@ -210,6 +239,7 @@ export default class InlineCalcBlock
           bottomLines, botText: '', botError: undefined, botDelayTimer: undefined,
           botMatches: FindBackwardMatches('', this.props.defNames ?? []),
         }, () => {
+          this.props.onStateChange?.();
           if (!this.isComplete() && this.botInputRef.current) {
             this.botInputRef.current.focus();
           }
@@ -256,7 +286,7 @@ export default class InlineCalcBlock
       this.setState({
         topLines, topText: removed.ruleText,
         topMatches: FindForwardMatches(removed.ruleText, defNames), topError: undefined,
-      });
+      }, () => this.props.onStateChange?.());
     } else {
       const bottomLines = this.state.bottomLines.slice();
       if (bottomLines.length === 0) return;
@@ -264,7 +294,7 @@ export default class InlineCalcBlock
       this.setState({
         bottomLines, botText: removed.ruleText,
         botMatches: FindBackwardMatches(removed.ruleText, defNames), botError: undefined,
-      });
+      }, () => this.props.onStateChange?.());
     }
   }
 
@@ -338,8 +368,13 @@ export default class InlineCalcBlock
   render() {
     const { goal, topLines, bottomLines } = this.state;
     const indent = (this.props.indent ?? 0) + 1;
+    const isNegated = this.props.isNegated ?? false;
     const complete = this.isComplete();
-    const validityError = complete ? checkValidity(goal, topLines, bottomLines) : undefined;
+    const validityError = complete
+        ? (isNegated
+            ? this.negatedValidity()
+            : checkValidity(goal, topLines, bottomLines))
+        : undefined;
     const rows: JSX.Element[] = [];
 
     // Start expression.
@@ -355,7 +390,8 @@ export default class InlineCalcBlock
     // Forward steps.
     // When complete with no backward steps, skip the last forward step
     // (its expression equals goal.right, which we show as the end line).
-    const skipLastTop = complete && bottomLines.length === 0 && topLines.length > 0;
+    // In negated mode we don't have an end line — keep all forward steps.
+    const skipLastTop = !isNegated && complete && bottomLines.length === 0 && topLines.length > 0;
     const topCount = skipLastTop ? topLines.length - 1 : topLines.length;
     for (let i = 0; i < topCount; i++) {
       const isLast = i === topLines.length - 1;
@@ -375,68 +411,81 @@ export default class InlineCalcBlock
         </tr>
       );
 
-      // Separator.
-      rows.push(
-        <tr key="sep" className="ip-calc-row">
-          <td className="ip-calc-formula">
-            <span className="ip-separator">---</span>
-          </td>
-          <td className="ip-calc-rule"></td>
-        </tr>
-      );
+      // Backward section: only for equality/inequality goals, not for `not =`.
+      if (!isNegated) {
+        rows.push(
+          <tr key="sep" className="ip-calc-row">
+            <td className="ip-calc-formula">
+              <span className="ip-separator">---</span>
+            </td>
+            <td className="ip-calc-rule"></td>
+          </tr>
+        );
 
-      // Backward input.
+        rows.push(
+          <tr key="bot-input" className="ip-calc-row">
+            <td className="ip-calc-formula">
+              <span className="ip-formula">= </span>
+              {this.renderInput('bottom')}
+            </td>
+            <td className="ip-calc-rule"></td>
+          </tr>
+        );
+      }
+    }
+
+    // Backward steps (reversed). Not used in negated mode.
+    const skipLastBot = !isNegated && complete && bottomLines.length > 0;
+    if (!isNegated) {
+      for (let i = bottomLines.length - 1; i >= 0; i--) {
+        if (skipLastBot && i === bottomLines.length - 1) continue;
+        const isLast = i === bottomLines.length - 1;
+        const displayLine = skipLastBot
+          ? { ...bottomLines[i], ruleText: bottomLines[i + 1].ruleText }
+          : bottomLines[i];
+        rows.push(this.renderStep(`bot-${i}`, displayLine,
+          isLast ? () => this.handleDelete('bottom') : undefined));
+      }
+    }
+
+    // End expression line — equality/inequality only. For `not a = b`,
+    // the final line above already shows the reached expression; we add
+    // a `≠ goal.right` footer row when complete to make the disjointness
+    // visible.
+    if (isNegated) {
+      if (complete) {
+        rows.push(
+          <tr key="ne" className="ip-calc-row">
+            <td className="ip-calc-formula">
+              <span className="ip-formula">≠ {goal.right.to_string()}</span>
+            </td>
+            <td className="ip-calc-rule"></td>
+          </tr>
+        );
+      }
+    } else {
+      const lastRule = skipLastTop && topLines.length > 0
+        ? this.formatRule(topLines[topLines.length - 1])
+        : skipLastBot && bottomLines.length > 0
+          ? this.formatRule(bottomLines[0])
+          : null;
+      const endDelete = skipLastTop
+        ? () => this.handleDelete('top')
+        : skipLastBot
+          ? () => this.handleDelete('bottom')
+          : undefined;
       rows.push(
-        <tr key="bot-input" className="ip-calc-row">
+        <tr key="end" className={`ip-calc-row${endDelete ? ' ip-step' : ''}`}>
           <td className="ip-calc-formula">
-            <span className="ip-formula">= </span>
-            {this.renderInput('bottom')}
+            <span className="ip-formula">{goal.op} {goal.right.to_string()}</span>
           </td>
-          <td className="ip-calc-rule"></td>
+          <td className="ip-calc-rule">
+            {lastRule && <span className="ip-rule">{lastRule}</span>}
+            {endDelete && <span className="ip-delete" onClick={endDelete}>&times;</span>}
+          </td>
         </tr>
       );
     }
-
-    // Backward steps (reversed).
-    // When complete, skip the outermost backward step (its expression
-    // equals the top frontier, which is already shown above).
-    const skipLastBot = complete && bottomLines.length > 0;
-    for (let i = bottomLines.length - 1; i >= 0; i--) {
-      if (skipLastBot && i === bottomLines.length - 1) continue;
-      const isLast = i === bottomLines.length - 1;
-      // When complete, backward steps are displayed in forward order.
-      // Each step's rule explains the backward transition, so shift:
-      // use the rule from bottomLines[i+1] which explains this forward step.
-      const displayLine = skipLastBot
-        ? { ...bottomLines[i], ruleText: bottomLines[i + 1].ruleText }
-        : bottomLines[i];
-      rows.push(this.renderStep(`bot-${i}`, displayLine,
-        isLast ? () => this.handleDelete('bottom') : undefined));
-    }
-
-    // End expression line with the rule from the last step.
-    const lastRule = skipLastTop && topLines.length > 0
-      ? this.formatRule(topLines[topLines.length - 1])
-      : skipLastBot && bottomLines.length > 0
-        ? this.formatRule(bottomLines[0])
-        : null;
-    // When complete, allow deleting the step that was absorbed into this line.
-    const endDelete = skipLastTop
-      ? () => this.handleDelete('top')
-      : skipLastBot
-        ? () => this.handleDelete('bottom')
-        : undefined;
-    rows.push(
-      <tr key="end" className={`ip-calc-row${endDelete ? ' ip-step' : ''}`}>
-        <td className="ip-calc-formula">
-          <span className="ip-formula">{goal.op} {goal.right.to_string()}</span>
-        </td>
-        <td className="ip-calc-rule">
-          {lastRule && <span className="ip-rule">{lastRule}</span>}
-          {endDelete && <span className="ip-delete" onClick={endDelete}>&times;</span>}
-        </td>
-      </tr>
-    );
 
     const tableStyle = { marginLeft: `${indent * 2}ch` };
     const indentClass = `ip-indent-${Math.min(indent, 4)}`;

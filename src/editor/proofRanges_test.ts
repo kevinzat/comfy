@@ -86,4 +86,29 @@ describe('buildDocSections', () => {
     assert.strictEqual(sections[0].theorem, undefined);
     assert.strictEqual(sections[0].range.theoremName, 'bar');
   });
+
+  it('handles multiple prove blocks without mixing declarations', () => {
+    const text = [
+      'theorem foo (x : Int)',
+      '| x = x',
+      '',
+      'prove foo by calculation',
+      '  x',
+      '  = x',
+      '',
+      'theorem bar (y : Int)',
+      '| y = y',
+      '',
+      'prove bar by calculation',
+      '  y',
+      '  = y',
+    ].join('\n');
+    const sections = buildDocSections(text);
+    assert.strictEqual(sections.length, 2);
+    assert.strictEqual(sections[0].theorem?.name, 'foo');
+    assert.strictEqual(sections[1].theorem?.name, 'bar');
+    // Second section should see both theorems declared.
+    assert.ok(sections[1].decls.theorems.some(t => t.name === 'foo'));
+    assert.ok(sections[1].decls.theorems.some(t => t.name === 'bar'));
+  });
 });

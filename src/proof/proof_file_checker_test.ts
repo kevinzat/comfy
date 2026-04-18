@@ -42,7 +42,9 @@ function check(source: string): void {
   const result = parseProofFile(source);
   assert.deepStrictEqual(result.errors, [],
       `unexpected parse errors: ${result.errors.map(e => e.message).join(', ')}`);
-  checkProofFile(result.file);
+  const checkResult = checkProofFile(result.file);
+  assert.deepStrictEqual(checkResult.errors, [],
+      `unexpected check errors: ${checkResult.errors.map(e => e.message).join(', ')}`);
 
   // Round-trip: serialize proof entries, reparse, re-check.
   const entries = result.file.items
@@ -52,24 +54,24 @@ function check(source: string): void {
   const result2 = parseProofFile(rebuilt);
   assert.deepStrictEqual(result2.errors, [],
       `round-trip parse errors: ${result2.errors.map(e => e.message).join(', ')}\n\nRebuilt:\n${rebuilt}`);
-  checkProofFile(result2.file);
+  const checkResult2 = checkProofFile(result2.file);
+  assert.deepStrictEqual(checkResult2.errors, [],
+      `round-trip check errors: ${checkResult2.errors.map(e => e.message).join(', ')}`);
 }
 
 function checkFails(source: string, lineNum: number, pattern: RegExp): void {
   const result = parseProofFile(source);
   assert.deepStrictEqual(result.errors, [],
       `unexpected parse errors: ${result.errors.map(e => e.message).join(', ')}`);
-  try {
-    checkProofFile(result.file);
-    assert.fail('expected CheckError');
-  } catch (e: any) {
-    assert.ok(e instanceof CheckError,
-        `expected CheckError, got ${e.constructor.name}: ${e.message}`);
-    assert.strictEqual(e.line, lineNum,
-        `expected error on line ${lineNum}, got line ${e.line}: ${e.message}`);
-    assert.ok(pattern.test(e.message),
-        `expected message matching ${pattern}, got: ${e.message}`);
-  }
+  const checkResult = checkProofFile(result.file);
+  assert.ok(checkResult.errors.length > 0, 'expected at least one CheckError');
+  const e = checkResult.errors[0];
+  assert.ok(e instanceof CheckError,
+      `expected CheckError, got ${(e as any).constructor.name}: ${e.message}`);
+  assert.strictEqual(e.line, lineNum,
+      `expected error on line ${lineNum}, got line ${e.line}: ${e.message}`);
+  assert.ok(pattern.test(e.message),
+      `expected message matching ${pattern}, got: ${e.message}`);
 }
 
 function parseHasError(source: string, lineNum: number, pattern: RegExp): void {
@@ -841,6 +843,94 @@ prove foo by induction on xs
 });
 
 
+describe('cross-block accumulation', function() {
+
+  it('later decls see earlier decls (function defined in block 1, referenced in block 2 theorem)', function() {
+    const source = `type List
+| nil : List
+| cons : (Int, List) -> List
+
+def head : (List) -> Int
+| head(cons(x, nil)) => x
+| head(cons(x, cons(y, L))) => head(cons(y, L))
+
+theorem t1 (x : Int)
+| head(cons(x, nil)) = x
+
+prove t1 by calculation
+    head(cons(x, nil))
+    defof head_1 = x
+
+theorem t2 (x : Int)
+| head(cons(x, nil)) = x`;
+    const result = parseProofFile(source);
+    assert.deepStrictEqual(result.errors, []);
+    const { errors } = checkProofFile(result.file);
+    assert.deepStrictEqual(errors, [],
+        `expected no errors but got: ${errors.map(e => e.message).join('\n')}`);
+  });
+
+  it('reports error when unproved theorem in later block references an unknown function', function() {
+    const source = `type List
+| nil : List
+| cons : (Int, List) -> List
+
+def head : (List) -> Int
+| head(cons(x, nil)) => x
+| head(cons(x, cons(y, L))) => head(cons(y, L))
+
+theorem t1 (x : Int)
+| head(cons(x, nil)) = x
+
+prove t1 by calculation
+    head(cons(x, nil))
+    defof head_1 = x
+
+theorem t2 (x : Int)
+| ghost(cons(x, nil)) = x`;
+    const result = parseProofFile(source);
+    assert.deepStrictEqual(result.errors, []);
+    const { errors } = checkProofFile(result.file);
+    assert.ok(errors.length > 0, 'expected at least one CheckError');
+    assert.ok(errors.some(e => /ghost/.test(e.message)),
+        `expected error about 'ghost', got: ${errors.map(e => e.message).join(', ')}`);
+  });
+
+  it('checks decls-only file (no proof) and reports errors', function() {
+    const source = `def foo : (Int) -> Int
+| foo(x) => ghost(x)`;
+    const result = parseProofFile(source);
+    // parser will complain about missing prove; checkProofFile should still
+    // report the 'ghost' unknown reference.
+    const { errors } = checkProofFile(result.file);
+    assert.ok(errors.some(e => /ghost/.test(e.message)),
+        `expected error about 'ghost', got: ${errors.map(e => e.message).join(', ')}`);
+  });
+
+  it('accumulates multiple errors across entries', function() {
+    // Two bad proofs — both should be reported.
+    const source = `theorem t1 (x : Int)
+| x = x
+
+prove t1 by calculation
+    x
+    = 999
+
+theorem t2 (x : Int)
+| x = x
+
+prove t2 by calculation
+    x
+    = 888`;
+    const result = parseProofFile(source);
+    assert.deepStrictEqual(result.errors, []);
+    const { errors } = checkProofFile(result.file);
+    assert.ok(errors.length >= 2,
+        `expected >= 2 errors, got ${errors.length}: ${errors.map(e => e.message).join(', ')}`);
+  });
+});
+
+
 describe('proof_file parse errors', function() {
 
   it('rejects missing prove statement', function() {
@@ -858,13 +948,11 @@ describe('proof_file parse errors', function() {
   it('rejects incomplete proof when checked', function() {
     const result = parseProofFile(`theorem foo (x : Int)\n| x = x\nprove foo`);
     assert.deepStrictEqual(result.errors, []);
-    try {
-      checkProofFile(result.file);
-      assert.fail('expected CheckError');
-    } catch (e: any) {
-      assert.ok(e instanceof CheckError);
-      assert.ok(/incomplete proof/.test(e.message));
-    }
+    const checkResult = checkProofFile(result.file);
+    assert.ok(checkResult.errors.length > 0, 'expected a CheckError');
+    const e = checkResult.errors[0];
+    assert.ok(e instanceof CheckError);
+    assert.ok(/incomplete proof/.test(e.message));
   });
 
   it('rejects unknown proof method', function() {
@@ -882,8 +970,12 @@ prove len_zero_add by induction on xs`;
     parseHasError(`type = bad\n\ntheorem foo (x : Int)\n| x = x\nprove foo by calculation`, 1, /declaration error/);
   });
 
-  it('rejects non-algebra rule without operator separator', function() {
-    parseHasError(`theorem foo (x, y : Int)\n| x + y = y + x\nprove foo by calculation\n  x + y\n  defof bar`, 5, /expected.*<rule> =/);
+  it('accepts bare non-algebra rule without operator separator', function() {
+    // "defof bar" is valid — result is computed at check time.
+    // It will fail at check time (no function "bar"), not at parse time.
+    const result = parseProofFile(`theorem foo (x, y : Int)\n| x + y = y + x\nprove foo by calculation\n  x + y\n  defof bar`);
+    const parseErrors = result.errors.filter(e => /expected.*<rule> =/.test(e.message));
+    assert.strictEqual(parseErrors.length, 0);
   });
 
   it('parses IH theorem lines in case blocks', function() {

@@ -1,6 +1,6 @@
 import { Expression, Variable, Call } from '../facts/exprs';
 import { Formula } from '../facts/formula';
-import { Prop, AtomProp } from '../facts/prop';
+import { Prop } from '../facts/prop';
 import { Environment, NestedEnv } from '../types/env';
 import { ConstructorAst } from '../lang/type_ast';
 import { TheoremAst } from '../lang/theorem_ast';
@@ -243,7 +243,7 @@ function inductiveVars(env: Environment, formula: Formula): InductVar[] {
 }
 
 export const inductionParser: ProofMethodParser = {
-  tryParse(text: string, formula: Formula, env: Environment,
+  tryParse(text: string, goal: Prop, env: Environment,
       premises: Prop[]): ParsedMethod | string | null {
     const method = parseTacticMethod(text);
     if (method?.kind !== 'induction') return null;
@@ -256,7 +256,6 @@ export const inductionParser: ProofMethodParser = {
     if (typeDecl === null) {
       return `cannot do induction on built-in type "${varType.name}"`;
     }
-    const goal = new AtomProp(formula);
     const node: TacticProofNode = { kind: 'tactic', method: text, methodLine: 0, cases: [] };
     const tactic = new InductionTactic(goal, env, method, node, premises);
     return { kind: 'tactic', tactic };

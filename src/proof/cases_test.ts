@@ -2,6 +2,7 @@ import * as assert from 'assert';
 import { negateCondition, casesParser } from './cases';
 import { Formula, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
 import { ParseFormula } from '../facts/formula_parser';
+import { AtomProp } from '../facts/prop';
 import { TopLevelEnv } from '../types/env';
 
 
@@ -41,31 +42,32 @@ describe('casesParser', function() {
 
   const env = new TopLevelEnv([], []);
   const formula = ParseFormula('x = x');
+  const goal = new AtomProp(formula);
 
   it('parses "simple cases on x < y"', function() {
-    const result = casesParser.tryParse('simple cases on x < y', formula, env, []);
+    const result = casesParser.tryParse('simple cases on x < y', goal, env, []);
     assert.ok(result !== null && typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
   });
 
   it('parses "simple cases on x <= y"', function() {
-    const result = casesParser.tryParse('simple cases on x <= y', formula, env, []);
+    const result = casesParser.tryParse('simple cases on x <= y', goal, env, []);
     assert.ok(result !== null && typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
   });
 
   it('returns error for bad condition', function() {
-    const result = casesParser.tryParse('simple cases on ???', formula, env, []);
+    const result = casesParser.tryParse('simple cases on ???', goal, env, []);
     assert.strictEqual(result, 'syntax error in cases condition');
   });
 
   it('returns error for non-inequality condition', function() {
-    const result = casesParser.tryParse('simple cases on x = y', formula, env, []);
+    const result = casesParser.tryParse('simple cases on x = y', goal, env, []);
     assert.strictEqual(result, 'cases condition must use < or <=');
   });
 
   it('returns null for non-cases text', function() {
-    assert.strictEqual(casesParser.tryParse('calculation', formula, env, []), null);
+    assert.strictEqual(casesParser.tryParse('calculation', goal, env, []), null);
   });
 
   it('matches prefix of "simple cases on"', function() {

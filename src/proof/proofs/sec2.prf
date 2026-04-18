@@ -1,0 +1,133 @@
+theorem task1a (a, b : Int)
+| a = 1, b = 2*a-1 => a = 2*b-1
+
+prove task1a by calculation
+  given 1. a = 1
+  given 2. b = 2*a - 1
+  a
+  subst 1
+  ---
+  2*b - 1
+  unsub 2
+  unsub 1
+  1=
+
+theorem task1b (a, b, c : Int)
+| a = 1, b = 2*a-1, 0 < c => (b-1)^2 < c
+
+prove task1b by have b=1
+  given 1. a = 1
+  given 2. b = 2*a - 1
+  given 3. 0 < c
+  case b = 1:
+  prove b = 1 by calculation
+    b
+    subst 2
+    subst 1
+    =1
+  case (b - 1)^2 < c:
+  prove (b - 1)^2 < c by calculation
+    (b - 1)^2
+    subst 4
+    =0
+    <c since 3
+
+theorem task1c (a, b, c, d, e : Int)
+| d = b + 1, c = a - 8, e = a + 8*b => e = c + 8*d
+
+prove task1c by calculation
+  given 1. d = b + 1
+  given 2. c = a - 8
+  given 3. e = a + 8*b
+  e
+  subst 3
+  ---
+  c + 8*d
+  unsub 2
+  unsub 1
+  a+8*b=
+
+theorem task1d (a, b, c, d : Int)
+| b = 2*a - 1, d = a^2, d + b + 2 < c => (a+1)^2 < c
+
+prove task1d by calculation
+  given 1. b = 2*a - 1
+  given 2. d = a^2
+  given 3. d + b + 2 < c
+  (a + 1)^2
+  =a^2+2*a+1
+  ---
+  c
+  d+b+2< since 3
+  unsub 2
+  unsub 1
+  a^2 + 2*a + 1 =
+
+
+def abs : (Int) -> Int
+| abs(x) => if x < 0 then -x else x
+
+theorem task2 (x : Int)
+| abs(abs(x)) = abs(x)
+
+prove task2 by simple cases on x < 0
+  case x < 0:
+  prove abs(abs(x)) = abs(x) by calculation
+    abs(abs(x))
+    defof abs_1a since 1 => abs(-x)
+    defof abs_1b since 1 => -x
+    ---
+    abs(x)
+    undef abs_1a since 1
+  case 0 <= x:
+  prove abs(abs(x)) = abs(x) by have abs(x)=x
+    case abs(x) = x:
+    prove abs(x) = x by calculation
+      abs(x)
+      defof abs_1b since 1
+    case abs(abs(x)) = abs(x):
+    prove abs(abs(x)) = abs(x) by calculation
+      abs(abs(x))
+      subst 2
+
+type List
+| nil : List
+| cons : (Int, List) -> List
+
+def keep : (List) -> List
+| keep(nil) => nil
+| keep(cons(x, L)) => cons(x, skip(L))
+
+def skip : (List) -> List
+| skip(nil) => nil
+| skip(cons(x, L)) => keep(L)
+
+def echo : (List) -> List
+| echo(nil) => nil
+| echo(cons(x, L)) => cons(x, cons(x, echo(L)))
+
+def sum : (List) -> Int
+| sum(nil) => 0
+| sum(cons(x, L)) => x + sum(L)
+
+theorem task3 (L : List)
+| sum(skip(echo(L))) = sum(L)
+
+prove task3 by induction on L
+  case nil:
+  prove sum(skip(echo(nil))) = sum(nil) by calculation
+    sum(skip(echo(nil)))
+    defof echo_1
+    defof skip_1
+  case cons(a, M):
+  given IH : sum(skip(echo(M))) = sum(M)
+  prove sum(skip(echo(cons(a, M)))) = sum(cons(a, M)) by calculation
+    sum(skip(echo(cons(a, M))))
+    defof echo_2
+    defof skip_2
+    defof keep_2
+    defof sum_2
+    apply IH
+    ---
+    sum(cons(a, M))
+    undef sum_2

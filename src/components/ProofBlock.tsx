@@ -118,7 +118,7 @@ export default class ProofBlock
     if (evt.key === 'Enter') {
       const { formula, env, premise } = this.props;
       const premises = premise ? [new AtomProp(premise)] : [];
-      const result = ParseProofMethod(this.state.methodText, formula, env, premises);
+      const result = ParseProofMethod(this.state.methodText, new AtomProp(formula), env, premises);
       if (typeof result === 'string') {
         this.setState({ error: result });
       } else if (result.kind === 'calculate') {

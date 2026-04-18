@@ -37,7 +37,7 @@ export function buildCasesOnCondition(
 // --- Parsing & completion ---
 
 export const casesParser: ProofMethodParser = {
-  tryParse(text: string, formula: Formula, env: Environment): ParsedMethod | string | null {
+  tryParse(text: string, goal: Prop, env: Environment): ParsedMethod | string | null {
     const method = parseTacticMethod(text);
     if (method?.kind !== 'simple_cases') return null;
     let condition: Formula;
@@ -49,7 +49,6 @@ export const casesParser: ProofMethodParser = {
     if (condition.op !== OP_LESS_THAN && condition.op !== OP_LESS_EQUAL) {
       return 'cases condition must use < or <=';
     }
-    const goal = new AtomProp(formula);
     const node: TacticProofNode = { kind: 'tactic', method: text, methodLine: 0, cases: [] };
     const tactic = new CasesTactic(goal, env, method, node);
     return { kind: 'tactic', tactic };

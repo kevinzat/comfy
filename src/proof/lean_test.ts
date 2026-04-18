@@ -31,8 +31,7 @@ describe('toLean', function() {
       // Basic structure checks
       assert.ok(lean.includes('namespace Comfy'));
       assert.ok(lean.includes('end Comfy'));
-      assert.ok(lean.includes('theorem'));
-      assert.ok(lean.includes(':= by'));
+      assert.ok(lean.includes('theorem') || lean.includes('axiom'));
     });
   }
 
@@ -738,6 +737,19 @@ prove foo by cases on xs
     const obl = new ProofObligation([], goal, 1, []);
     const lean = oblToLean(obl, new DeclsAst([], [], []), proof);
     assert.ok(lean.includes('simp [my_lemma]'));
+  });
+
+  it('incomplete proof emits sorry', function() {
+    const goal = new AtomProp(new Formula(Variable.of('x'), '=', Variable.of('x')));
+    const thm = new TheoremAst('todo', [['x', 'Int']], [], goal, 1);
+    const decls = new DeclsAst([], [], [thm]);
+    const pf: ProofFile = { items: [
+      { kind: 'decls', decls, startLine: 1 },
+      { kind: 'proof', entry: { theoremName: 'todo', theoremLine: 1, givens: [],
+          proof: { kind: 'none', methodLine: 1 } } },
+    ] };
+    const lean = toLean(pf);
+    assert.ok(lean.includes('sorry'));
   });
 
 });

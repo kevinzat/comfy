@@ -170,14 +170,13 @@ function parseCalcStep(trimmed: string, line: number, errors: ParseError[]): Cal
     if (HAS_ARROW.test(trimmed)) {
       return { ruleText: trimmed, line };
     }
-    // Rules without "=>" need "<rule> <op> <result>".
+    // Rules with "<rule> <op> <result>" state the expected result explicitly.
     const m = trimmed.match(OP_SEPARATOR);
-    if (!m) {
-      errors.push(new ParseError(line,
-          'expected "<rule> = <expr>", "<rule> < <expr>", or "<rule> <= <expr>"'));
-      return null;
+    if (m) {
+      return { ruleText: m[1], statedOp: m[2], statedExpr: m[3], line };
     }
-    return { ruleText: m[1], statedOp: m[2], statedExpr: m[3], line };
+    // Bare rule (e.g. "subst 2", "defof f") — result computed at check time.
+    return { ruleText: trimmed, line };
   }
 
   // Forward algebra: starts with "=", "<", "<=", optionally followed by a space.
@@ -425,10 +424,18 @@ export function parseProofFile(source: string): ParseResult {
       i++;
     }
 
-    const declText = rawLines.slice(declStart, i).join('\n').trim();
-    const declsResult = ParseDecls(declText);
+    const declText = rawLines.slice(declStart, i).join('\n').replace(/\s+$/, '');
+    // Pass startLine so AST line numbers and parse-error line numbers come
+    // out in source-file (not block-local) coordinates.
+    const declsResult = ParseDecls(declText, { startLine: declStart + 1 });
     for (const e of declsResult.errors) {
-      errors.push(new ParseError(declStart + 1, `declaration error: ${e}`));
+      // ParseDecls messages carry a "line X col Y:" prefix that now uses
+      // source-absolute line numbers. Strip it — the ParseError line is the
+      // authoritative location.
+      const m = e.match(/^line (\d+) col \d+:\s*(.+)$/);
+      const line = m ? parseInt(m[1]) : declStart + 1;
+      const msg = m ? m[2] : e;
+      errors.push(new ParseError(line, `declaration error: ${msg}`));
     }
     items.push({ kind: 'decls', decls: declsResult.ast, startLine: declStart + 1 });
   }

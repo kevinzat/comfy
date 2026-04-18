@@ -362,33 +362,34 @@ describe('inductionParser', function() {
 
   const env = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['xs', 'List']]);
   const formula = ParseFormula('len(xs) = len(xs)');
+  const goal = new AtomProp(formula);
 
   it('parses "induction on xs"', function() {
-    const result = inductionParser.tryParse('induction on xs', formula, env, []);
+    const result = inductionParser.tryParse('induction on xs', goal, env, []);
     assert.ok(result !== null && typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
   });
 
   it('parses "induction on xs (a, L)"', function() {
-    const result = inductionParser.tryParse('induction on xs (a, L)', formula, env, []);
+    const result = inductionParser.tryParse('induction on xs (a, L)', goal, env, []);
     assert.ok(result !== null && typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
   });
 
   it('returns error for unknown variable', function() {
-    const result = inductionParser.tryParse('induction on zz', formula, env, []);
+    const result = inductionParser.tryParse('induction on zz', goal, env, []);
     assert.strictEqual(result, 'unknown variable "zz"');
   });
 
   it('returns error for built-in type', function() {
     const intEnv = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['n', 'Int']]);
     const f = ParseFormula('n = n');
-    const result = inductionParser.tryParse('induction on n', f, intEnv, []);
+    const result = inductionParser.tryParse('induction on n', new AtomProp(f), intEnv, []);
     assert.strictEqual(result, 'cannot do induction on built-in type "Int"');
   });
 
   it('returns null for non-induction text', function() {
-    assert.strictEqual(inductionParser.tryParse('calculation', formula, env, []), null);
+    assert.strictEqual(inductionParser.tryParse('calculation', goal, env, []), null);
   });
 
   it('matches prefix of "induction"', function() {

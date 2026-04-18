@@ -1,6 +1,6 @@
 import { Expression, Variable, Call } from '../facts/exprs';
 import { Formula } from '../facts/formula';
-import { Prop, AtomProp } from '../facts/prop';
+import { Prop } from '../facts/prop';
 import { Environment, NestedEnv } from '../types/env';
 import { Match } from '../calc/calc_complete';
 import { TacticProofNode } from './proof_file';
@@ -118,7 +118,7 @@ function casesVars(env: Environment, formula: Formula): CasesVar[] {
 }
 
 export const typeCasesParser: ProofMethodParser = {
-  tryParse(text: string, formula: Formula, env: Environment): ParsedMethod | string | null {
+  tryParse(text: string, goal: Prop, env: Environment): ParsedMethod | string | null {
     const method = parseTacticMethod(text);
     if (method?.kind !== 'type_cases') return null;
     const { varName } = method;
@@ -130,7 +130,6 @@ export const typeCasesParser: ProofMethodParser = {
     if (typeDecl === null) {
       return `cannot do cases on built-in type "${varType.name}"`;
     }
-    const goal = new AtomProp(formula);
     const tactic = new TypeCasesTactic(goal, env, method);
     return { kind: 'tactic', tactic };
   },

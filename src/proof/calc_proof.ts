@@ -1,4 +1,4 @@
-import { Expression, Call } from '../facts/exprs';
+import { Expression, Variable, Call } from '../facts/exprs';
 import { ParseExpr } from '../facts/exprs_parser';
 import { Formula, FormulaOp, OP_EQUAL, OP_LESS_THAN } from '../facts/formula';
 import { Prop, AtomProp, NotProp } from '../facts/prop';
@@ -95,11 +95,12 @@ function verifyStep(step: CalcStep, actual: Step): void {
   }
 }
 
-/** Returns the constructor name if the expression is a constructor call. */
-function constructorHead(expr: Expression, env: Environment): string | null {
-  if (!(expr instanceof Call)) return null;
-  if (!env.hasConstructor(expr.name)) return null;
-  return expr.name;
+/** Returns the constructor name if the expression is a constructor call
+ * (including 0-arg constructors, which parse as Variables). */
+export function constructorHead(expr: Expression, env: Environment): string | null {
+  if (expr instanceof Call && env.hasConstructor(expr.name)) return expr.name;
+  if (expr instanceof Variable && env.hasConstructor(expr.name)) return expr.name;
+  return null;
 }
 
 function validateNotEqual(

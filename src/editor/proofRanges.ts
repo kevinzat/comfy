@@ -91,9 +91,20 @@ export function buildDocSections(text: string): DocSection[] {
   const ranges = findProofRanges(text);
   const sections: DocSection[] = [];
 
-  for (const range of ranges) {
-    // Gather all non-prove text before this prove block.
-    const textBefore = text.substring(0, range.from);
+  for (let ri = 0; ri < ranges.length; ri++) {
+    const range = ranges[ri];
+    // Gather all non-prove text before this prove block by stripping out
+    // earlier prove block ranges.
+    const parts: string[] = [];
+    let cursor = 0;
+    for (let pi = 0; pi < ri; pi++) {
+      parts.push(text.substring(cursor, ranges[pi].from));
+      // Skip trailing newline after the prove block. A prove block followed
+      // by another always has a newline separating them.
+      cursor = ranges[pi].to + 1;
+    }
+    parts.push(text.substring(cursor, range.from));
+    const textBefore = parts.join('');
     const result = ParseDecls(textBefore);
     const decls = result.ast;
     const theorem = decls.theorems.find(t => t.name === range.theoremName);

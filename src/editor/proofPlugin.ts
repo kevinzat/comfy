@@ -69,6 +69,11 @@ const proofDecoField = StateField.define<DecorationSet>({
     for (const effect of tr.effects) {
       if (effect.is(setDecorations)) return effect.value;
     }
+    // Map existing decoration positions through doc changes so widgets
+    // keep their identity when text is inserted/deleted above them.
+    // Without this, a fresh rebuild would replace every widget instead
+    // of letting CodeMirror compare ranges and call updateDOM.
+    if (tr.docChanged) return value.map(tr.changes);
     return value;
   },
   provide: (f) => EditorView.decorations.from(f),

@@ -1,5 +1,6 @@
 import React from 'react';
-import { AtomProp } from '../facts/prop';
+import { AtomProp, NotProp } from '../facts/prop';
+import { OP_EQUAL } from '../facts/formula';
 import { TheoremAst } from '../lang/theorem_ast';
 import { ProofGoal } from '../proof/proof_tactic';
 import { ProofNode } from '../proof/proof_file';
@@ -12,6 +13,7 @@ export interface InlineCaseBlockProps {
   indent?: number;
   initialProofs?: ProofNode[];
   onComplete?: (complete: boolean) => void;
+  onStateChange?: () => void;
 }
 
 interface InlineCaseBlockState {
@@ -98,18 +100,23 @@ export default class InlineCaseBlock
         );
       }
 
-      // Nested proof block for this case.
-      if (!(pg.goal instanceof AtomProp)) continue;
+      // Nested proof block for this case. Accept AtomProp goals and
+      // NotProp(a = b) goals (the only NotProp shape the calc checker supports).
+      const isNotEq = pg.goal instanceof NotProp && pg.goal.formula.op === OP_EQUAL;
+      if (!(pg.goal instanceof AtomProp) && !isNotEq) continue;
+      const goalFormula = (pg.goal as AtomProp | NotProp).formula;
       lines.push(
         <div key={`proof-${idx}`}>
           <InlineProofBlock
             ref={this.proofBlockRefs[idx]}
-            formula={pg.goal.formula}
+            formula={goalFormula}
+            isNegated={isNotEq}
             env={pg.env}
             defNames={defNames}
             indent={indent + 1}
             initialProof={this.props.initialProofs?.[idx]}
             onComplete={(c) => this.handleCaseComplete(idx, c)}
+            onStateChange={this.props.onStateChange}
           />
         </div>
       );

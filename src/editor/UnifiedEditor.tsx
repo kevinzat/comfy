@@ -39,17 +39,25 @@ const editorTheme = EditorView.theme({
     borderLeft: '3px solid #b06000',
     marginLeft: '4px',
     paddingLeft: '8px',
-    marginTop: '4px',
-    marginBottom: '4px',
+    paddingTop: '4px',
+    paddingBottom: '4px',
   },
+});
+
+const tauriFillTheme = EditorView.theme({
+  '&': { height: '100%' },
+  '.cm-content': { minHeight: '0' },
+  '.cm-scroller': { overflow: 'auto' },
 });
 
 type ViewMode = 'editor' | 'text' | 'lean';
 
+const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
 /**
  * Build the full .prf text from the editor doc and proof widget state.
  */
-function buildProofText(view: EditorView): string {
+export function buildProofText(view: EditorView): string {
   const doc = view.state.doc.toString();
   const ranges = findProofRanges(doc);
   const entries = getProofEntries(view);
@@ -59,7 +67,7 @@ function buildProofText(view: EditorView): string {
 /**
  * Build a ProofFile from the editor doc and proof widget state for Lean export.
  */
-function buildProofFile(view: EditorView): ProofFile {
+export function buildProofFile(view: EditorView): ProofFile {
   const doc = view.state.doc.toString();
   const ranges = findProofRanges(doc);
   const entries = getProofEntries(view);
@@ -118,6 +126,7 @@ export default function UnifiedEditor() {
         keymap.of([...defaultKeymap, ...historyKeymap]),
         ensureTrailingNewline,
         editorTheme,
+        ...(isTauri ? [tauriFillTheme] : []),
         comfyHighlight,
         comfyLinter,
         proofPlugin,
@@ -130,7 +139,17 @@ export default function UnifiedEditor() {
     });
     viewRef.current = view;
 
+    let uninstallMenu: (() => void) | null = null;
+    if (isTauri) {
+      import('./nativeMenu').then(({ installNativeMenu }) => {
+        if (viewRef.current === view) {
+          uninstallMenu = installNativeMenu(view);
+        }
+      });
+    }
+
     return () => {
+      uninstallMenu?.();
       view.destroy();
       viewRef.current = null;
     };
@@ -166,6 +185,14 @@ export default function UnifiedEditor() {
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(outputText);
   }, [outputText]);
+
+  if (isTauri) {
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div ref={containerRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden' }} />
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '0 20px 20px', maxWidth: '100ch' }}>

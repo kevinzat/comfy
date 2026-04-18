@@ -17,7 +17,7 @@ export class VerumTactic implements ProofTactic {
 }
 
 export const verumParser: ProofMethodParser = {
-  tryParse(text: string, _formula: Formula, _env: Environment): ParsedMethod | string | null {
+  tryParse(text: string, _goal: Prop, _env: Environment): ParsedMethod | string | null {
     const method = parseTacticMethod(text);
     if (method?.kind !== 'verum') return null;
     return { kind: 'tactic', tactic: new VerumTactic() };
@@ -56,7 +56,7 @@ export class ExfalsoTactic implements ProofTactic {
 }
 
 export const exfalsoParser: ProofMethodParser = {
-  tryParse(text: string, _formula: Formula, env: Environment): ParsedMethod | string | null {
+  tryParse(text: string, _goal: Prop, env: Environment): ParsedMethod | string | null {
     const method = parseTacticMethod(text);
     if (method?.kind !== 'exfalso') return null;
     return { kind: 'tactic', tactic: new ExfalsoTactic(env) };
@@ -104,7 +104,7 @@ export class ContradictionTactic implements ProofTactic {
 }
 
 export const contradictionParser: ProofMethodParser = {
-  tryParse(text: string, _formula: Formula, env: Environment): ParsedMethod | string | null {
+  tryParse(text: string, _goal: Prop, env: Environment): ParsedMethod | string | null {
     const method = parseTacticMethod(text);
     if (method?.kind !== 'contradiction') return null;
     let formula: Formula;
@@ -159,10 +159,11 @@ export class AbsurdumTactic implements ProofTactic {
 }
 
 export const absurdumParser: ProofMethodParser = {
-  tryParse(text: string, formula: Formula, env: Environment): ParsedMethod | string | null {
+  tryParse(text: string, goal: Prop, env: Environment): ParsedMethod | string | null {
     const method = parseTacticMethod(text);
     if (method?.kind !== 'absurdum') return null;
-    return { kind: 'tactic', tactic: new AbsurdumTactic(env, formula) };
+    if (goal.tag !== 'not') return 'absurdum requires a negation goal';
+    return { kind: 'tactic', tactic: new AbsurdumTactic(env, goal.formula) };
   },
 
   getMatches(text: string): Match[] {
@@ -179,6 +180,20 @@ export const absurdumParser: ProofMethodParser = {
     return [];
   },
 };
+
+
+/** Derives an OrProp from a goal — either directly or from not(a = b). */
+function orGoalFromProp(goal: Prop): OrProp | null {
+  if (goal.tag === 'or') return goal;
+  if (goal.tag === 'not' && goal.formula.op === OP_EQUAL) {
+    const { left, right } = goal.formula;
+    return new OrProp([
+      new AtomProp(new Formula(left, OP_LESS_THAN, right)),
+      new AtomProp(new Formula(right, OP_LESS_THAN, left)),
+    ]);
+  }
+  return null;
+}
 
 
 // --- Left: proves "P or Q" with subgoal P ---
@@ -199,10 +214,12 @@ export class LeftTactic implements ProofTactic {
 }
 
 export const leftParser: ProofMethodParser = {
-  tryParse(text: string, _formula: Formula, env: Environment): ParsedMethod | string | null {
+  tryParse(text: string, goal: Prop, env: Environment): ParsedMethod | string | null {
     const method = parseTacticMethod(text);
     if (method?.kind !== 'left') return null;
-    return { kind: 'tactic', tactic: new LeftTactic(env, new OrProp([])) };
+    const orGoal = orGoalFromProp(goal);
+    if (orGoal === null) return 'left requires a disjunction goal';
+    return { kind: 'tactic', tactic: new LeftTactic(env, orGoal) };
   },
 
   getMatches(text: string): Match[] {
@@ -239,10 +256,12 @@ export class RightTactic implements ProofTactic {
 }
 
 export const rightParser: ProofMethodParser = {
-  tryParse(text: string, _formula: Formula, env: Environment): ParsedMethod | string | null {
+  tryParse(text: string, goal: Prop, env: Environment): ParsedMethod | string | null {
     const method = parseTacticMethod(text);
     if (method?.kind !== 'right') return null;
-    return { kind: 'tactic', tactic: new RightTactic(env, new OrProp([])) };
+    const orGoal = orGoalFromProp(goal);
+    if (orGoal === null) return 'right requires a disjunction goal';
+    return { kind: 'tactic', tactic: new RightTactic(env, orGoal) };
   },
 
   getMatches(text: string): Match[] {
@@ -347,7 +366,7 @@ export class DisjCasesTactic implements ProofTactic {
 }
 
 export const disjCasesParser: ProofMethodParser = {
-  tryParse(text: string, _formula: Formula, env: Environment): ParsedMethod | string | null {
+  tryParse(text: string, goal: Prop, env: Environment): ParsedMethod | string | null {
     const method = parseTacticMethod(text);
     if (method === null || method.kind !== 'disj_cases') return null;
     const parts = method.condition.split(' or ');
@@ -372,7 +391,7 @@ export const disjCasesParser: ProofMethodParser = {
       }
       disjuncts.push(lit);
     }
-    return { kind: 'tactic', tactic: new DisjCasesTactic(env, new AtomProp(ParseFormula('0 = 0')), disjuncts) };
+    return { kind: 'tactic', tactic: new DisjCasesTactic(env, goal, disjuncts) };
   },
 
   getMatches(text: string): Match[] {
@@ -430,7 +449,7 @@ export class HaveTactic implements ProofTactic {
 }
 
 export const haveParser: ProofMethodParser = {
-  tryParse(text: string, _formula: Formula, env: Environment): ParsedMethod | string | null {
+  tryParse(text: string, goal: Prop, env: Environment): ParsedMethod | string | null {
     const method = parseTacticMethod(text);
     if (method === null || method.kind !== 'have') return null;
     let claim: Prop;
@@ -439,7 +458,7 @@ export const haveParser: ProofMethodParser = {
     } catch (_e) {
       return 'syntax error in have proposition';
     }
-    return { kind: 'tactic', tactic: new HaveTactic(env, new AtomProp(ParseFormula('0 = 0')), claim) };
+    return { kind: 'tactic', tactic: new HaveTactic(env, goal, claim) };
   },
 
   getMatches(text: string): Match[] {

@@ -9,6 +9,7 @@ const lexer2 = util.makeLexer(moo, {
   NL: { match: /\n/, lineBreaks: true },
   lessequal: '<=',
   lessthan: '<',
+  notequal: '/=',
   equal: '=',
   constant: /[0-9]+/,
   variable: { match: /[a-z][_a-zA-Z0-9]*/, type: moo.keywords({

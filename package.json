@@ -7,7 +7,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build --base=/comfy",
+    "build:tauri": "vite build",
     "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
     "lint": "eslint src/",
     "pretest": "npm run check-ignores",
     "check-ignores": "./scripts/check-ignores.sh src",
@@ -22,6 +26,9 @@
     "@codemirror/lint": "^6.9.5",
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.41.0",
+    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/plugin-dialog": "^2.7.0",
+    "@tauri-apps/plugin-fs": "^2.5.0",
     "@types/moo": "^0.5.0",
     "@types/nearley": "^2.11.0",
     "@types/react": "^16.8.3",
@@ -34,6 +41,7 @@
     "react-simple-code-editor": "^0.14.1"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.10.1",
     "@types/assert": "^1.5.6",
     "@types/node": "^25.5.2",
     "@typescript-eslint/eslint-plugin": "^8.58.0",

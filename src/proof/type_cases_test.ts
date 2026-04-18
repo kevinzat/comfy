@@ -58,26 +58,26 @@ describe('type_cases tactic', function() {
   const formula = ParseFormula('len(xs) = len(xs)');
 
   it('parses "cases on xs" via ParseProofMethod', function() {
-    const result = ParseProofMethod('cases on xs', formula, env, []);
+    const result = ParseProofMethod('cases on xs', new AtomProp(formula), env, []);
     assert.ok(typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
   });
 
   it('returns error for unknown variable', function() {
-    const result = ParseProofMethod('cases on ys', formula, env, []);
+    const result = ParseProofMethod('cases on ys', new AtomProp(formula), env, []);
     assert.ok(typeof result === 'string');
     assert.ok(result.includes('unknown variable'));
   });
 
   it('returns error for built-in type', function() {
     const intEnv = new NestedEnv(new TopLevelEnv([listType], [lenFunc]), [['n', 'Int']]);
-    const result = ParseProofMethod('cases on n', formula, intEnv, []);
+    const result = ParseProofMethod('cases on n', new AtomProp(formula), intEnv, []);
     assert.ok(typeof result === 'string');
     assert.ok(result.includes('built-in type'));
   });
 
   it('decompose generates one case per constructor with no IH', function() {
-    const result = ParseProofMethod('cases on xs', formula, env, []);
+    const result = ParseProofMethod('cases on xs', new AtomProp(formula), env, []);
     assert.ok(typeof result !== 'string' && result.kind === 'tactic');
     const goals = result.tactic.decompose();
     assert.strictEqual(goals.length, 2);
@@ -107,7 +107,7 @@ describe('type_cases tactic', function() {
   });
 
   it('decompose with explicit arg names', function() {
-    const result = ParseProofMethod('cases on xs (x, R)', formula, env, []);
+    const result = ParseProofMethod('cases on xs (x, R)', new AtomProp(formula), env, []);
     assert.ok(typeof result !== 'string' && result.kind === 'tactic');
     const goals = result.tactic.decompose();
     assert.strictEqual(goals[1].label, 'cons(x, R)');
@@ -120,7 +120,7 @@ describe('type_cases tactic', function() {
     const clashEnv = new NestedEnv(
         new TopLevelEnv([listType], [lenFunc]),
         [['xs', 'List'], ['a', 'Int']]);
-    const result = ParseProofMethod('cases on xs', clashFormula, clashEnv, []);
+    const result = ParseProofMethod('cases on xs', new AtomProp(clashFormula), clashEnv, []);
     assert.ok(typeof result !== 'string' && result.kind === 'tactic');
     assert.throws(() => result.tactic.decompose(), /clashes/);
   });

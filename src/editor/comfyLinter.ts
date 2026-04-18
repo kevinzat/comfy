@@ -1,46 +1,28 @@
 import { Diagnostic, linter } from '@codemirror/lint';
 import { EditorView } from '@codemirror/view';
 import { parseProofFile } from '../proof/proof_file';
-import { TopLevelEnv } from '../types/env';
-import { UserError } from '../facts/user_error';
-import { DeclsAst } from '../lang/decls_ast';
+import { checkProofFile, CheckError } from '../proof/proof_file_checker';
 
 
 /**
- * Try to build a TopLevelEnv from declarations and run full type checking
- * (function bodies, facts, theorems). Returns the error if it fails.
+ * Converts a CheckError (with source-absolute line, and optionally col/length)
+ * into a CodeMirror Diagnostic. If col/length are 0 (unknown), highlights
+ * the whole line.
  */
-function checkEnv(decls: DeclsAst): UserError | null {
-  try {
-    const env = new TopLevelEnv(decls.types, decls.functions, [], decls.theorems);
-    env.check();
-    return null;
-  } catch (e: unknown) {
-    if (e instanceof UserError) return e;
-    const msg = e instanceof Error ? e.message : String(e);
-    return new UserError(msg, 0, 0, 0);
-  }
-}
-
-/**
- * Converts a UserError (with line/col/length relative to a text block starting
- * at `startLine`) into a CodeMirror Diagnostic.
- */
-function errorToDiagnostic(
-    view: EditorView, err: UserError, startLine: number): Diagnostic | null {
+function checkErrorToDiagnostic(view: EditorView, err: CheckError): Diagnostic | null {
   if (err.line <= 0) return null;
-
-  const docLine = startLine + err.line - 1;
   const lineCount = view.state.doc.lines;
-  if (docLine < 1 || docLine > lineCount) return null;
+  if (err.line > lineCount) return null;
 
-  const line = view.state.doc.line(docLine);
-  const from = line.from + Math.max(0, err.col - 1);
+  const line = view.state.doc.line(err.line);
+  const from = err.col > 0
+      ? line.from + Math.min(err.col - 1, line.length)
+      : line.from;
   const to = err.length > 0
-    ? Math.min(from + err.length, line.to)
-    : line.to;
+      ? Math.min(from + err.length, line.to)
+      : line.to;
 
-  const msg = err.message.replace(/ at line \d+ col \d+/, '');
+  const msg = err.message.replace(/^line \d+:\s*/, '');
   return { from, to, severity: 'error', message: msg };
 }
 
@@ -62,14 +44,13 @@ export const comfyLinter = linter(
       diagnostics.push({ from: line.from, to: line.to, severity: 'error', message: msg });
     }
 
-    // Type-check declarations from each decls item.
-    for (const item of result.file.items) {
-      if (item.kind !== 'decls') continue;
-      const err = checkEnv(item.decls);
-      if (err) {
-        const diag = errorToDiagnostic(view, err, item.startLine);
-        if (diag) diagnostics.push(diag);
-      }
+    // Type-check and proof-check the whole file as one unit, so that decls
+    // accumulate across blocks (a theorem in block 2 can reference a function
+    // from block 1) and every decls block is validated even without a proof.
+    const { errors: checkErrors } = checkProofFile(result.file);
+    for (const err of checkErrors) {
+      const diag = checkErrorToDiagnostic(view, err);
+      if (diag) diagnostics.push(diag);
     }
 
     return diagnostics;

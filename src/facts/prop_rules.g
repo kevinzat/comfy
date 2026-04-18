@@ -9,6 +9,8 @@ Prop -> Literal {% ([l]) => l %}
 
 Literal -> Formula {% ([f]) => new prop.AtomProp(f) %}
          | %kw_not Formula {% ([_op, f]) => new prop.NotProp(f) %}
+         | %kw_not %lparen Formula %rparen {% ([_op, _lp, f, _rp]) => new prop.NotProp(f) %}
+         | Expr %notequal Expr {% ([l, _op, r]) => new prop.NotProp(new formula.Formula(l, '=', r)) %}
          | %kw_true {% () => new prop.ConstProp(true) %}
          | %kw_false {% () => new prop.ConstProp(false) %}
 

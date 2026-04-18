@@ -15,7 +15,9 @@ describe('proof files', function() {
     it(file, function() {
       const source = fs.readFileSync(path.join(proofsDir, file), 'utf-8');
       const pf = parseProofFile(source).file;
-      checkProofFile(pf);
+      const { errors } = checkProofFile(pf);
+      assert.deepStrictEqual(errors, [],
+          `check errors in ${file}:\n${errors.map(e => e.message).join('\n')}`);
     });
   }
 });

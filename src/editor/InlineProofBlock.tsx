@@ -1,6 +1,6 @@
 import React from 'react';
 import { Formula } from '../facts/formula';
-import { AtomProp } from '../facts/prop';
+import { AtomProp, NotProp, Prop } from '../facts/prop';
 import { Environment } from '../types/env';
 import { ProofNode, CalcProofNode, CaseBlock, IHLine } from '../proof/proof_file';
 import { ProofTactic, ProofGoal, ParseProofMethod, FindProofMethodMatches } from '../proof/proof_tactic';
@@ -17,12 +17,15 @@ type ProofMethod =
 
 export interface InlineProofBlockProps {
   formula: Formula;
+  /** True when the goal is `not formula` (only supported with op '='). */
+  isNegated?: boolean;
   env: Environment;
   premise?: Formula;
   defNames: string[];
   indent?: number;
   initialProof?: ProofNode;
   onComplete?: (complete: boolean) => void;
+  onStateChange?: () => void;
 }
 
 interface InlineProofBlockState {
@@ -84,7 +87,10 @@ export default class InlineProofBlock
       methodText: string, props: InlineProofBlockProps,
   ): InlineProofBlockState | null {
     const premises = props.premise ? [new AtomProp(props.premise)] : [];
-    const result = ParseProofMethod(methodText, props.formula, props.env, premises);
+    const goal: Prop = props.isNegated
+        ? new NotProp(props.formula)
+        : new AtomProp(props.formula);
+    const result = ParseProofMethod(methodText, goal, props.env, premises);
     if (typeof result === 'string' || result.kind === 'calculate') return null;
     try {
       const goals = result.tactic.decompose();
@@ -149,7 +155,7 @@ export default class InlineProofBlock
       matches: FindProofMethodMatches(text, this.props.formula, this.props.env),
       method: { kind: 'none' },
       error: undefined,
-    });
+    }, () => this.props.onStateChange?.());
   }
 
   private setText(text: string) {
@@ -164,18 +170,22 @@ export default class InlineProofBlock
     if (evt.key === 'Enter') {
       const { formula, env, premise } = this.props;
       const premises = premise ? [new AtomProp(premise)] : [];
-      const result = ParseProofMethod(this.state.methodText, formula, env, premises);
+      const goal: Prop = this.props.isNegated
+          ? new NotProp(formula)
+          : new AtomProp(formula);
+      const result = ParseProofMethod(this.state.methodText, goal, env, premises);
       if (typeof result === 'string') {
         this.setState({ error: result });
       } else if (result.kind === 'calculate') {
-        this.setState({ method: { kind: 'calculate' }, error: undefined });
+        this.setState({ method: { kind: 'calculate' }, error: undefined },
+            () => this.props.onStateChange?.());
       } else {
         try {
           const goals = result.tactic.decompose();
           this.setState({
             method: { kind: 'tactic', tactic: result.tactic, goals, methodText: this.state.methodText },
             error: undefined,
-          });
+          }, () => this.props.onStateChange?.());
         } catch (e: any) {
           this.setState({ error: e.message });
         }
@@ -194,10 +204,12 @@ export default class InlineProofBlock
   }
 
   render() {
-    const { formula, env, defNames, onComplete } = this.props;
+    const { formula, env, defNames, onComplete, onStateChange } = this.props;
+    const isNegated = this.props.isNegated ?? false;
     const indent = this.props.indent ?? 0;
     const { method, matches, methodText, focus, error, collapsed } = this.state;
-    const goalStr = formula.to_string();
+    const formulaStr = formula.to_string();
+    const goalStr = (isNegated ? 'not ' : '') + formulaStr;
 
     const indentClass = indent > 0 ? ` ip-indent-${Math.min(indent, 4)}` : '';
     const bodyIndentClass = ` ip-indent-${Math.min(indent + 1, 4)}`;
@@ -214,44 +226,46 @@ export default class InlineProofBlock
     const canCollapse = hasMethod;
 
     if (collapsed) {
-      return (
-        <div className={`ip-line${indentClass} ip-collapsed`}
+      lines.push(
+        <div key="goal" className={`ip-line${indentClass} ip-collapsed`}
              onClick={() => this.setState({ collapsed: false })}>
           <span className="ip-keyword">prove</span> <span className="ip-formula">{goalStr}</span>
           {methodSuffix}{' '}
           <span className="ip-collapse-hint">...</span>
         </div>
       );
+    } else {
+      lines.push(
+        <div key="goal" className={`ip-line${indentClass}${canCollapse ? ' ip-collapsible' : ''}${hasMethod ? ' ip-step' : ''}`}
+             onClick={canCollapse ? () => this.setState({ collapsed: true }) : undefined}>
+          <span className="ip-keyword">prove</span> <span className="ip-formula">{goalStr}</span>
+          {methodSuffix}
+          {hasMethod && <span className="ip-delete" onClick={(e) => { e.stopPropagation(); this.resetMethod(); }}>&times;</span>}
+        </div>
+      );
     }
 
-    lines.push(
-      <div key="goal" className={`ip-line${indentClass}${canCollapse ? ' ip-collapsible' : ''}${hasMethod ? ' ip-step' : ''}`}
-           onClick={canCollapse ? () => this.setState({ collapsed: true }) : undefined}>
-        <span className="ip-keyword">prove</span> <span className="ip-formula">{goalStr}</span>
-        {methodSuffix}
-        {hasMethod && <span className="ip-delete" onClick={(e) => { e.stopPropagation(); this.resetMethod(); }}>&times;</span>}
-      </div>
-    );
-
     if (method.kind === 'calculate') {
-      // Calculation body.
+      // Calculation body — hidden when collapsed to preserve state.
       lines.push(
-        <div key="calc">
+        <div key="calc" style={collapsed ? { display: 'none' } : undefined}>
           <InlineCalcBlock
             ref={this.calcRef}
             env={env}
-            goal={goalStr}
+            goal={formulaStr}
+            isNegated={isNegated}
             defNames={defNames}
             indent={indent}
             initialCalc={this.initialCalc}
             onComplete={onComplete}
+            onStateChange={onStateChange}
           />
         </div>
       );
     } else if (method.kind === 'tactic') {
-      // Case blocks.
+      // Case blocks — hidden when collapsed to preserve state.
       lines.push(
-        <div key="cases">
+        <div key="cases" style={collapsed ? { display: 'none' } : undefined}>
           <InlineCaseBlock
             ref={this.caseRef}
             goals={method.goals}
@@ -259,6 +273,7 @@ export default class InlineProofBlock
             indent={indent}
             initialProofs={this.initialCaseProofs}
             onComplete={onComplete}
+            onStateChange={onStateChange}
           />
         </div>
       );

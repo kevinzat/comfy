@@ -115,6 +115,60 @@ describe('decls_parser', function() {
     assert.throws(() => ParsePremises('not a valid premise ###'));
   });
 
+  it('parse error message is concise (no verbose expected-token list)', function() {
+    // Nearley's default error dumps every expected production; we strip it.
+    const { errors } = ParseDecls('theorem foo (x : Int) | x = + 1');
+    assert.equal(errors.length, 1);
+    assert.ok(errors[0].split('\n').length <= 2,
+        `expected <= 2 lines, got:\n${errors[0]}`);
+    assert.ok(!errors[0].includes('Instead, I was expecting'),
+        `error should not include verbose production list:\n${errors[0]}`);
+  });
+
+  it('lexer error message is concise', function() {
+    const { errors } = ParseDecls('theorem foo (x : Int) | ###');
+    assert.equal(errors.length, 1);
+    assert.ok(errors[0].split('\n').length <= 2,
+        `expected <= 2 lines, got:\n${errors[0]}`);
+    assert.ok(!errors[0].includes('Instead, I was expecting'),
+        `error should not include verbose production list:\n${errors[0]}`);
+  });
+
+  it('parse error reports actual bad token line, not decl keyword line', function() {
+    // The `theorem` keyword is on line 1, but the bad `=>` is on line 2.
+    const { errors } = ParseDecls('theorem foo (x : Int)\n| head(x) => x');
+    assert.equal(errors.length, 1);
+    const m = errors[0].match(/^line (\d+) col \d+:/);
+    assert.ok(m, `expected 'line N col M:' prefix, got: ${errors[0]}`);
+    assert.equal(m![1], '2', `expected error on line 2, got: ${errors[0]}`);
+  });
+
+  it('incomplete declaration reports last-seen token line, not decl keyword line', function() {
+    // Theorem is truncated mid-parse; `=>` on line 2 is the last token before EOF.
+    const { errors } = ParseDecls('theorem foo (x : Int)\n| x = x =>');
+    assert.equal(errors.length, 1);
+    const m = errors[0].match(/^line (\d+) col \d+:/);
+    assert.ok(m, `expected 'line N col M:' prefix, got: ${errors[0]}`);
+    assert.equal(m![1], '2', `expected error on line 2, got: ${errors[0]}`);
+  });
+
+  it('startLine option makes AST and error lines source-absolute', function() {
+    // Declaration's internal line is 1, but startLine=17 makes it report as 18.
+    const { ast, errors } = ParseDecls(
+        'theorem foo (x : Int)\n| head(x) => x',
+        { startLine: 17 });
+    // Error should be on source line 18 (which is startLine 17 + local line 2).
+    assert.equal(errors.length, 1);
+    const m = errors[0].match(/^line (\d+) col \d+:/);
+    assert.ok(m, `expected 'line N col M:' prefix, got: ${errors[0]}`);
+    assert.equal(m![1], '18', `expected error on line 18, got: ${errors[0]}`);
+    // A successful parse also has source-absolute lines on the AST.
+    const { ast: ast2 } = ParseDecls('theorem foo (x : Int)\n| x = x', { startLine: 10 });
+    assert.equal(ast2.theorems[0].line, 10,
+        `theorem AST line should be 10, got ${ast2.theorems[0].line}`);
+    void ast;
+  });
+
   // --- Theorem declarations ---
 
   it('parse theorem without premise (pipe syntax)', function() {
@@ -199,6 +253,36 @@ describe('decls_parser', function() {
     assert.ok(ast);
     assert.ok(ast.theorems[0].conclusion instanceof NotProp);
     assert.strictEqual(ast.theorems[0].conclusion.formula.op, '<');
+  });
+
+  it('parse theorem with parenthesized not conclusion', function() {
+    const { ast } = ParseDecls(
+        `type List
+         | nil : List
+         | cons : (Int, List) -> List
+         def concat : (List, List) -> List
+         | concat(nil, R) => R
+         | concat(cons(a, L), R) => cons(a, concat(L, R))
+         theorem foo (x : Int) (L : List)
+         | not (concat(L, cons(x, nil)) = nil)`);
+    assert.ok(ast);
+    assert.ok(ast.theorems[0].conclusion instanceof NotProp);
+    assert.strictEqual(ast.theorems[0].conclusion.formula.op, '=');
+  });
+
+  it('parse theorem with /= conclusion', function() {
+    const { ast } = ParseDecls(
+        `type List
+         | nil : List
+         | cons : (Int, List) -> List
+         def concat : (List, List) -> List
+         | concat(nil, R) => R
+         | concat(cons(a, L), R) => cons(a, concat(L, R))
+         theorem foo (x : Int) (L : List)
+         | concat(L, cons(x, nil)) /= nil`);
+    assert.ok(ast);
+    assert.ok(ast.theorems[0].conclusion instanceof NotProp);
+    assert.strictEqual(ast.theorems[0].conclusion.formula.op, '=');
   });
 
   it('parse theorem with not premise', function() {

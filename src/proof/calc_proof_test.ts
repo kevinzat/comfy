@@ -154,14 +154,15 @@ describe('calculationParser', function() {
 
   const env = new TopLevelEnv([], []);
   const formula = ParseFormula('x = x');
+  const goal = new AtomProp(formula);
 
   it('parses "calculation"', function() {
-    const result = calculationParser.tryParse('calculation', formula, env, []);
+    const result = calculationParser.tryParse('calculation', goal, env, []);
     assert.deepStrictEqual(result, { kind: 'calculate' });
   });
 
   it('returns null for non-calculation text', function() {
-    assert.strictEqual(calculationParser.tryParse('induction on x', formula, env, []), null);
+    assert.strictEqual(calculationParser.tryParse('induction on x', goal, env, []), null);
   });
 
   it('matches prefix of "calculation"', function() {

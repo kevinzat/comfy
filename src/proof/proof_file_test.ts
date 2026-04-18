@@ -503,4 +503,22 @@ describe('parseProofFile', () => {
     assert.ok(result.file.items.some(i => i.kind === 'decls'));
     assert.ok(!result.file.items.some(i => i.kind === 'proof'));
   });
+
+  it('declaration error points to bad token line, not decls block start', () => {
+    // Theorem keyword on line 3, bad `=>` on line 4.
+    const source = [
+      'type Bool',          // 1
+      '| yes : Bool',       // 2
+      'theorem foo (x : Int)', // 3
+      '| head(x) => x',     // 4 — bad `=>` (theorem uses `=`, not `=>`)
+    ].join('\n');
+    const result = parseProofFile(source);
+    const declErr = result.errors.find(e => /declaration error/.test(e.message));
+    assert.ok(declErr, `expected declaration error, got: [${
+        result.errors.map(e => `line ${e.line}: ${e.message}`).join(', ')}]`);
+    assert.equal(declErr!.line, 4,
+        `expected error on line 4, got line ${declErr!.line}: ${declErr!.message}`);
+    assert.ok(!/line \d+ col \d+/.test(declErr!.message),
+        `message should not repeat line/col, got: ${declErr!.message}`);
+  });
 });

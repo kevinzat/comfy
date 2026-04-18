@@ -33,6 +33,7 @@ export function makeLangLexer(moo) {
     colon: ':',
     lessequal: '<=',
     lessthan: '<',
+    notequal: '/=',
     equal: '=',
     lparen: '(', rparen: ')', comma: ',',
     exp: '^', times: '*', plus: '+', minus: '-'

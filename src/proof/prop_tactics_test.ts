@@ -11,15 +11,16 @@ describe('verum', function() {
 
   const env = new TopLevelEnv([], []);
   const formula = ParseFormula('x = x');  // unused by verum but required by API
+  const goal = new AtomProp(formula);
 
   it('parses "verum" when goal is true', function() {
-    const result = ParseProofMethod('verum', formula, env, []);
+    const result = ParseProofMethod('verum', goal, env, []);
     assert.ok(typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
   });
 
   it('returns error when goal is not true', function() {
-    const result = ParseProofMethod('verum', formula, env, []);
+    const result = ParseProofMethod('verum', goal, env, []);
     // verum parses but decompose will check; the parser accepts it
     // Actually, verum should validate the goal is ConstProp(true)
     // Let's test via the tactic's decompose
@@ -27,7 +28,7 @@ describe('verum', function() {
   });
 
   it('decompose returns empty goals', function() {
-    const result = ParseProofMethod('verum', formula, env, []);
+    const result = ParseProofMethod('verum', goal, env, []);
     assert.ok(typeof result !== 'string' && result.kind === 'tactic');
     const goals = result.tactic.decompose();
     assert.strictEqual(goals.length, 0);
@@ -49,20 +50,21 @@ describe('exfalso', function() {
 
   const env = new TopLevelEnv([], []);
   const formula = ParseFormula('x = x');
+  const goal = new AtomProp(formula);
 
   it('parses "exfalso"', function() {
-    const result = ParseProofMethod('exfalso', formula, env, []);
+    const result = ParseProofMethod('exfalso', goal, env, []);
     assert.ok(typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
   });
 
   it('returns null for non-exfalso text', function() {
-    const result = ParseProofMethod('exfalso', formula, env, []);
+    const result = ParseProofMethod('exfalso', goal, env, []);
     assert.ok(typeof result !== 'string');
   });
 
   it('decompose returns one goal: false', function() {
-    const result = ParseProofMethod('exfalso', formula, env, []);
+    const result = ParseProofMethod('exfalso', goal, env, []);
     assert.ok(typeof result !== 'string' && result.kind === 'tactic');
     const goals = result.tactic.decompose();
     assert.strictEqual(goals.length, 1);
@@ -72,7 +74,7 @@ describe('exfalso', function() {
 
   it('goal is auto-discharged when false is known', function() {
     const envWithFalse = new NestedEnv(env, [], [new ConstProp(false)]);
-    const result = ParseProofMethod('exfalso', formula, envWithFalse, []);
+    const result = ParseProofMethod('exfalso', goal, envWithFalse, []);
     assert.ok(typeof result !== 'string' && result.kind === 'tactic');
     const goals = result.tactic.decompose();
     const remaining = filterDischargedGoals(goals);
@@ -80,7 +82,7 @@ describe('exfalso', function() {
   });
 
   it('goal is not discharged when false is not known', function() {
-    const result = ParseProofMethod('exfalso', formula, env, []);
+    const result = ParseProofMethod('exfalso', goal, env, []);
     assert.ok(typeof result !== 'string' && result.kind === 'tactic');
     const goals = result.tactic.decompose();
     const remaining = filterDischargedGoals(goals);
@@ -98,26 +100,27 @@ describe('contradiction', function() {
 
   const env = new TopLevelEnv([], []);
   const formula = ParseFormula('x = x');
+  const goal = new AtomProp(formula);
 
   it('parses "contradiction x < y"', function() {
-    const result = ParseProofMethod('contradiction x < y', formula, env, []);
+    const result = ParseProofMethod('contradiction x < y', goal, env, []);
     assert.ok(typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
   });
 
   it('returns null for non-contradiction text', function() {
-    const result = ParseProofMethod('calculation', formula, env, []);
+    const result = ParseProofMethod('calculation', goal, env, []);
     assert.ok(typeof result !== 'string');
     assert.strictEqual(result.kind, 'calculate');
   });
 
   it('returns error for bad formula', function() {
-    const result = ParseProofMethod('contradiction ???', formula, env, []);
+    const result = ParseProofMethod('contradiction ???', goal, env, []);
     assert.ok(typeof result === 'string');
   });
 
   it('decompose returns two goals: P and not P', function() {
-    const result = ParseProofMethod('contradiction x < y', formula, env, []);
+    const result = ParseProofMethod('contradiction x < y', goal, env, []);
     assert.ok(typeof result !== 'string' && result.kind === 'tactic');
     const goals = result.tactic.decompose();
     assert.strictEqual(goals.length, 2);
@@ -131,7 +134,7 @@ describe('contradiction', function() {
     const p = new AtomProp(ParseFormula('x < y'));
     const notP = new NotProp(ParseFormula('x < y'));
     const envWithBoth = new NestedEnv(env, [['x', 'Int'], ['y', 'Int']], [p, notP]);
-    const result = ParseProofMethod('contradiction x < y', formula, envWithBoth, []);
+    const result = ParseProofMethod('contradiction x < y', goal, envWithBoth, []);
     assert.ok(typeof result !== 'string' && result.kind === 'tactic');
     const goals = result.tactic.decompose();
     const remaining = filterDischargedGoals(goals);
@@ -141,7 +144,7 @@ describe('contradiction', function() {
   it('one goal remains when only P is known', function() {
     const p = new AtomProp(ParseFormula('x < y'));
     const envWithP = new NestedEnv(env, [['x', 'Int'], ['y', 'Int']], [p]);
-    const result = ParseProofMethod('contradiction x < y', formula, envWithP, []);
+    const result = ParseProofMethod('contradiction x < y', goal, envWithP, []);
     assert.ok(typeof result !== 'string' && result.kind === 'tactic');
     const goals = result.tactic.decompose();
     const remaining = filterDischargedGoals(goals);
@@ -165,9 +168,10 @@ describe('absurdum', function() {
 
   const env = new NestedEnv(new TopLevelEnv([], []), [['x', 'Int']]);
   const formula = ParseFormula('x = x');
+  const negGoal = new NotProp(formula);
 
   it('parses "absurdum"', function() {
-    const result = ParseProofMethod('absurdum', formula, env, []);
+    const result = ParseProofMethod('absurdum', negGoal, env, []);
     assert.ok(typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
   });
@@ -175,7 +179,7 @@ describe('absurdum', function() {
   it('decompose returns one goal: false in env with P added', function() {
     // Goal is "not x < 0", so P is "x < 0"
     const goalFormula = ParseFormula('x < 0');
-    const result = ParseProofMethod('absurdum', goalFormula, env, []);
+    const result = ParseProofMethod('absurdum', new NotProp(goalFormula), env, []);
     assert.ok(typeof result !== 'string' && result.kind === 'tactic');
     const goals = result.tactic.decompose();
     assert.strictEqual(goals.length, 1);
@@ -200,9 +204,13 @@ describe('left', function() {
 
   const env = new NestedEnv(new TopLevelEnv([], []), [['x', 'Int']]);
   const formula = ParseFormula('x < 0');
+  const orGoal = new OrProp([
+    new AtomProp(ParseFormula('x < 0')),
+    new AtomProp(ParseFormula('0 <= x')),
+  ]);
 
   it('parses "left"', function() {
-    const result = ParseProofMethod('left', formula, env, []);
+    const result = ParseProofMethod('left', orGoal, env, []);
     assert.ok(typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
   });
@@ -250,9 +258,13 @@ describe('right', function() {
 
   const env = new NestedEnv(new TopLevelEnv([], []), [['x', 'Int']]);
   const formula = ParseFormula('x < 0');
+  const orGoal = new OrProp([
+    new AtomProp(ParseFormula('x < 0')),
+    new AtomProp(ParseFormula('0 <= x')),
+  ]);
 
   it('parses "right"', function() {
-    const result = ParseProofMethod('right', formula, env, []);
+    const result = ParseProofMethod('right', orGoal, env, []);
     assert.ok(typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
   });
@@ -299,25 +311,26 @@ describe('cases (disjunction)', function() {
 
   const env = new NestedEnv(new TopLevelEnv([], []), [['x', 'Int']]);
   const formula = ParseFormula('x = x');
+  const goal = new AtomProp(formula);
 
   it('returns error for unrecognized method text', function() {
-    const result = ParseProofMethod('blah', formula, env, []);
+    const result = ParseProofMethod('blah', goal, env, []);
     assert.ok(typeof result === 'string');
   });
 
   it('parses "cases x < 0 or 0 <= x"', function() {
-    const result = ParseProofMethod('cases x < 0 or 0 <= x', formula, env, []);
+    const result = ParseProofMethod('cases x < 0 or 0 <= x', goal, env, []);
     assert.ok(typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
   });
 
   it('returns error for bad formula in cases', function() {
-    const result = ParseProofMethod('cases ??? or 0 <= x', formula, env, []);
+    const result = ParseProofMethod('cases ??? or 0 <= x', goal, env, []);
     assert.ok(typeof result === 'string');
   });
 
   it('returns error for cases without or', function() {
-    const result = ParseProofMethod('cases x < 0', formula, env, []);
+    const result = ParseProofMethod('cases x < 0', goal, env, []);
     assert.ok(typeof result === 'string');
   });
 
@@ -495,13 +508,13 @@ describe('cases (disjunction)', function() {
   });
 
   it('parses "cases" with not disjunct', function() {
-    const result = ParseProofMethod('cases x < 0 or not 0 <= x', formula, env, []);
+    const result = ParseProofMethod('cases x < 0 or not 0 <= x', goal, env, []);
     assert.ok(typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
   });
 
   it('returns error for bad not formula in cases', function() {
-    const result = ParseProofMethod('cases x < 0 or not ???', formula, env, []);
+    const result = ParseProofMethod('cases x < 0 or not ???', goal, env, []);
     assert.ok(typeof result === 'string');
   });
 
@@ -521,20 +534,30 @@ describe('have', function() {
 
   const env = new NestedEnv(new TopLevelEnv([], []), [['x', 'Int']]);
   const formula = ParseFormula('x = x');
+  const goal = new AtomProp(formula);
 
   it('parses "have x < 1"', function() {
-    const result = ParseProofMethod('have x < 1', formula, env, []);
+    const result = ParseProofMethod('have x < 1', goal, env, []);
     assert.ok(typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
   });
 
+  it('ParseProofMethod passes the actual goal to HaveTactic', function() {
+    const result = ParseProofMethod('have x < 1', goal, env, []);
+    assert.ok(typeof result !== 'string' && result.kind === 'tactic');
+    const goals = result.tactic.decompose();
+    assert.strictEqual(goals.length, 2);
+    // Second goal should be the original goal (x = x), not 0 = 0
+    assert.strictEqual(goals[1].goal.to_string(), 'x = x');
+  });
+
   it('returns null for non-have text', function() {
-    const result = ParseProofMethod('blah', formula, env, []);
+    const result = ParseProofMethod('blah', goal, env, []);
     assert.ok(typeof result === 'string');
   });
 
   it('returns error for bad proposition', function() {
-    const result = ParseProofMethod('have ???', formula, env, []);
+    const result = ParseProofMethod('have ???', goal, env, []);
     assert.ok(typeof result === 'string');
     assert.ok(result.includes('syntax error'));
   });
@@ -571,13 +594,13 @@ describe('have', function() {
   });
 
   it('works with not proposition', function() {
-    const result = ParseProofMethod('have not x < 0', formula, env, []);
+    const result = ParseProofMethod('have not x < 0', goal, env, []);
     assert.ok(typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
   });
 
   it('works with or proposition', function() {
-    const result = ParseProofMethod('have x < 0 or 0 <= x', formula, env, []);
+    const result = ParseProofMethod('have x < 0 or 0 <= x', goal, env, []);
     assert.ok(typeof result !== 'string');
     assert.strictEqual(result.kind, 'tactic');
   });

@@ -1,6 +1,6 @@
 import React from 'react';
-import { Formula } from '../facts/formula';
-import { AtomProp } from '../facts/prop';
+import { Formula, OP_EQUAL } from '../facts/formula';
+import { AtomProp, NotProp } from '../facts/prop';
 import { DeclsAst } from '../lang/decls_ast';
 import { funcToDefinitions } from '../lang/func_ast';
 import { TopLevelEnv, NestedEnv } from '../types/env';
@@ -14,6 +14,7 @@ export interface InlineProofProps {
   decls: DeclsAst;
   obligation: ProofObligation;
   initialProof?: ProofNode;
+  onStateChange?: () => void;
 }
 
 interface InlineProofState {
@@ -46,11 +47,13 @@ export default class InlineProof
     const { decls, obligation } = this.props;
     const { complete } = this.state;
 
-    if (!(obligation.goal instanceof AtomProp)) {
+    const isNotGoal = obligation.goal instanceof NotProp
+        && obligation.goal.formula.op === OP_EQUAL;
+    if (!(obligation.goal instanceof AtomProp) && !isNotGoal) {
       return (
         <div className="ip">
           <div className="ip-line">
-            <span className="ip-error-msg">Cannot prove (goal involves ≠)</span>
+            <span className="ip-error-msg">Cannot prove this goal</span>
           </div>
         </div>
       );
@@ -58,7 +61,7 @@ export default class InlineProof
 
     const bgClass = complete ? 'ip-bg-complete' : 'ip-bg-incomplete';
 
-    const goal: Formula = obligation.goal.formula;
+    const goal: Formula = (obligation.goal as AtomProp | NotProp).formula;
     const givens: AtomProp[] = obligation.premises
       .flatMap(p => p instanceof AtomProp ? [p] : []);
 
@@ -80,12 +83,14 @@ export default class InlineProof
         <InlineProofBlock
           ref={this.proofBlockRef}
           formula={goal}
+          isNegated={isNotGoal}
           env={proofEnv}
           premise={premise}
           defNames={defNames}
           indent={0}
           initialProof={this.props.initialProof}
           onComplete={(c) => this.setState({ complete: c })}
+          onStateChange={this.props.onStateChange}
         />
       </div>
     );
