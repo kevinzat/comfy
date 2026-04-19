@@ -818,6 +818,48 @@ describe('simplex', function() {
           `expected cost 6, got ${obj.to_string()}`);
     });
 
+    it('pivots degenerate artificial with positive entry and negative elsewhere', function() {
+      // Two degenerate artificials both remain in basis after Phase I since
+      // the columns' reduced costs net to zero. Pivoting the first one out
+      // via col 0 exercises: positive pivot-cell (no rowScale) and another
+      // row with a negative entry at the pivot column (a < 0 in gcd call).
+      //   x0 + x1 = 0
+      //  -x0 - x1 = 0  (redundant)
+      const entries = [
+          [ 1n,  1n],
+          [-1n, -1n]];
+      const col0 = [0n, 0n];
+      let A = new Tableau(entries.map(r => r.slice()), col0.slice());
+      const c = [1n, 1n];
+
+      const result = TwoPhaseSimplexMethod(A, c);
+      const obj = CheckTwoPhaseResult(entries, col0, c, result, A);
+      assert.ok(obj.equals(new Fraction(0n)),
+          `expected cost 0, got ${obj.to_string()}`);
+    });
+
+    it('pivots degenerate artificial out of basis after Phase I', function() {
+      // Constraints chosen so Phase I terminates with an artificial still in
+      // the basis at zero (degenerate) and the artificial's row has a negative
+      // real entry (triggers rowScale by -1) while another row has a zero
+      // entry in the pivot column (triggers the `a === 0n` skip).
+      //   x0 + x1           = 0  (degenerate; forces x0 = x1 = 0)
+      //  -x0               = 0  (degenerate; redundant, zero in x1 column)
+      //             x2 + x3 = 1
+      const entries = [
+          [ 1n, 1n, 0n, 0n],
+          [-1n, 0n, 0n, 0n],
+          [ 0n, 0n, 1n, 1n]];
+      const col0 = [0n, 0n, 1n];
+      let A = new Tableau(entries.map(r => r.slice()), col0.slice());
+      const c = [1n, 1n, 1n, 1n];
+
+      const result = TwoPhaseSimplexMethod(A, c);
+      const obj = CheckTwoPhaseResult(entries, col0, c, result, A);
+      assert.ok(obj.equals(new Fraction(1n)),
+          `expected cost 1, got ${obj.to_string()}`);
+    });
+
     it('throws when col0 is missing', function() {
       let A = new Tableau([[1n, 0n], [0n, 1n]]);
       assert.throws(() => TwoPhaseSimplexMethod(A, [1n, 1n]),

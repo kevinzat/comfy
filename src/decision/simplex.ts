@@ -197,18 +197,42 @@ export function TwoPhaseSimplexMethod(A: Tableau, c: bigint[]):
       return { status: 'infeasible' };
   }
 
-  // Any degenerate artificial variable remaining in the basis must have all-zero
-  // real non-basis column entries (provably: if any were positive, Phase I would
-  // have found them profitable and pivoted them out before converging).
+  // Phase I may converge with a degenerate artificial still in the basis: its
+  // value is 0 so the objective has nothing to gain from pivoting, but the
+  // row may still have non-zero real entries. Pivot one of those in so the
+  // artificial leaves the basis. If the real part of the row is all zero,
+  // the row is redundant and will be dropped when we build the Phase II
+  // tableau (since cols[i] >= n).
+  //
+  // We inline the pivot rather than calling Pivot(): Pivot's post-conditions
+  // assume the original basis column invariant A[row][cols[row]] > 0 still
+  // holds during the pivot, but here we're deliberately replacing an
+  // artificial whose column may temporarily go negative under row-scaling.
+  // Since col0[i] is 0, row-scaling row i does not disturb feasibility,
+  // and the inner eliminations preserve col0 non-negativity in other rows
+  // (their col0 is scaled by a positive factor, and row i's col0 = 0
+  // contributes nothing to the add).
   for (let i = 0; i < m; i++) {
     if (cols[i] < n) continue;
-
+    let pivotCol = -1;
     for (let j = 0; j < n; j++) {
-      /* v8 ignore start */
-      if (!cols.includes(j) && aug.entries[i][j] !== 0n)
-        throw new Error('unexpected: degenerate artificial with non-zero real entry');
-      /* v8 ignore stop */
+      if (!cols.includes(j) && aug.entries[i][j] !== 0n) {
+        pivotCol = j;
+        break;
+      }
     }
+    if (pivotCol < 0) continue;
+    if (aug.entries[i][pivotCol] < 0n) aug.rowScale(i, -1n);
+    const b = aug.entries[i][pivotCol];
+    for (let k = 0; k < m; k++) {
+      if (k === i) continue;
+      const a = aug.entries[k][pivotCol];
+      if (a === 0n) continue;
+      const d = gcd(a < 0n ? -a : a, b);
+      aug.rowScale(k, b / d);
+      aug.rowAddMultiple(k, i, -(a / d));
+    }
+    cols[i] = pivotCol;
   }
 
   // Build Phase II tableau: keep only non-redundant rows and real columns.

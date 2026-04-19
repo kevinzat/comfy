@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import { ParseFormula } from '../facts/formula_parser';
 import { AtomProp, NotProp, ConstProp } from '../facts/prop';
-import { Formula, OP_LESS_THAN } from '../facts/formula';
+import { Formula, OP_LESS_THAN, OP_LESS_EQUAL } from '../facts/formula';
 import { TopLevelEnv, NestedEnv } from '../types/env';
 import { ParseProofMethod, FindProofMethodMatches, CreateProofTactic } from './proof_tactic';
 import { AutoTactic } from './auto';
@@ -135,6 +135,108 @@ describe('auto: textbook problems', function() {
 });
 
 
+describe('auto: inequality goals and knowns', function() {
+
+  function ineq(left: string, op: typeof OP_LESS_THAN | typeof OP_LESS_EQUAL,
+                right: string): Formula {
+    // The parser only produces equations; build inequality formulas by hand
+    // from the two sides of a throw-away equation.
+    return new Formula(ParseFormula(`${left} = x`).left, op,
+                       ParseFormula(`x = ${right}`).right);
+  }
+
+  it('proves a < b given a = 0 and b = 1', function() {
+    const env = mkEnv([ParseFormula('a = 0'), ParseFormula('b = 1')]);
+    const goal = new AtomProp(ineq('a', OP_LESS_THAN, 'b'));
+    const tactic = new AutoTactic(env, goal, [1, 2]);
+    assert.deepStrictEqual(tactic.decompose(), []);
+  });
+
+  it('proves a <= b from inequality knowns: a <= c and c <= b', function() {
+    const env = new NestedEnv(
+        new TopLevelEnv([], []),
+        [['a', 'Int'], ['b', 'Int'], ['c', 'Int']],
+        [new AtomProp(ineq('a', OP_LESS_EQUAL, 'c')),
+         new AtomProp(ineq('c', OP_LESS_EQUAL, 'b'))]);
+    const goal = new AtomProp(ineq('a', OP_LESS_EQUAL, 'b'));
+    const tactic = new AutoTactic(env, goal, [1, 2]);
+    assert.deepStrictEqual(tactic.decompose(), []);
+  });
+
+  it('proves a < c from strict inequality chain: a < b and b < c', function() {
+    const env = new NestedEnv(
+        new TopLevelEnv([], []),
+        [['a', 'Int'], ['b', 'Int'], ['c', 'Int']],
+        [new AtomProp(ineq('a', OP_LESS_THAN, 'b')),
+         new AtomProp(ineq('b', OP_LESS_THAN, 'c'))]);
+    const goal = new AtomProp(ineq('a', OP_LESS_THAN, 'c'));
+    const tactic = new AutoTactic(env, goal, [1, 2]);
+    assert.deepStrictEqual(tactic.decompose(), []);
+  });
+
+  it('fails when the inequality goal is not derivable', function() {
+    const env = mkEnv([ParseFormula('a = 1'), ParseFormula('b = 1')]);
+    const goal = new AtomProp(ineq('a', OP_LESS_THAN, 'b'));
+    assert.throws(
+        () => new AutoTactic(env, goal, [1, 2]).decompose(),
+        (e: unknown) => e instanceof UserError);
+  });
+
+  it('uses inequality knowns to prove an equation: a = b from a <= b, b <= a', function() {
+    const env = new NestedEnv(
+        new TopLevelEnv([], []),
+        [['a', 'Int'], ['b', 'Int']],
+        [new AtomProp(ineq('a', OP_LESS_EQUAL, 'b')),
+         new AtomProp(ineq('b', OP_LESS_EQUAL, 'a'))]);
+    const goal = new AtomProp(ParseFormula('a = b'));
+    const tactic = new AutoTactic(env, goal, [1, 2]);
+    assert.deepStrictEqual(tactic.decompose(), []);
+  });
+
+});
+
+
+describe('auto: canonicalization via e-graph', function() {
+
+  it('proves g(f(a)) = g(4) given f(a) + 1 = 5 (algebra then congruence)', function() {
+    const env = mkEnv([ParseFormula('f(a) + 1 = 5')]);
+    const goal = new AtomProp(ParseFormula('g(f(a)) = g(4)'));
+    const tactic = new AutoTactic(env, goal, [1]);
+    assert.deepStrictEqual(tactic.decompose(), []);
+  });
+
+  it('proves f(c) = 10 given f(a+b) = 10, a+b = c (congruence + canonicalization)', function() {
+    const env = mkEnv([ParseFormula('f(a + b) = 10'), ParseFormula('a + b = c')]);
+    const goal = new AtomProp(ParseFormula('f(c) = 10'));
+    const tactic = new AutoTactic(env, goal, [1, 2]);
+    assert.deepStrictEqual(tactic.decompose(), []);
+  });
+
+  it('handles three arithmetically-equal opaque wrappers (transitive merge)', function() {
+    // 2*a, a+a, and a*2 all normalize to 2*a but their f(...) wrappers start
+    // in three separate e-classes. The algebra pass unions (2*a, a+a) and
+    // (2*a, a*2); by the time we check (a+a, a*2) they are already
+    // equivalent via transitivity, exercising the equiv-skip branch.
+    const env = mkEnv([
+      ParseFormula('f(2*a) = b'),
+      ParseFormula('f(a+a) = c'),
+      ParseFormula('f(a*2) = d'),
+    ]);
+    const goal = new AtomProp(ParseFormula('b = c'));
+    const tactic = new AutoTactic(env, goal, [1, 2, 3]);
+    assert.deepStrictEqual(tactic.decompose(), []);
+  });
+
+  it('proves f(a) + g(b) = 10 given f(a) = 3, g(b) = 7', function() {
+    const env = mkEnv([ParseFormula('f(a) = 3'), ParseFormula('g(b) = 7')]);
+    const goal = new AtomProp(ParseFormula('f(a) + g(b) = 10'));
+    const tactic = new AutoTactic(env, goal, [1, 2]);
+    assert.deepStrictEqual(tactic.decompose(), []);
+  });
+
+});
+
+
 describe('auto: failure cases', function() {
 
   it('throws when the equation is not provable', function() {
@@ -153,21 +255,12 @@ describe('auto: failure cases', function() {
         (e: unknown) => e instanceof UserError);
   });
 
-  it('throws when the goal is not an equation (inequality)', function() {
-    const env = mkEnv();
-    const goal = new AtomProp(new Formula(
-        ParseFormula('a = a').left, OP_LESS_THAN, ParseFormula('a = a').right));
-    assert.throws(
-        () => new AutoTactic(env, goal, []),
-        (e: unknown) => e instanceof UserError && /equation/.test(e.message));
-  });
-
   it('throws when the goal is not an atom', function() {
     const env = mkEnv();
     const goal = new NotProp(ParseFormula('a = b'));
     assert.throws(
         () => new AutoTactic(env, goal, []),
-        (e: unknown) => e instanceof UserError && /equation/.test(e.message));
+        (e: unknown) => e instanceof UserError);
   });
 
   it('throws when the goal is a constant prop', function() {
@@ -175,15 +268,6 @@ describe('auto: failure cases', function() {
     assert.throws(
         () => new AutoTactic(env, new ConstProp(true), []),
         (e: unknown) => e instanceof UserError);
-  });
-
-  it('throws when a cited fact is not an equation', function() {
-    const env = mkEnv([new Formula(
-        ParseFormula('a = a').left, OP_LESS_THAN, ParseFormula('a = b').right)]);
-    const goal = new AtomProp(ParseFormula('a = a'));
-    assert.throws(
-        () => new AutoTactic(env, goal, [1]),
-        (e: unknown) => e instanceof UserError && /not an equation/.test(e.message));
   });
 
   it('throws when a cited fact is not an atomic prop', function() {
@@ -194,7 +278,7 @@ describe('auto: failure cases', function() {
     const goal = new AtomProp(ParseFormula('a = a'));
     assert.throws(
         () => new AutoTactic(nestedEnv, goal, [1]),
-        (e: unknown) => e instanceof UserError && /not an equation/.test(e.message));
+        (e: unknown) => e instanceof UserError);
   });
 
   it('throws when the fact index is out of range', function() {
@@ -225,12 +309,19 @@ describe('auto: ParseProofMethod integration', function() {
     assert.ok(typeof result !== 'string' && result.kind === 'tactic');
   });
 
-  it('rejects "auto" when the goal is not an equation', function() {
+  it('accepts "auto" with an inequality goal', function() {
     const ineqGoal = new AtomProp(new Formula(
-        ParseFormula('a = a').left, OP_LESS_THAN, ParseFormula('a = a').right));
+        ParseFormula('a + 1 = a + 1').left, OP_LESS_EQUAL,
+        ParseFormula('a + 1 = a + 1').right));
     const result = ParseProofMethod('auto', ineqGoal, env, []);
+    assert.ok(typeof result !== 'string' && result.kind === 'tactic');
+  });
+
+  it('rejects "auto" when the goal is not an atom', function() {
+    const notGoal = new NotProp(ParseFormula('a = b'));
+    const result = ParseProofMethod('auto', notGoal, env, []);
     assert.ok(typeof result === 'string');
-    assert.ok(/equation/.test(result));
+    assert.ok(/equation or inequality/.test(result));
   });
 
   it('returns the UserError message when a cited fact is out of range', function() {

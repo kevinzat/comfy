@@ -123,6 +123,18 @@ describe('inequality', function() {
         ParseFormula("x = 3")));
   });
 
+  it('a <= b, b <= a implies a = b', function() {
+    assert.ok(IsInequalityImplied(
+        [ParseFormula("a <= b"), ParseFormula("b <= a")],
+        ParseFormula("a = b")));
+  });
+
+  it('x <= y, y <= x does not imply x = y + 1', function() {
+    assert.ok(!IsInequalityImplied(
+        [ParseFormula("x <= y"), ParseFormula("y <= x")],
+        ParseFormula("x = y + 1")));
+  });
+
   it('3 <= x does not imply x = 3', function() {
     assert.ok(!IsInequalityImplied(
         [ParseFormula("3 <= x")],
