@@ -40,6 +40,7 @@ export class ProofWidget extends WidgetType {
     const obligation = theoremToProofObligation(this.theorem);
     const props: React.ClassAttributes<InlineProof> & InlineProofProps = {
       ref: (instance: InlineProof | null) => { this.inlineProof = instance; },
+      theoremName: this.theorem.name,
       decls: this.decls,
       obligation,
       initialProof: this.initialProof,

@@ -80,6 +80,16 @@ export interface Environment {
   /** Returns true if the given prop is equivalent to any known fact. */
   isKnownFact(prop: Prop): boolean;
 
+  /**
+   * Returns the facts contributed by nested (non-top-level) layers only,
+   * in order. Used by `auto` to auto-include locally-scoped knowns while
+   * still requiring top-level facts to be cited explicitly.
+   */
+  getLocalFacts(): Prop[];
+
+  /** Returns the theorems contributed by nested (non-top-level) layers only. */
+  getLocalTheorems(): TheoremAst[];
+
   /** Returns true if a theorem with the given name is defined. */
   hasTheorem(name: string): boolean;
   /**
@@ -275,6 +285,14 @@ export class TopLevelEnv implements Environment {
   isKnownFact(prop: Prop): boolean {
     return this.facts.some(f => f.equivalent(prop));
   }
+
+  getLocalFacts(): Prop[] {
+    return [];
+  }
+
+  getLocalTheorems(): TheoremAst[] {
+    return [];
+  }
 }
 
 /**
@@ -369,5 +387,13 @@ export class NestedEnv implements Environment {
   isKnownFact(prop: Prop): boolean {
     return this.localFacts.some(f => f.equivalent(prop)) ||
         this.parent.isKnownFact(prop);
+  }
+
+  getLocalFacts(): Prop[] {
+    return [...this.parent.getLocalFacts(), ...this.localFacts];
+  }
+
+  getLocalTheorems(): TheoremAst[] {
+    return [...this.parent.getLocalTheorems(), ...this.localTheorems];
   }
 }

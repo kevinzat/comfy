@@ -348,18 +348,54 @@ export class AutoTactic implements ProofTactic {
   private goalFormula: Formula;
   private known: Formula[];
 
-  constructor(env: Environment, goal: Prop, refs: number[]) {
+  constructor(env: Environment, goal: Prop, refs: Array<number | string>) {
     if (goal.tag !== 'atom' || !isSupportedOp(goal.formula.op))
       throw new UserError('auto requires an equation or inequality goal', 0, 0, 0);
     this.env = env;
     this.goalFormula = goal.formula;
-    this.known = refs.map(i => {
-      const prop = env.getFact(i);
-      if (!(prop instanceof AtomProp) || !isSupportedOp(prop.formula.op))
+
+    // Start with all nested (non-top-level) knowns: facts from enclosing
+    // case/proof scopes and theorems like the IH from induction. Unsupported
+    // shapes are silently skipped — the user didn't cite them.
+    this.known = [];
+    for (const fact of env.getLocalFacts()) {
+      if (fact instanceof AtomProp && isSupportedOp(fact.formula.op))
+        this.known.push(fact.formula);
+    }
+    for (const thm of env.getLocalTheorems()) {
+      if (thm.params.length > 0) continue;
+      if (thm.premises.length > 0) continue;
+      if (thm.conclusion instanceof AtomProp &&
+          isSupportedOp(thm.conclusion.formula.op))
+        this.known.push(thm.conclusion.formula);
+    }
+
+    // Then add explicit refs: numbers index into facts, names must resolve
+    // to a theorem. Citations validate strictly — mismatches are errors.
+    for (const ref of refs) {
+      if (typeof ref === 'number') {
+        const prop = env.getFact(ref);
+        if (!(prop instanceof AtomProp) || !isSupportedOp(prop.formula.op))
+          throw new UserError(
+              `auto: fact ${ref} is not an equation or inequality`, 0, 0, 0);
+        this.known.push(prop.formula);
+        continue;
+      }
+      if (!env.hasTheorem(ref))
+        throw new UserError(`auto: no theorem named "${ref}"`, 0, 0, 0);
+      const thm = env.getTheorem(ref);
+      if (thm.params.length > 0)
         throw new UserError(
-            `auto: fact ${i} is not an equation or inequality`, 0, 0, 0);
-      return prop.formula;
-    });
+            `auto: theorem "${ref}" has parameters (not yet supported)`, 0, 0, 0);
+      if (thm.premises.length > 0)
+        throw new UserError(
+            `auto: theorem "${ref}" has premises (not yet supported)`, 0, 0, 0);
+      if (!(thm.conclusion instanceof AtomProp) ||
+          !isSupportedOp(thm.conclusion.formula.op))
+        throw new UserError(
+            `auto: theorem "${ref}" is not an equation or inequality`, 0, 0, 0);
+      this.known.push(thm.conclusion.formula);
+    }
   }
 
   decompose(): ProofGoal[] {

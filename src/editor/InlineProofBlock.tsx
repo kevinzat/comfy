@@ -102,7 +102,8 @@ export default class InlineProofBlock
         focus: false,
         collapsed: false,
       };
-    } catch (_e) {
+    } catch (e) {
+      console.error('tryInitTactic: decompose threw for', methodText, e);
       return null;
     }
   }

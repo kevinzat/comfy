@@ -2,6 +2,7 @@ import { EditorView } from '@codemirror/view';
 import { Menu, Submenu, MenuItem, PredefinedMenuItem } from '@tauri-apps/api/menu';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { buildProofText, buildProofFile } from './UnifiedEditor';
 import { toLean } from '../proof/lean';
 
@@ -58,6 +59,25 @@ export function installNativeMenu(view: EditorView): () => void {
     await writeTextFile(path, toLean(buildProofFile(view)));
   };
 
+  const viewLog = async () => {
+    const existing = await WebviewWindow.getByLabel('log');
+    if (existing) {
+      await existing.show();
+      await existing.setFocus();
+      return;
+    }
+    const win = new WebviewWindow('log', {
+      url: 'index.html#log',
+      title: 'Comfy Log',
+      width: 900,
+      height: 600,
+      resizable: true,
+    });
+    win.once('tauri://error', (e) => {
+      console.error('Failed to open log window', e);
+    });
+  };
+
   (async () => {
     const fileItems = await Promise.all([
       MenuItem.new({ text: 'New', accelerator: 'CmdOrCtrl+N', action: newProof }),
@@ -71,10 +91,26 @@ export function installNativeMenu(view: EditorView): () => void {
     ]);
     const fileMenu = await Submenu.new({ text: 'File', items: fileItems });
 
+    const viewItems = await Promise.all([
+      MenuItem.new({ text: 'View Log', accelerator: 'CmdOrCtrl+Shift+L', action: viewLog }),
+    ]);
+    const viewMenu = await Submenu.new({ text: 'View', items: viewItems });
+
     const menu = await Menu.default();
     if (cancelled) return;
-    // Insert File submenu just after the macOS app menu (position 1).
+    // Menu.default() on macOS includes File/Edit/View/Window/Help submenus.
+    // Keep the app menu and Edit; drop the rest so we can supply our own.
+    for (const item of await menu.items()) {
+      if (item.kind === 'Submenu') {
+        const t = await (item as Submenu).text();
+        if (t === 'File' || t === 'View' || t === 'Window' || t === 'Help') {
+          await menu.remove(item);
+        }
+      }
+    }
+    // Standard macOS order: App, File, Edit, View.
     await menu.insert(fileMenu, 1);
+    await menu.append(viewMenu);
     if (cancelled) return;
     await menu.setAsAppMenu();
   })().catch((e) => {

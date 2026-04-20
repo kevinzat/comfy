@@ -47,6 +47,14 @@ export default class InlineCaseBlock
     this.proofBlockRefs = props.goals.map(() => React.createRef<InlineProofBlock>());
   }
 
+  componentDidMount() {
+    // A tactic that decomposes to zero subgoals (e.g. `auto` discharging
+    // an equation, `verum`) produces an empty goals array. With nothing
+    // to render, no child ever fires onComplete, so the parent would
+    // otherwise stay incomplete. Report vacuous completion explicitly.
+    if (this.props.goals.length === 0) this.props.onComplete?.(true);
+  }
+
   private handleCaseComplete(index: number, complete: boolean) {
     this.setState(prev => {
       const caseComplete = prev.caseComplete.slice();

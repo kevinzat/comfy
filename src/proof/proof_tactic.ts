@@ -41,7 +41,7 @@ export type TacticMethod =
   | { kind: 'disj_cases'; condition: string }
   | { kind: 'type_cases'; varName: string; argNames?: string[] }
   | { kind: 'have'; condition: string }
-  | { kind: 'auto'; refs: number[] };
+  | { kind: 'auto'; refs: Array<number | string> };
 
 export function parseTacticMethod(text: string): TacticMethod | null {
   const trimmed = text.trim();
@@ -88,10 +88,10 @@ export function parseTacticMethod(text: string): TacticMethod | null {
     return { kind: 'simple_cases', condition: casesMatch[1] };
   }
 
-  const autoMatch = trimmed.match(/^auto(?:\s+(\d+(?:\s+\d+)*))?$/);
+  const autoMatch = trimmed.match(/^auto(?:\s+([A-Za-z_0-9][\w]*(?:\s+[A-Za-z_0-9][\w]*)*))?$/);
   if (autoMatch) {
-    const refs = autoMatch[1]
-        ? autoMatch[1].split(/\s+/).map(s => parseInt(s, 10))
+    const refs: Array<number | string> = autoMatch[1]
+        ? autoMatch[1].split(/\s+/).map(s => /^\d+$/.test(s) ? parseInt(s, 10) : s)
         : [];
     return { kind: 'auto', refs };
   }

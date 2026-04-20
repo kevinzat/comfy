@@ -4,13 +4,14 @@ import { AtomProp, NotProp } from '../facts/prop';
 import { DeclsAst } from '../lang/decls_ast';
 import { funcToDefinitions } from '../lang/func_ast';
 import { TopLevelEnv, NestedEnv } from '../types/env';
-import { ProofObligation } from '../program/obligations';
+import { ProofObligation, oblKey } from '../program/obligations';
 import { ProofEntry, ProofNode, GivenLine } from '../proof/proof_file';
 import InlineProofBlock from './InlineProofBlock';
 import './InlineProof.css';
 
 
 export interface InlineProofProps {
+  theoremName: string;
   decls: DeclsAst;
   obligation: ProofObligation;
   initialProof?: ProofNode;
@@ -25,10 +26,59 @@ export default class InlineProof
     extends React.Component<InlineProofProps, InlineProofState> {
 
   private proofBlockRef = React.createRef<InlineProofBlock>();
+  /**
+   * Snapshot of (decls, obligation) captured each time the proof becomes
+   * complete. On a later regression, we diff the current props against this
+   * to describe what changed — helpful for diagnosing "the proof turned pink
+   * when I edited unrelated text" cases.
+   */
+  private lastCompleteSnapshot: {
+    decls: DeclsAst;
+    oblKey: string;
+    initialProof: ProofNode | undefined;
+  } | null = null;
 
   constructor(props: InlineProofProps) {
     super(props);
     this.state = { complete: false };
+  }
+
+  componentDidUpdate(_prevProps: InlineProofProps, prevState: InlineProofState) {
+    if (prevState.complete && !this.state.complete) {
+      this.logRegression();
+    }
+    if (!prevState.complete && this.state.complete) {
+      this.lastCompleteSnapshot = {
+        decls: this.props.decls,
+        oblKey: oblKey(this.props.obligation),
+        initialProof: this.props.initialProof,
+      };
+    }
+  }
+
+  private logRegression(): void {
+    const { theoremName, decls, obligation, initialProof } = this.props;
+    const goalStr = obligation.goal.tag === 'atom'
+        ? obligation.goal.formula.to_string()
+        : obligation.goal.tag === 'not'
+            ? `not ${obligation.goal.formula.to_string()}`
+            : String(obligation.goal);
+    const snap = this.lastCompleteSnapshot;
+    const diff: string[] = [];
+    if (!snap) {
+      diff.push('no prior snapshot');
+    } else {
+      if (snap.decls !== decls) diff.push('decls rebuilt');
+      const newKey = oblKey(obligation);
+      if (snap.oblKey !== newKey)
+        diff.push(`obligation changed (was "${snap.oblKey}", now "${newKey}")`);
+      if (snap.initialProof !== initialProof) diff.push('initialProof replaced');
+      if (diff.length === 0)
+        diff.push('no prop change detected (regression came from inside the proof)');
+    }
+    console.error(
+        `Proof "${theoremName}" regressed from complete to incomplete. ` +
+        `Goal: ${goalStr}. Changes since last complete: ${diff.join('; ')}.`);
   }
 
   /** Returns a ProofEntry for serialization (text/Lean export). */

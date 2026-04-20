@@ -7,11 +7,14 @@ import { ParseProofMethod, FindProofMethodMatches, CreateProofTactic } from './p
 import { AutoTactic } from './auto';
 import { UserError } from '../facts/user_error';
 import { TypeDeclAst, ConstructorAst } from '../lang/type_ast';
+import { TheoremAst } from '../lang/theorem_ast';
 import {
   FuncAst, TypeAst, CaseAst, ExprBody, IfBranch, IfElseBody,
   ParamVar, ParamConstructor,
 } from '../lang/func_ast';
 import { Constant, Variable, Call } from '../facts/exprs';
+import { parseProofFile } from './proof_file';
+import { checkProofFile } from './proof_file_checker';
 
 
 function mkEnv(facts: Formula[] = []) {
@@ -474,6 +477,27 @@ describe('auto: defof-based equality proofs', function() {
     assert.deepStrictEqual(tactic.decompose(), []);
   });
 
+  it('proves task3 inductive step with IH as a theorem (real induction setup)',
+      function() {
+    // Matches how induction.ts actually stores the IH: as a zero-arity,
+    // no-premises TheoremAst, not as a Prop fact.
+    const ihTheorem = new TheoremAst(
+        'IH', [], [],
+        new AtomProp(ParseFormula('sum(skip(echo(M))) = sum(M)')));
+    const env = new NestedEnv(
+        new TopLevelEnv([listType],
+            [lenFunc, sumFunc, keepFunc, skipFunc, echoFunc, absFunc]),
+        [['a', 'Int'], ['M', 'List']],
+        [],
+        [ihTheorem]);
+    const goal = new AtomProp(
+        ParseFormula('sum(skip(echo(cons(a, M)))) = sum(cons(a, M))'));
+    const parsed = ParseProofMethod('auto IH', goal, env, []);
+    assert.ok(typeof parsed !== 'string' && parsed.kind === 'tactic',
+        `expected tactic, got: ${typeof parsed === 'string' ? parsed : parsed.kind}`);
+    assert.deepStrictEqual(parsed.tactic.decompose(), []);
+  });
+
   it('still supports pure congruence (no defs needed)', function() {
     const env = mkListEnv([['P', 'List'], ['Q', 'List']],
         [ParseFormula('P = Q')]);
@@ -499,6 +523,107 @@ describe('auto: defof-based equality proofs', function() {
     assert.throws(
         () => new AutoTactic(env, goal, []).decompose(),
         (e: unknown) => e instanceof UserError && /could not prove/.test(e.message));
+  });
+
+});
+
+
+describe('auto: auto-includes nested knowns', function() {
+
+  it('bare auto uses a nested fact without an explicit ref', function() {
+    // `a = b` lives in a NestedEnv layer. Bare `auto` must still use it.
+    const env = mkEnv([ParseFormula('a = b')]);
+    const goal = new AtomProp(ParseFormula('f(a) = f(b)'));
+    const tactic = new AutoTactic(env, goal, []);
+    assert.deepStrictEqual(tactic.decompose(), []);
+  });
+
+  it('bare auto uses the IH from induction (task3 inductive step)',
+      function() {
+    // Mirrors how induction.ts stores the IH: as a TheoremAst in a
+    // NestedEnv layer. Bare `auto` must pull this in.
+    const ihTheorem = new TheoremAst(
+        'IH', [], [],
+        new AtomProp(ParseFormula('sum(skip(echo(M))) = sum(M)')));
+    const env = new NestedEnv(
+        new TopLevelEnv([listType],
+            [lenFunc, sumFunc, keepFunc, skipFunc, echoFunc, absFunc]),
+        [['a', 'Int'], ['M', 'List']],
+        [],
+        [ihTheorem]);
+    const goal = new AtomProp(
+        ParseFormula('sum(skip(echo(cons(a, M)))) = sum(cons(a, M))'));
+    const tactic = new AutoTactic(env, goal, []);
+    assert.deepStrictEqual(tactic.decompose(), []);
+  });
+
+  it('bare auto does NOT use a top-level theorem', function() {
+    // A top-level theorem `ab: a = b` must be cited by name, not
+    // auto-included. Without the ref, the goal should be unprovable.
+    const abTheorem = new TheoremAst(
+        'ab', [], [],
+        new AtomProp(ParseFormula('a = b')));
+    const env = new NestedEnv(
+        new TopLevelEnv([], [], [], [abTheorem]),
+        [['a', 'Int'], ['b', 'Int']]);
+    const goal = new AtomProp(ParseFormula('f(a) = f(b)'));
+    assert.throws(
+        () => new AutoTactic(env, goal, []).decompose(),
+        (e: unknown) => e instanceof UserError && /could not prove/.test(e.message));
+    // But cited by name, it works.
+    const withRef = new AutoTactic(env, goal, ['ab']);
+    assert.deepStrictEqual(withRef.decompose(), []);
+  });
+
+  it('explicit refs combine with auto-included nested knowns', function() {
+    // Nested fact `a = b`; top-level theorem `bc: b = c`. Goal `f(a) = f(c)`
+    // needs both. Bare auto can't close it; `auto bc` should.
+    const bcTheorem = new TheoremAst(
+        'bc', [], [],
+        new AtomProp(ParseFormula('b = c')));
+    const env = new NestedEnv(
+        new TopLevelEnv([], [], [], [bcTheorem]),
+        [['a', 'Int'], ['b', 'Int'], ['c', 'Int']],
+        [new AtomProp(ParseFormula('a = b'))]);
+    const goal = new AtomProp(ParseFormula('f(a) = f(c)'));
+    // Bare auto has only a = b; can't bridge to c.
+    assert.throws(
+        () => new AutoTactic(env, goal, []).decompose(),
+        (e: unknown) => e instanceof UserError && /could not prove/.test(e.message));
+    // With bc cited: nested a = b still auto-included, plus bc = b = c.
+    const tactic = new AutoTactic(env, goal, ['bc']);
+    assert.deepStrictEqual(tactic.decompose(), []);
+  });
+
+  it('silently skips nested facts that are not equations/inequalities',
+      function() {
+    // A NotProp local fact is not a supported known shape. Bare auto
+    // must not throw — just ignore it.
+    const env = new NestedEnv(
+        new TopLevelEnv([], []),
+        [['a', 'Int'], ['b', 'Int']],
+        [new NotProp(ParseFormula('a = b')),
+         new AtomProp(ParseFormula('a = b'))]);
+    const goal = new AtomProp(ParseFormula('f(a) = f(b)'));
+    const tactic = new AutoTactic(env, goal, []);
+    assert.deepStrictEqual(tactic.decompose(), []);
+  });
+
+  it('silently skips nested theorems with params or premises', function() {
+    // Parametric or premised theorems aren't yet supported by auto's
+    // core; for bare auto they should be skipped, not trigger an error.
+    const thmWithParams = new TheoremAst(
+        'withParams', [['x', 'Int']], [],
+        new AtomProp(ParseFormula('x = x')));
+    const env = new NestedEnv(
+        new TopLevelEnv([], []),
+        [['a', 'Int']],
+        [],
+        [thmWithParams]);
+    const goal = new AtomProp(ParseFormula('a = a'));
+    // Should not throw — skipped silently; a = a still proves by reflexivity.
+    const tactic = new AutoTactic(env, goal, []);
+    assert.deepStrictEqual(tactic.decompose(), []);
   });
 
 });
@@ -625,6 +750,53 @@ describe('auto: sec2.prf calculation blocks', function() {
         ParseFormula('sum(skip(echo(cons(a, M)))) = sum(cons(a, M))'));
     const tactic = new AutoTactic(env, goal, [1]);
     assert.deepStrictEqual(tactic.decompose(), []);
+  });
+
+  it('task3 via full pipeline: inductive step uses bare "by auto"', function() {
+    // User's actual workflow: delete the proof, redo with "induction on L",
+    // then bare "auto" in each case. Bare auto must auto-include the IH
+    // from the nested env without the user citing it.
+    const source = `type List
+| nil : List
+| cons : (Int, List) -> List
+
+def keep : (List) -> List
+| keep(nil) => nil
+| keep(cons(x, L)) => cons(x, skip(L))
+
+def skip : (List) -> List
+| skip(nil) => nil
+| skip(cons(x, L)) => keep(L)
+
+def echo : (List) -> List
+| echo(nil) => nil
+| echo(cons(x, L)) => cons(x, cons(x, echo(L)))
+
+def sum : (List) -> Int
+| sum(nil) => 0
+| sum(cons(x, L)) => x + sum(L)
+
+theorem task3 (L : List)
+| sum(skip(echo(L))) = sum(L)
+
+prove task3 by induction on L
+
+  case nil:
+    prove sum(skip(echo(nil))) = sum(nil) by calculation
+    sum(skip(echo(nil)))
+    defof echo_1
+    defof skip_1
+
+  case cons(a, M):
+    given IH : sum(skip(echo(M))) = sum(M)
+    prove sum(skip(echo(cons(a, M)))) = sum(cons(a, M)) by auto
+`;
+    const result = parseProofFile(source);
+    assert.deepStrictEqual(result.errors, [],
+        `parse errors: ${result.errors.map(e => e.message).join('\n')}`);
+    const checkResult = checkProofFile(result.file);
+    assert.deepStrictEqual(checkResult.errors, [],
+        `check errors: ${checkResult.errors.map(e => e.message).join('\n')}`);
   });
 
 });
