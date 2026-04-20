@@ -55,6 +55,8 @@ export interface Environment {
    * @throws Error if the function is not defined. Use hasFunction to check first.
    */
   getFunctionDecl(name: string): FuncAst;
+  /** Returns the names of all defined functions visible from this environment. */
+  functionNames(): string[];
 
   /** Returns true if a variable with the given name is defined. */
   hasVariable(name: string): boolean;
@@ -230,6 +232,10 @@ export class TopLevelEnv implements Environment {
     return this.functions.get(name)![1];
   }
 
+  functionNames(): string[] {
+    return Array.from(this.functions.keys());
+  }
+
   hasTheorem(name: string): boolean {
     return this.theorems_.some(t => t.name === name);
   }
@@ -317,6 +323,7 @@ export class NestedEnv implements Environment {
   hasFunction(name: string): boolean { return this.parent.hasFunction(name); }
   getFunctionType(name: string): Type { return this.parent.getFunctionType(name); }
   getFunctionDecl(name: string): FuncAst { return this.parent.getFunctionDecl(name); }
+  functionNames(): string[] { return this.parent.functionNames(); }
   hasTheorem(name: string): boolean {
     return this.localTheorems.some(t => t.name === name) ||
         this.parent.hasTheorem(name);

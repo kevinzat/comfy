@@ -320,7 +320,9 @@ export class EGraph {
     const costs = new Map<EClassId, { cost: number; node: ENode }>();
     let changed = true;
     // Iterate to a fixpoint. Each pass can only lower costs, and costs are
-    // bounded below by 1, so this terminates in finitely many passes.
+    // bounded below by 1, so this terminates in finitely many passes. A class
+    // whose only nodes reference not-yet-costed classes is skipped this pass
+    // and retried on the next — its children may become costable later.
     while (changed) {
       changed = false;
       for (const cls of this.classes.values()) {
@@ -338,15 +340,21 @@ export class EGraph {
             best = { cost: total, node };
           }
         }
-        /* v8 ignore start */
-        if (best === undefined) throw new Error(`no costable node for class ${cls.id}`);
-        /* v8 ignore stop */
+        if (best === undefined) continue;
         const prev = costs.get(cls.id);
         if (prev === undefined || prev.cost > best.cost) {
           costs.set(cls.id, best);
           changed = true;
         }
       }
+    }
+    // At the fixpoint, any class still without a cost is part of a pure
+    // function-call cycle with no leaf anywhere reachable — not extractable.
+    for (const cls of this.classes.values()) {
+      /* v8 ignore start */
+      if (!costs.has(cls.id))
+        throw new Error(`no costable node for class ${cls.id}`);
+      /* v8 ignore stop */
     }
     return costs;
   }
